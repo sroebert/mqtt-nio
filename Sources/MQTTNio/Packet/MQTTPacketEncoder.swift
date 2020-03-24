@@ -17,7 +17,7 @@ final class MQTTPacketEncoder: MessageToByteEncoder {
     func encode(data message: MQTTPacket, out: inout ByteBuffer) throws {
         var message = message
         // serialize header
-        out.writeInteger(message.identifier.value | message.fixedHeaderData)
+        out.writeInteger(message.kind.value | message.fixedHeaderData)
         
         // write size
         try writeMessageSize(message.data.readableBytes, out: &out)
@@ -25,7 +25,7 @@ final class MQTTPacketEncoder: MessageToByteEncoder {
         // serialize the message data
         out.writeBuffer(&message.data)
         
-        self.logger?.trace("Encoded: MQTTPacket (\(message.identifier))")
+        self.logger?.trace("Encoded: MQTTPacket (\(message.kind))")
     }
     
     private func writeMessageSize(_ size: Int, out: inout ByteBuffer) throws {

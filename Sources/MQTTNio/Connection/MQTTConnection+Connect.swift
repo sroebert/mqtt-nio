@@ -15,7 +15,11 @@ extension MQTTConnection {
         return bootstrap.connect(to: socketAddress).flatMap { channel in
             return channel.pipeline.addHandlers([
                 ByteToMessageHandler(MQTTPacketDecoder(logger: logger)),
+                MQTTPacketTypeParser(logger: logger),
+                
                 MessageToByteHandler(MQTTPacketEncoder(logger: logger)),
+                MQTTPacketTypeSerializer(logger: logger),
+                
                 MQTTRequestHandler(logger: logger),
                 MQTTErrorHandler(logger: logger)
             ]).flatMap {

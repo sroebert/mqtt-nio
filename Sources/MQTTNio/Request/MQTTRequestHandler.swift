@@ -2,9 +2,9 @@ import NIO
 import Logging
 
 final class MQTTRequestHandler: ChannelDuplexHandler {
-    typealias InboundIn = MQTTPacket
+    typealias InboundIn = MQTTPacket.Inbound
     typealias OutboundIn = MQTTRequestContext
-    typealias OutboundOut = MQTTPacket
+    typealias OutboundOut = MQTTPacket.Outbound
 
     private var inflight: [MQTTRequestContext]
     let logger: Logger
@@ -16,26 +16,19 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
 
     private func _channelRead(context: ChannelHandlerContext, data: NIOAny) throws {
         let packet = unwrapInboundIn(data)
-        guard let index = try inflight.firstIndex(where: { try $0.delegate.shouldProcess(packet) }) else {
+        guard let index = inflight.firstIndex(where: { $0.delegate.shouldProcess(packet) }) else {
             // discard packet
             return
         }
         
         let request = inflight[index]
+        let action = try request.delegate.process(packet)
         
-        var responses: [MQTTPacket] = []
-        let result = try request.delegate.process(packet, appendResponse: { packet in
-            responses.append(packet)
-        })
-        
-        if !responses.isEmpty {
-            for response in responses {
-                context.write(wrapOutboundOut(response), promise: nil)
-            }
-            context.flush()
+        if let response = action.response {
+            context.writeAndFlush(wrapOutboundOut(response), promise: nil)
         }
         
-        switch result {
+        switch action.nextStatus {
         case .pending:
             break
             
@@ -62,19 +55,35 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
 
     func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
         let request = unwrapOutboundIn(data)
-        inflight.append(request)
         
+        let action: MQTTRequestAction
         do {
-            let packet = try request.delegate.start()
-            context.writeAndFlush(wrapOutboundOut(packet), promise: promise)
+            action = try request.delegate.start()
+            if let response = action.response {
+                context.writeAndFlush(wrapOutboundOut(response), promise: promise)
+            }
+            
         } catch {
             promise?.fail(error)
             errorCaught(context: context, error: error)
+            
+            action = .failure(error)
+        }
+        
+        switch action.nextStatus {
+        case .pending:
+            inflight.append(request)
+            
+        case .success:
+            request.promise.succeed(())
+            
+        case .failure(let error):
+            request.promise.fail(error)
         }
     }
 
     func close(context: ChannelHandlerContext, mode: CloseMode, promise: EventLoopPromise<Void>?) {
-        let disconnect = try! MQTTPacket.Disconnect().message()
+        let disconnect = MQTTPacket.Disconnect()
         context.writeAndFlush(wrapOutboundOut(disconnect), promise: nil)
         context.close(mode: mode, promise: promise)
 
@@ -83,6 +92,10 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
         }
         inflight.removeAll()
     }
+    
+    // MARK: - Utils
+    
+    
 }
 
 final class MQTTRequestContext {

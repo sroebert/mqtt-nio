@@ -24,14 +24,16 @@ final class MQTTNIOTests: XCTestCase {
 
     func testConnectAndClose() throws {
         let conn = try MQTTConnection.connect(to: .init(ipAddress: "127.0.0.1", port: 1883), on: eventLoop).wait()
+        try conn.publish(MQTTMessage(topic: "nl.roebert.MQTT/hello", payload: "world")).wait()
         try conn.close().wait()
+        print("done")
     }
 }
 
 let isLoggingConfigured: Bool = {
     LoggingSystem.bootstrap { label in
         var handler = StreamLogHandler.standardOutput(label: label)
-        handler.logLevel = .debug
+        handler.logLevel = .trace
         return handler
     }
     return true

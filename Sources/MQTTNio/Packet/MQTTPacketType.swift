@@ -1,35 +1,31 @@
 import NIO
 
-protocol MQTTPacketType {
-    static var identifier: MQTTPacket.Identifier { get }
-    
-    static func parse(fixedHeaderData: UInt8, buffer: inout ByteBuffer) throws -> Self
-    func serialize(fixedHeaderData: inout UInt8, buffer: inout ByteBuffer) throws
+protocol MQTTPacketInboundType {
+    static func parse(from packet: inout MQTTPacket) throws -> Self
 }
 
-extension MQTTPacketType {
-    func message() throws -> MQTTPacket {
-        var fixedHeaderData: UInt8 = 0
-        var buffer = ByteBufferAllocator().buffer(capacity: 0)
-        try self.serialize(fixedHeaderData: &fixedHeaderData, buffer: &buffer)
-        
-        return  MQTTPacket(
-            identifier: Self.identifier,
-            fixedHeaderData: fixedHeaderData,
-            data: buffer
-        )
+protocol MQTTPacketOutboundType {
+    func serialize(using idProvider: MQTTPacketOutboundIDProvider) throws -> MQTTPacket
+}
+
+typealias MQTTPacketDuplexType = MQTTPacketInboundType & MQTTPacketOutboundType
+
+protocol MQTTPacketOutboundIDProvider {
+    func getNextPacketId() -> UInt16
+}
+
+extension MQTTPacket {
+    enum Inbound {
+        case connAck(ConnAck)
+        case unknown(MQTTPacket)
     }
     
-    init(_ packet: MQTTPacket) throws {
+    typealias Outbound = MQTTPacketOutboundType
+}
+
+extension MQTTPacketInboundType {
+    static func parse(from packet: MQTTPacket) throws -> Self {
         var packet = packet
-        self = try Self.parse(fixedHeaderData: packet.fixedHeaderData, buffer: &packet.data)
-    }
-    
-    static func parse(fixedHeaderData: UInt8, buffer: inout ByteBuffer) throws -> Self {
-        fatalError("\(Self.self) does not support parsing.")
-    }
-    
-    func serialize(fixedHeaderData: inout UInt8, buffer: inout ByteBuffer) throws {
-        fatalError("\(Self.self) does not support serializing.")
+        return try parse(from: &packet)
     }
 }

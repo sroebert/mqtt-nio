@@ -17,8 +17,8 @@ final class MQTTPacketDecoder: ByteToMessageDecoder {
     func decode(context: ChannelHandlerContext, buffer: inout ByteBuffer) throws -> DecodingState {
         var peekBuffer = buffer
         
-        // peek at the message identifier
-        // the message identifier is always the first byte of a message
+        // peek at the message kind
+        // the message kind is always the first byte of a message
         guard let headerByte = peekBuffer.readInteger(as: UInt8.self) else {
             return .needMoreData
         }
@@ -37,7 +37,7 @@ final class MQTTPacketDecoder: ByteToMessageDecoder {
         
         // there is sufficient data, use this buffer
         buffer = peekBuffer
-        logger?.trace("Decoded: MQTTPacket (\(message.identifier))")
+        logger?.trace("Decoded: MQTTPacket (\(message.kind))")
         context.fireChannelRead(wrapInboundOut(message))
         return .continue
     }

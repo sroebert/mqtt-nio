@@ -3,7 +3,7 @@ import Logging
 
 extension MQTTConnection: MQTTClient {
     public func publish(_ message: MQTTMessage) -> EventLoopFuture<Void> {
-        fatalError()
+        send(MQTTPublishRequest(message: message), logger: logger)
     }
     
     public func subscribe(to topics: [String]) -> EventLoopFuture<Void> {

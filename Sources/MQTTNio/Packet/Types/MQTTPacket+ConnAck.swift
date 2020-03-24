@@ -1,18 +1,14 @@
 import NIO
 
 extension MQTTPacket {
-    struct ConnAck: MQTTPacketType {
-        static var identifier: MQTTPacket.Identifier {
-            return .connAck
-        }
-        
+    struct ConnAck: MQTTPacketInboundType {
         var isSessionPresent: Bool
         var returnCode: ReturnCode
         
-        static func parse(fixedHeaderData: UInt8, buffer: inout ByteBuffer) throws -> Self {
+        static func parse(from packet: inout MQTTPacket) throws -> Self {
             guard
-                let acknowledgeFlags = buffer.readInteger(as: UInt8.self),
-                let returnCodeValue = buffer.readInteger(as: UInt8.self)
+                let acknowledgeFlags = packet.data.readInteger(as: UInt8.self),
+                let returnCodeValue = packet.data.readInteger(as: UInt8.self)
             else {
                 throw MQTTConnectionError.protocol("Could not parse ConnAck")
             }

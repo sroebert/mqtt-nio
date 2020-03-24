@@ -1,72 +1,15 @@
 import NIO
 import Logging
 
-final class MQTTConnectRequest: MQTTRequest {
-    
-    // MARK: - Vars
-    
-    let config: MQTTConnection.ConnectConfig
-    
-    // MARK: - Init
-    
-    init(config: MQTTConnection.ConnectConfig) {
-        self.config = config
-    }
-    
-    // MARK: - MQTTRequest
-    
-    func start() throws -> MQTTPacket {
-        return try MQTTPacket.Connect(config: config).message()
-    }
-    
-    func shouldProcess(_ packet: MQTTPacket) throws -> Bool {
-        return true
-    }
-    
-    func process(_ packet: MQTTPacket, appendResponse: (MQTTPacket) -> Void) throws -> MQTTRequestProcessResult {
-        guard packet.identifier == .connAck else {
-            let error = MQTTConnectionError.protocol("Received invalid packet after sending connect: \(packet.identifier)")
-            return .failure(error)
-        }
-        
-        let connAck = try MQTTPacket.ConnAck(packet)
-        switch connAck.returnCode {
-        case .accepted:
-            return .success
-            
-        case .unacceptableProtocolVersion:
-            return .failure(MQTTServerError.unacceptableProtocolVersion)
-        case .identifierRejected:
-            return .failure(MQTTServerError.identifierRejected)
-        case .serverUnavailable:
-            return .failure(MQTTServerError.serverUnavailable)
-        case .badUsernameOrPassword:
-            return .failure(MQTTServerError.badUsernameOrPassword)
-        case .notAuthorized:
-            return .failure(MQTTServerError.notAuthorized)
-            
-        default:
-            return .failure(MQTTServerError.unknown)
-        }
-    }
-    
-    func log(to logger: Logger) {
-        logger.debug("Sending connect packet to server")
-    }
-}
-
 extension MQTTPacket {
-    fileprivate struct Connect: MQTTPacketType {
-        static var identifier: MQTTPacket.Identifier {
-            return .connect
-        }
-        
+    struct Connect: MQTTPacketOutboundType {
         private static let protocolName = "MQTT"
         private static let protocolLevel: UInt8 = 0x04 // 3.1.1
         
         var config: MQTTConnection.ConnectConfig
         
-        func serialize(fixedHeaderData: inout UInt8, buffer: inout ByteBuffer) throws {
+        func serialize(using idProvider: MQTTPacketOutboundIDProvider) throws -> MQTTPacket {
+            var buffer = ByteBufferAllocator().buffer(capacity: 0)
             
             // Variable header
             try buffer.writeMQTTString(Self.protocolName, "Protocol name")
@@ -81,6 +24,8 @@ extension MQTTPacket {
             // Payload
             let flags = try serializePayload(into: &buffer)
             buffer.setInteger(flags.rawValue, at: flagsIndex)
+            
+            return MQTTPacket(kind: .connect, data: buffer)
         }
         
         private func serializePayload(into buffer: inout ByteBuffer) throws -> Flags {
@@ -97,7 +42,7 @@ extension MQTTPacket {
                 try buffer.writeMQTTString(lastWillMessage.topic, "Topic")
                 
                 if var payload = lastWillMessage.payload {
-                    try buffer.writeMQTTPayload(&payload, "Last Will Payload")
+                    try buffer.writeMQTTDataWithLength(&payload, "Last Will Payload")
                 } else {
                     buffer.writeInteger(UInt16(0))
                 }
@@ -122,7 +67,7 @@ extension MQTTPacket {
                 
                 if var password = credentials.password {
                     flags.insert(.containsPassword)
-                    try buffer.writeMQTTPayload(&password, "Password")
+                    try buffer.writeMQTTDataWithLength(&password, "Password")
                 }
             }
             
