@@ -1,44 +1,59 @@
 import NIO
 import Logging
 
-final class MQTTRequestHandler: ChannelDuplexHandler {
+final class MQTTRequestHandler: ChannelDuplexHandler, MQTTRequestIdProvider {
     typealias InboundIn = MQTTPacket.Inbound
     typealias OutboundIn = MQTTRequestContext
     typealias OutboundOut = MQTTPacket.Outbound
+    
+    // MARK: - Vars
 
     private var inflight: [MQTTRequestContext]
+    private var nextPacketIdentifier: UInt16 = 1
+    
     let logger: Logger
+    
+    // MARK: - Init
 
     public init(logger: Logger) {
         self.inflight = []
         self.logger = logger
     }
+    
+    // MARK: - ChannelDuplexHandler
 
     private func _channelRead(context: ChannelHandlerContext, data: NIOAny) throws {
         let packet = unwrapInboundIn(data)
-        guard let index = inflight.firstIndex(where: { $0.delegate.shouldProcess(packet) }) else {
-            // discard packet
-            return
-        }
         
-        let request = inflight[index]
-        let action = try request.delegate.process(packet)
+//        var didRespond: Bool = false
+//        defer {
+//            if didRespond {
+//                context.flush()
+//            }
+//        }
         
-        if let response = action.response {
-            context.writeAndFlush(wrapOutboundOut(response), promise: nil)
-        }
-        
-        switch action.nextStatus {
-        case .pending:
-            break
+        for (index, requestContext) in inflight.enumerated() {
+            let action = try requestContext.request.process(packet)
             
-        case .success:
-            inflight.remove(at: index)
-            request.promise.succeed(())
+            if let response = action.response {
+//                didRespond = true
+                context.writeAndFlush(wrapOutboundOut(response), promise: nil)
+            }
             
-        case .failure(let error):
-            inflight.remove(at: index)
-            request.promise.fail(error)
+            switch action.nextStatus {
+            case .pending:
+                break
+                
+            case .success:
+                inflight.remove(at: index)
+                requestContext.promise.succeed(())
+                return
+                
+            case .failure(let error):
+                inflight.remove(at: index)
+                requestContext.promise.fail(error)
+                return
+            }
         }
     }
 
@@ -54,11 +69,11 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
     }
 
     func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
-        let request = unwrapOutboundIn(data)
+        let requestContext = unwrapOutboundIn(data)
         
         let action: MQTTRequestAction
         do {
-            action = try request.delegate.start()
+            action = try requestContext.request.start(using: self)
             if let response = action.response {
                 context.writeAndFlush(wrapOutboundOut(response), promise: promise)
             }
@@ -72,13 +87,13 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
         
         switch action.nextStatus {
         case .pending:
-            inflight.append(request)
+            inflight.append(requestContext)
             
         case .success:
-            request.promise.succeed(())
+            requestContext.promise.succeed(())
             
         case .failure(let error):
-            request.promise.fail(error)
+            requestContext.promise.fail(error)
         }
     }
 
@@ -93,17 +108,27 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
         inflight.removeAll()
     }
     
-    // MARK: - Utils
+    // MARK: - MQTTRequestIdProvider
     
-    
+    func getNextPacketId() -> UInt16 {
+        let identifier = nextPacketIdentifier
+        nextPacketIdentifier &+= 1
+        
+        // Make sure we don't use 0 as an id
+        if nextPacketIdentifier == 0 {
+            nextPacketIdentifier += 1
+        }
+        
+        return identifier
+    }
 }
 
 final class MQTTRequestContext {
-    let delegate: MQTTRequest
+    let request: MQTTRequest
     let promise: EventLoopPromise<Void>
     
-    init(delegate: MQTTRequest, promise: EventLoopPromise<Void>) {
-        self.delegate = delegate
+    init(request: MQTTRequest, promise: EventLoopPromise<Void>) {
+        self.request = request
         self.promise = promise
     }
 }

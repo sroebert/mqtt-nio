@@ -15,12 +15,8 @@ final class MQTTConnectRequest: MQTTRequest {
     
     // MARK: - MQTTRequest
     
-    func start() throws -> MQTTRequestAction {
+    func start(using idProvider: MQTTRequestIdProvider) throws -> MQTTRequestAction {
         return .init(response: MQTTPacket.Connect(config: config))
-    }
-    
-    func shouldProcess(_ packet: MQTTPacket.Inbound) -> Bool {
-        return true
     }
     
     func process(_ packet: MQTTPacket.Inbound) throws -> MQTTRequestAction {

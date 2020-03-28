@@ -2,7 +2,7 @@ import NIO
 
 extension MQTTPacket {
     struct Disconnect: MQTTPacketOutboundType {
-        func serialize(using idProvider: MQTTPacketOutboundIDProvider) throws -> MQTTPacket {
+        func serialize() throws -> MQTTPacket {
             return MQTTPacket(kind: .disconnect)
         }
     }

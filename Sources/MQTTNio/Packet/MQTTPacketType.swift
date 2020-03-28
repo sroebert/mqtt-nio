@@ -5,19 +5,33 @@ protocol MQTTPacketInboundType {
 }
 
 protocol MQTTPacketOutboundType {
-    func serialize(using idProvider: MQTTPacketOutboundIDProvider) throws -> MQTTPacket
+    func serialize() throws -> MQTTPacket
 }
 
 typealias MQTTPacketDuplexType = MQTTPacketInboundType & MQTTPacketOutboundType
 
-protocol MQTTPacketOutboundIDProvider {
-    func getNextPacketId() -> UInt16
-}
-
 extension MQTTPacket {
     enum Inbound {
         case connAck(ConnAck)
+        case publish(Publish)
+        case acknowledgement(Acknowledgement)
         case unknown(MQTTPacket)
+        
+        init(packet: MQTTPacket) throws {
+            switch packet.kind {
+            case .connAck:
+                self = try .connAck(.parse(from: packet))
+                
+            case .publish:
+                self = try .publish(.parse(from: packet))
+                
+            case .pubAck, .pubRec, .pubRel, .pubComp:
+                self = try .acknowledgement(.parse(from: packet))
+                
+            default:
+                self = .unknown(packet)
+            }
+        }
     }
     
     typealias Outbound = MQTTPacketOutboundType

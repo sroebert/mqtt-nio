@@ -23,12 +23,6 @@ final class MQTTPacketTypeParser: ChannelInboundHandler {
     }
     
     private func parse(_ packet: MQTTPacket) throws -> MQTTPacket.Inbound {
-        switch packet.kind {
-        case .connAck:
-            return try .connAck(.parse(from: packet))
-            
-        default:
-            return .unknown(packet)
-        }
+        return try MQTTPacket.Inbound(packet: packet)
     }
 }

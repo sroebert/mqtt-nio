@@ -8,7 +8,7 @@ extension MQTTPacket {
         
         var config: MQTTConnection.ConnectConfig
         
-        func serialize(using idProvider: MQTTPacketOutboundIDProvider) throws -> MQTTPacket {
+        func serialize() throws -> MQTTPacket {
             var buffer = ByteBufferAllocator().buffer(capacity: 0)
             
             // Variable header
