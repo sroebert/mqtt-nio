@@ -13,15 +13,17 @@ final class MQTTPingHandler: ChannelDuplexHandler {
     
     let logger: Logger
     let keepAliveInterval: TimeAmount
+    let reschedulePings: Bool
     
     private weak var channel: Channel?
     private var scheduledPing: Scheduled<Void>?
     
     // MARK: - Init
     
-    init(logger: Logger, keepAliveInterval: TimeAmount) {
+    init(logger: Logger, keepAliveInterval: TimeAmount, reschedulePings: Bool = true) {
         self.logger = logger
         self.keepAliveInterval = keepAliveInterval
+        self.reschedulePings = reschedulePings
     }
     
     // MARK: - ChannelDuplexHandler
@@ -36,14 +38,14 @@ final class MQTTPingHandler: ChannelDuplexHandler {
         channel = nil
     }
     
-    func channelRead(context: ChannelHandlerContext, data: NIOAny) {
-        // Reschedule a ping request
-        if scheduledPing != nil {
+    func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
+        // Reschedule ping request as we are already sending a packet
+        if reschedulePings && scheduledPing != nil {
             schedulePingRequest(in: context.eventLoop)
         }
         
         // Forward
-        context.fireChannelRead(data)
+        context.write(data, promise: promise)
     }
     
     func close(context: ChannelHandlerContext, mode: CloseMode, promise: EventLoopPromise<Void>?) {
