@@ -126,20 +126,21 @@ final class MQTTPublishRequest: MQTTRequest {
             return
         }
         
-        switch message.qos {
-        case .atMostOnce:
+        switch (message.qos, acknowledgedPub) {
+        case (.atLeastOnce, _), (.exactlyOnce, false):
+            let publish = MQTTPacket.Publish(
+                message: message,
+                packetId: packetId,
+                isDuplicate: true
+            )
+            context.write(publish)
+            
+        case (.exactlyOnce, true):
+            let pubRel = MQTTPacket.Acknowledgement(kind: .pubRel, packetId: packetId)
+            context.write(pubRel)
+            
+        default:
             break
-            
-        case .atLeastOnce:
-            context.write(MQTTPacket.Publish(message: message, packetId: packetId))
-            
-        case .exactlyOnce:
-            if !acknowledgedPub {
-                context.write(MQTTPacket.Publish(message: message, packetId: packetId))
-            } else {
-                let pubRel = MQTTPacket.Acknowledgement(kind: .pubRel, packetId: packetId)
-                context.write(pubRel)
-            }
         }
     }
 }
