@@ -19,22 +19,22 @@ final class MQTTPublishRequest: MQTTRequest {
     
     // MARK: - MQTTRequest
     
-    func start(using idProvider: MQTTRequestIdProvider) throws -> MQTTRequestAction {
-        let nextStatus: MQTTRequestAction.Status
+    func start(context: MQTTRequestContext) -> MQTTRequestResult {
+        let result: MQTTRequestResult
         switch message.qos {
         case .atMostOnce:
-            nextStatus = .success
+            result = .success
             
         case .atLeastOnce, .exactlyOnce:
-            nextStatus = .pending
-            packetId = idProvider.getNextPacketId()
+            result = .pending
+            packetId = context.getNextPacketId()
         }
         
-        let publish = MQTTPacket.Publish(message: message, packetId: packetId)
-        return .init(nextStatus: nextStatus, response: publish)
+        context.write(MQTTPacket.Publish(message: message, packetId: packetId))
+        return result
     }
     
-    func process(_ packet: MQTTPacket.Inbound) throws -> MQTTRequestAction {
+    func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> MQTTRequestResult {
         guard case .acknowledgement(let acknowledgement) = packet, acknowledgement.packetId == packetId else {
             return .pending
         }
@@ -55,8 +55,10 @@ final class MQTTPublishRequest: MQTTRequest {
             if acknowledgement.kind == .pubRec {
                 acknowledgedPub = true
                 
-                let response = MQTTPacket.Acknowledgement(kind: .pubRel, packetId: packetId)
-                return .respond(response)
+                let pubRel = MQTTPacket.Acknowledgement(kind: .pubRel, packetId: packetId)
+                context.write(pubRel)
+                
+                return .pending
             }
             
             guard acknowledgedPub && acknowledgement.kind == .pubComp else {

@@ -20,6 +20,7 @@ extension MQTTConnection {
                 MessageToByteHandler(MQTTPacketEncoder(logger: logger)),
                 MQTTPacketTypeSerializer(logger: logger),
                 
+                MQTTPingHandler(logger: logger, keepAliveInterval: .seconds(Int64(config.keepAliveInterval))),
                 MQTTRequestHandler(logger: logger),
                 MQTTErrorHandler(logger: logger)
             ]).flatMap {
@@ -40,14 +41,14 @@ extension MQTTConnection {
         public var cleanSession: Bool
         public var credentials: ConnectCredentials?
         public var lastWillMessage: MQTTMessage?
-        public var keepAliveInterval: Int16
+        public var keepAliveInterval: UInt16
         
         public init(
             clientId: String = "nl.roebert.MQTTNio.\(UUID())",
             cleanSession: Bool = true,
             credentials: ConnectCredentials? = nil,
             lastWillMessage: MQTTMessage? = nil,
-            keepAliveInterval: Int16 = 60) {
+            keepAliveInterval: UInt16 = 60) {
             
             self.clientId = clientId
             self.cleanSession = cleanSession

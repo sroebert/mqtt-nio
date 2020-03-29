@@ -1,44 +1,47 @@
+import NIO
 import Logging
 
+protocol MQTTRequestContext {
+    func write(_ outbound: MQTTPacket.Outbound)
+    
+    func getNextPacketId() -> UInt16
+    
+    @discardableResult
+    func scheduleEvent(_ event: Any, in time: TimeAmount) -> Scheduled<Void>
+}
+
 protocol MQTTRequest {
-    func start(using idProvider: MQTTRequestIdProvider) throws -> MQTTRequestAction
-    func process(_ packet: MQTTPacket.Inbound) throws -> MQTTRequestAction
+    func start(context: MQTTRequestContext) -> MQTTRequestResult
+    func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> MQTTRequestResult
+    
+    func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult
+    
+    func disconnected()
+    func reconnected(context: MQTTRequestContext) -> MQTTRequestResult
     
     func log(to logger: Logger)
 }
 
 extension MQTTRequest {
-    func process(_ packet: MQTTPacket.Inbound) throws -> MQTTRequestAction {
+    func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) throws -> MQTTRequestResult {
+        return .pending
+    }
+    
+    func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult {
+        return .pending
+    }
+    
+    func disconnected() {
+        
+    }
+    
+    func reconnected(context: MQTTRequestContext) -> MQTTRequestResult {
         return .pending
     }
 }
 
-protocol MQTTRequestIdProvider {
-    func getNextPacketId() -> UInt16
-}
-
-struct MQTTRequestAction {
-    enum Status {
-        case pending
-        case success
-        case failure(Error)
-    }
-    
-    static let pending = MQTTRequestAction(nextStatus: .pending)
-    static let success = MQTTRequestAction(nextStatus: .success)
-    static func failure(_ error: Error) -> MQTTRequestAction {
-        return .init(nextStatus: .failure(error))
-    }
-    
-    static func respond(_ response: MQTTPacket.Outbound) -> MQTTRequestAction {
-        return .init(response: response)
-    }
-    
-    var nextStatus: Status
-    var response: MQTTPacket.Outbound?
-    
-    init(nextStatus: Status = .pending, response: MQTTPacket.Outbound? = nil) {
-        self.nextStatus = nextStatus
-        self.response = response
-    }
+enum MQTTRequestResult {
+    case pending
+    case success
+    case failure(Error)
 }

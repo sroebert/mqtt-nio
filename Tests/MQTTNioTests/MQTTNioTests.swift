@@ -23,12 +23,23 @@ final class MQTTNIOTests: XCTestCase {
     // MARK: Tests
 
     func testConnectAndClose() throws {
-        let conn = try MQTTConnection.connect(to: .init(ipAddress: "127.0.0.1", port: 1883), on: eventLoop).wait()
-        try conn.publish(MQTTMessage(topic: "nl.roebert.MQTT/test/QoS0", payload: "yes")).wait()
-        try conn.publish(MQTTMessage(topic: "nl.roebert.MQTT/test/QoS1", payload: "yes", qos: .atLeastOnce)).wait()
-        try conn.publish(MQTTMessage(topic: "nl.roebert.MQTT/test/QoS2", payload: "yes", qos: .exactlyOnce)).wait()
+        let conn = try MQTTConnection.connect(
+            to: .init(ipAddress: "127.0.0.1", port: 1883),
+            config: .init(keepAliveInterval: 5),
+            on: eventLoop
+        ).wait()
+        
+        try conn.publish(MQTTMessage(topic: "nl.roebert.MQTT/tests/test1", payload: "done")).wait()
+        
+        let promise = conn.eventLoop.makePromise(of: Void.self)
+        conn.eventLoop.scheduleTask(in: .seconds(6)) {
+            promise.succeed(())
+        }
+        try promise.futureResult.wait()
+        
+        try conn.publish(MQTTMessage(topic: "nl.roebert.MQTT/tests/test2", payload: "done")).wait()
+        
         try conn.close().wait()
-        print("done")
     }
 }
 

@@ -26,6 +26,7 @@ public final class MQTTConnection {
         didClose = false
     }
     
+    @discardableResult
     public func close() -> EventLoopFuture<Void> {
         guard !didClose else {
             return eventLoop.makeSucceededFuture(())
@@ -39,6 +40,6 @@ public final class MQTTConnection {
     }
     
     deinit {
-        assert(didClose, "MQTTConnection deinitialized before being closed.")
+        close()
     }
 }

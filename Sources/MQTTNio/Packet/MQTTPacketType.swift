@@ -15,6 +15,7 @@ extension MQTTPacket {
         case connAck(ConnAck)
         case publish(Publish)
         case acknowledgement(Acknowledgement)
+        case pingResp(PingResp)
         case unknown(MQTTPacket)
         
         init(packet: MQTTPacket) throws {
@@ -27,6 +28,9 @@ extension MQTTPacket {
                 
             case .pubAck, .pubRec, .pubRel, .pubComp:
                 self = try .acknowledgement(.parse(from: packet))
+                
+            case .pingResp:
+                self = try .pingResp(.parse(from: packet))
                 
             default:
                 self = .unknown(packet)

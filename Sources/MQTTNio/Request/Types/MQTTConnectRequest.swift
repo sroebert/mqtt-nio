@@ -15,11 +15,12 @@ final class MQTTConnectRequest: MQTTRequest {
     
     // MARK: - MQTTRequest
     
-    func start(using idProvider: MQTTRequestIdProvider) throws -> MQTTRequestAction {
-        return .init(response: MQTTPacket.Connect(config: config))
+    func start(context: MQTTRequestContext) -> MQTTRequestResult {
+        context.write(MQTTPacket.Connect(config: config))
+        return .pending
     }
     
-    func process(_ packet: MQTTPacket.Inbound) throws -> MQTTRequestAction {
+    func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> MQTTRequestResult {
         guard case .connAck(let connAck) = packet else {
             let error = MQTTConnectionError.protocol("Received invalid packet after sending connect: \(packet)")
             return .failure(error)
