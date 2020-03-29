@@ -29,15 +29,15 @@ final class MQTTNIOTests: XCTestCase {
             on: eventLoop
         ).wait()
         
-        try conn.publish(MQTTMessage(topic: "nl.roebert.MQTT/tests/test1", payload: "done")).wait()
+        try conn.publish(MQTTMessage(topic: "nl.roebert.MQTT/tests/test1", payload: "done", qos: .exactlyOnce)).wait()
         
         let promise = conn.eventLoop.makePromise(of: Void.self)
-        conn.eventLoop.scheduleTask(in: .seconds(6)) {
+        conn.eventLoop.scheduleTask(in: .seconds(15)) {
             promise.succeed(())
         }
         try promise.futureResult.wait()
         
-        try conn.publish(MQTTMessage(topic: "nl.roebert.MQTT/tests/test2", payload: "done")).wait()
+        try conn.publish(MQTTMessage(topic: "nl.roebert.MQTT/tests/test2", payload: "done", qos: .exactlyOnce)).wait()
         
         try conn.close().wait()
     }

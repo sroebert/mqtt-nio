@@ -3,18 +3,27 @@ import Logging
 
 final class MQTTPublishRequest: MQTTRequest {
     
+    // MARK: - Types
+    
+    private enum Event {
+        case retry
+    }
+    
     // MARK: - Vars
     
     let message: MQTTMessage
-    private let retryInterval: Double = 5
+    let retryInterval: TimeAmount
     
     private var acknowledgedPub: Bool = false
     private var packetId: UInt16?
     
+    private var scheduledRetry: Scheduled<Void>?
+    
     // MARK: - Init
     
-    init(message: MQTTMessage) {
+    init(message: MQTTMessage, retryInterval: TimeAmount = .seconds(5)) {
         self.message = message
+        self.retryInterval = retryInterval
     }
     
     // MARK: - MQTTRequest
@@ -28,6 +37,8 @@ final class MQTTPublishRequest: MQTTRequest {
         case .atLeastOnce, .exactlyOnce:
             result = .pending
             packetId = context.getNextPacketId()
+            
+            scheduleRetry(context: context)
         }
         
         context.write(MQTTPacket.Publish(message: message, packetId: packetId))
@@ -49,14 +60,17 @@ final class MQTTPublishRequest: MQTTRequest {
             guard acknowledgement.kind == .pubAck else {
                 return .pending
             }
+            cancelRetry()
             return .success
             
         case .exactlyOnce:
             if acknowledgement.kind == .pubRec {
                 acknowledgedPub = true
+                cancelRetry()
                 
                 let pubRel = MQTTPacket.Acknowledgement(kind: .pubRel, packetId: packetId)
                 context.write(pubRel)
+                scheduleRetry(context: context)
                 
                 return .pending
             }
@@ -65,11 +79,67 @@ final class MQTTPublishRequest: MQTTRequest {
                 return .pending
             }
             
+            cancelRetry()
             return .success
         }
     }
     
+    func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult {
+        if scheduledRetry != nil, case Event.retry = event {
+            retry(context: context)
+        }
+        return .pending
+    }
+    
+    func resume(context: MQTTRequestContext) -> MQTTRequestResult {
+        retry(context: context)
+        return .pending
+    }
+    
+    func pause(context: MQTTRequestContext) {
+        cancelRetry()
+    }
+    
     func log(to logger: Logger) {
         logger.debug("Publishing \(message)")
+    }
+    
+    // MARK: - Utils
+    
+    private func scheduleRetry(context: MQTTRequestContext) {
+        cancelRetry()
+        
+        guard retryInterval.nanoseconds > 0 else {
+            return
+        }
+        
+        context.scheduleEvent(Event.retry, in: retryInterval)
+    }
+    
+    private func cancelRetry() {
+        scheduledRetry?.cancel()
+        scheduledRetry = nil
+    }
+    
+    private func retry(context: MQTTRequestContext) {
+        guard let packetId = packetId else {
+            return
+        }
+        
+        switch message.qos {
+        case .atMostOnce:
+            break
+            
+        case .atLeastOnce:
+            context.write(MQTTPacket.Publish(message: message, packetId: packetId))
+            
+        case .exactlyOnce:
+            if !acknowledgedPub {
+                context.write(MQTTPacket.Publish(message: message, packetId: packetId))
+            } else {
+                let pubRel = MQTTPacket.Acknowledgement(kind: .pubRel, packetId: packetId)
+                context.write(pubRel)
+            }
+        }
     }
 }

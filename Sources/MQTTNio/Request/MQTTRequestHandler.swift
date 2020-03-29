@@ -17,6 +17,8 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
     
     private var nextPacketIdentifier: UInt16 = 1
     
+    private var isActive: Bool = false
+    
     private weak var channel: Channel?
     
     let logger: Logger
@@ -31,15 +33,11 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
     
     func handlerAdded(context: ChannelHandlerContext) {
         channel = context.channel
-        
-        forEachRequest(with: context) { request, context in
-            request.reconnected(context: context)
-        }
+        updateIsActive(true, context: context)
     }
     
     func handlerRemoved(context: ChannelHandlerContext) {
-        entriesInflight.forEach { $0.request.disconnected() }
-        
+        updateIsActive(false, context: context)
         channel = nil
     }
 
@@ -73,19 +71,11 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
     }
 
     func close(context: ChannelHandlerContext, mode: CloseMode, promise: EventLoopPromise<Void>?) {
+        updateIsActive(false, context: context)
+        
         let disconnect = MQTTPacket.Disconnect()
         context.writeAndFlush(wrapOutboundOut(disconnect), promise: nil)
         context.close(mode: mode, promise: promise)
-
-        for entry in entriesQueue {
-            entry.promise.fail(MQTTConnectionError.connectionClosed)
-        }
-        entriesQueue.removeAll()
-        
-        for entry in entriesInflight {
-            entry.promise.fail(MQTTConnectionError.connectionClosed)
-        }
-        entriesInflight.removeAll()
     }
     
     // MARK: - Utils
@@ -135,6 +125,32 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
             }
             
             startQueuedEntries(context: requestContext)
+        }
+    }
+    
+    private func updateIsActive(_ isActive: Bool, context: ChannelHandlerContext) {
+        guard isActive != self.isActive else {
+            return
+        }
+        
+        self.isActive = isActive
+        if isActive {
+            resumeEntries(context: context)
+        } else {
+            pauseEntries(context: context)
+        }
+    }
+    
+    private func pauseEntries(context: ChannelHandlerContext) {
+        forEachRequest(with: context) { request, requestContext in
+            request.pause(context: requestContext)
+            return .pending
+        }
+    }
+    
+    private func resumeEntries(context: ChannelHandlerContext) {
+        forEachRequest(with: context) { request, requestContext in
+            request.resume(context: requestContext)
         }
     }
 }

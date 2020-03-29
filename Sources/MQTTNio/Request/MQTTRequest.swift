@@ -16,8 +16,8 @@ protocol MQTTRequest {
     
     func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult
     
-    func disconnected()
-    func reconnected(context: MQTTRequestContext) -> MQTTRequestResult
+    func pause(context: MQTTRequestContext)
+    func resume(context: MQTTRequestContext) -> MQTTRequestResult
     
     func log(to logger: Logger)
 }
@@ -31,11 +31,11 @@ extension MQTTRequest {
         return .pending
     }
     
-    func disconnected() {
+    func pause(context: MQTTRequestContext) {
         
     }
     
-    func reconnected(context: MQTTRequestContext) -> MQTTRequestResult {
+    func resume(context: MQTTRequestContext) -> MQTTRequestResult {
         return .pending
     }
 }

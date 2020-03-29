@@ -2,8 +2,12 @@ import NIO
 import Logging
 
 extension MQTTConnection: MQTTClient {
-    public func publish(_ message: MQTTMessage) -> EventLoopFuture<Void> {
-        send(MQTTPublishRequest(message: message), logger: logger)
+    public func publish(_ message: MQTTMessage, retryInterval: TimeAmount) -> EventLoopFuture<Void> {
+        let request = MQTTPublishRequest(
+            message: message,
+            retryInterval: retryInterval
+        )
+        return send(request, logger: logger)
     }
     
     public func subscribe(to topics: [String]) -> EventLoopFuture<Void> {
