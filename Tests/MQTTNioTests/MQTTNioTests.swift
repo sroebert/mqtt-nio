@@ -36,10 +36,18 @@ final class MQTTNIOTests: XCTestCase {
         _ = try conn.subscribe(to: "nl.roebert.MQTT/tests/subscribe", qos: .exactlyOnce).wait()
         
         let promise = conn.eventLoop.makePromise(of: Void.self)
-        conn.eventLoop.scheduleTask(in: .minutes(5)) {
+        conn.eventLoop.scheduleTask(in: .seconds(15)) {
             promise.succeed(())
         }
         try promise.futureResult.wait()
+        
+        _ = try conn.unsubscribe(from: "nl.roebert.MQTT/tests/subscribe").wait()
+        
+        let promise2 = conn.eventLoop.makePromise(of: Void.self)
+        conn.eventLoop.scheduleTask(in: .seconds(15)) {
+            promise2.succeed(())
+        }
+        try promise2.futureResult.wait()
         
         try conn.close().wait()
     }

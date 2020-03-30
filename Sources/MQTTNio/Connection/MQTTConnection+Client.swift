@@ -22,7 +22,8 @@ extension MQTTConnection: MQTTClient {
     
     @discardableResult
     public func unsubscribe(from topics: [String]) -> EventLoopFuture<Void> {
-        fatalError()
+        let request = MQTTUnsubscribeRequest(topics: topics)
+        return channel.pipeline.send(request, logger: logger)
     }
     
     @discardableResult
