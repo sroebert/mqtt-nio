@@ -9,20 +9,21 @@ final class MQTTPingRequest: MQTTRequest {
         case timeout
     }
     
+    // MARK: - Vars
+    
+    let timeoutInterval: TimeAmount
+    private var timeoutScheduled: Scheduled<Void>?
+    
     // MARK: - Init
     
-    let keepAliveInterval: TimeAmount
-    
-    // MARK: - Init
-    
-    init(keepAliveInterval: TimeAmount) {
-        self.keepAliveInterval = keepAliveInterval
+    init(timeoutInterval: TimeAmount) {
+        self.timeoutInterval = timeoutInterval
     }
     
     // MARK: - MQTTRequest
     
     func start(context: MQTTRequestContext) -> MQTTRequestResult {
-        context.scheduleEvent(Error.timeout, in: keepAliveInterval)
+        timeoutScheduled = context.scheduleEvent(Error.timeout, in: timeoutInterval)
         
         context.write(MQTTPacket.PingReq())
         return .pending
@@ -32,6 +33,10 @@ final class MQTTPingRequest: MQTTRequest {
         guard case .pingResp = packet else {
             return .pending
         }
+        
+        timeoutScheduled?.cancel()
+        timeoutScheduled = nil
+        
         return .success
     }
     

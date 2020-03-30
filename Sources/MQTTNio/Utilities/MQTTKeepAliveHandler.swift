@@ -1,18 +1,17 @@
 import NIO
 import Logging
 
-final class MQTTPingHandler: ChannelDuplexHandler {
+final class MQTTKeepAliveHandler: ChannelOutboundHandler {
     
     // MARK: - Types
     
-    typealias InboundIn = MQTTPacket.Inbound
-    typealias OutboundIn = MQTTRequestEntry
+    typealias OutboundIn = MQTTPacket.Outbound
     typealias OutboundOut = MQTTPacket.Outbound
     
     // MARK: - Vars
     
     let logger: Logger
-    let keepAliveInterval: TimeAmount
+    let interval: TimeAmount
     let reschedulePings: Bool
     
     private weak var channel: Channel?
@@ -20,9 +19,9 @@ final class MQTTPingHandler: ChannelDuplexHandler {
     
     // MARK: - Init
     
-    init(logger: Logger, keepAliveInterval: TimeAmount, reschedulePings: Bool = true) {
+    init(logger: Logger, interval: TimeAmount, reschedulePings: Bool = true) {
         self.logger = logger
-        self.keepAliveInterval = keepAliveInterval
+        self.interval = interval
         self.reschedulePings = reschedulePings
     }
     
@@ -59,11 +58,11 @@ final class MQTTPingHandler: ChannelDuplexHandler {
     private func schedulePingRequest(in eventLoop: EventLoop) {
         unschedulePingRequest()
         
-        guard keepAliveInterval.nanoseconds > 0 else {
+        guard interval.nanoseconds > 0 else {
             return
         }
         
-        scheduledPing = eventLoop.scheduleTask(in: keepAliveInterval) { [weak self] in
+        scheduledPing = eventLoop.scheduleTask(in: interval) { [weak self] in
             self?.performPingRequest()
         }
     }
@@ -78,13 +77,8 @@ final class MQTTPingHandler: ChannelDuplexHandler {
             return
         }
         
-        let promise = channel.eventLoop.makePromise(of: Void.self)
-        let request = MQTTRequestEntry(request: MQTTPingRequest(keepAliveInterval: keepAliveInterval), promise: promise)
-        
-        channel.write(request).cascadeFailure(to: promise)
-        channel.flush()
-        
-        promise.futureResult.whenFailure { [weak self] error in
+        let request = MQTTPingRequest(timeoutInterval: interval)
+        channel.pipeline.send(request, logger: logger).whenFailure { [weak self] error in
             self?.unschedulePingRequest()
             self?.channel?.close(mode: .all, promise: nil)
         }

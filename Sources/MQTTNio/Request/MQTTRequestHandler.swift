@@ -6,14 +6,14 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
     // MARK: - Types
     
     typealias InboundIn = MQTTPacket.Inbound
-    typealias OutboundIn = MQTTRequestEntry
+    typealias OutboundIn = Never
     typealias OutboundOut = MQTTPacket.Outbound
     
     // MARK: - Vars
 
     private var maxInflightEntries = 20
-    private var entriesInflight: [MQTTRequestEntry] = []
-    private var entriesQueue: [MQTTRequestEntry] = []
+    private var entriesInflight: [Entry] = []
+    private var entriesQueue: [Entry] = []
     
     private var nextPacketIdentifier: UInt16 = 1
     
@@ -27,6 +27,20 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
 
     public init(logger: Logger) {
         self.logger = logger
+    }
+    
+    // MARK: - Queue
+    
+    func perform(_ request: MQTTRequest, context: ChannelHandlerContext) -> EventLoopFuture<Void> {
+        
+        let promise = context.eventLoop.makePromise(of: Void.self)
+        let entry = Entry(request: request, promise: promise)
+        entriesQueue.append(entry)
+        withRequestContext(in: context) { requestContext in
+            startQueuedEntries(context: requestContext)
+        }
+        
+        return promise.futureResult
     }
     
     // MARK: - ChannelDuplexHandler
@@ -46,15 +60,6 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
         
         forEachRequest(with: context) { request, context in
             request.process(context: context, packet: packet)
-        }
-    }
-
-    func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
-        let entry = unwrapOutboundIn(data)
-        
-        entriesQueue.append(entry)
-        withRequestContext(in: context) { requestContext in
-            startQueuedEntries(context: requestContext)
         }
     }
     
@@ -188,27 +193,29 @@ extension MQTTRequestHandler {
     }
 }
 
-final class MQTTRequestEntry {
-    let request: MQTTRequest
-    let promise: EventLoopPromise<Void>
-    
-    init(request: MQTTRequest, promise: EventLoopPromise<Void>) {
-        self.request = request
-        self.promise = promise
-    }
-    
-    fileprivate func handle(_ result: MQTTRequestResult) -> Bool {
-        switch result {
-        case .pending:
-            return false
-            
-        case .success:
-            promise.succeed(())
-            return true
-            
-        case .failure(let error):
-            promise.fail(error)
-            return true
+extension MQTTRequestHandler {
+    final private class Entry {
+        let request: MQTTRequest
+        let promise: EventLoopPromise<Void>
+        
+        init(request: MQTTRequest, promise: EventLoopPromise<Void>) {
+            self.request = request
+            self.promise = promise
+        }
+        
+        fileprivate func handle(_ result: MQTTRequestResult) -> Bool {
+            switch result {
+            case .pending:
+                return false
+                
+            case .success:
+                promise.succeed(())
+                return true
+                
+            case .failure(let error):
+                promise.fail(error)
+                return true
+            }
         }
     }
 }

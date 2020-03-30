@@ -25,19 +25,21 @@ final class MQTTNIOTests: XCTestCase {
     func testConnectAndClose() throws {
         let conn = try MQTTConnection.connect(
             to: .init(ipAddress: "127.0.0.1", port: 1883),
-            config: .init(keepAliveInterval: 5),
+            config: .init(keepAliveInterval: .seconds(5)),
             on: eventLoop
         ).wait()
         
-        try conn.publish(MQTTMessage(topic: "nl.roebert.MQTT/tests/test1", payload: "done", qos: .exactlyOnce)).wait()
+        conn.addMessageListener { _, message in
+            print("Received message at \(message.topic): \(message.stringValue ?? "data")")
+        }
+        
+        _ = try conn.subscribe(to: "nl.roebert.MQTT/tests/subscribe", qos: .exactlyOnce).wait()
         
         let promise = conn.eventLoop.makePromise(of: Void.self)
-        conn.eventLoop.scheduleTask(in: .seconds(15)) {
+        conn.eventLoop.scheduleTask(in: .minutes(5)) {
             promise.succeed(())
         }
         try promise.futureResult.wait()
-        
-        try conn.publish(MQTTMessage(topic: "nl.roebert.MQTT/tests/test2", payload: "done", qos: .exactlyOnce)).wait()
         
         try conn.close().wait()
     }

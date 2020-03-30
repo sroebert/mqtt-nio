@@ -54,7 +54,7 @@ final class MQTTPublishRequest: MQTTRequest {
         
         switch message.qos {
         case .atMostOnce:
-            return .pending
+            return .success
             
         case .atLeastOnce:
             guard acknowledgement.kind == .pubAck else {

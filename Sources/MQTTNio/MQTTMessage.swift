@@ -3,13 +3,13 @@ import NIO
 public struct MQTTMessage {
     public var topic: String
     public var payload: ByteBuffer?
-    public var qos: QoS
+    public var qos: MQTTQoS
     public var retain: Bool
     
     public init(
         topic: String,
         payload: ByteBuffer? = nil,
-        qos: QoS = .atMostOnce,
+        qos: MQTTQoS = .atMostOnce,
         retain: Bool = false) {
         
         self.topic = topic
@@ -21,7 +21,7 @@ public struct MQTTMessage {
     public init(
         topic: String,
         payload: String,
-        qos: QoS = .atMostOnce,
+        qos: MQTTQoS = .atMostOnce,
         retain: Bool = false) {
         
         self.topic = topic
@@ -39,13 +39,5 @@ public struct MQTTMessage {
             return nil
         }
         return payload.readString(length: payload.readableBytes)
-    }
-}
-
-extension MQTTMessage {
-    public enum QoS: Int {
-        case atMostOnce = 0
-        case atLeastOnce = 1
-        case exactlyOnce = 2
     }
 }

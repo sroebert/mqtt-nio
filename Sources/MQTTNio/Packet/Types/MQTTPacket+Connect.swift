@@ -19,7 +19,14 @@ extension MQTTPacket {
             let flagsIndex = buffer.writerIndex
             buffer.moveWriterIndex(forwardBy: 1)
             
-            buffer.writeInteger(config.keepAliveInterval)
+            if config.keepAliveInterval <= .seconds(0) {
+                buffer.writeInteger(UInt16(0))
+            } else if config.keepAliveInterval >= .seconds(Int64(UInt16.max)) {
+                buffer.writeInteger(UInt16.max)
+            } else {
+                let seconds = config.keepAliveInterval.nanoseconds / TimeAmount.seconds(1).nanoseconds
+                buffer.writeInteger(UInt16(seconds))
+            }
             
             // Payload
             let flags = try serializePayload(into: &buffer)

@@ -108,7 +108,7 @@ extension MQTTPacket.Publish {
             self.rawValue = rawValue
         }
         
-        var qos: MQTTMessage.QoS {
+        var qos: MQTTQoS {
             if contains(.qos2) {
                 return .exactlyOnce
             }
