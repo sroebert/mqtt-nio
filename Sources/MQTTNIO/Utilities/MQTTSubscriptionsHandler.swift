@@ -1,4 +1,5 @@
 import NIO
+import NIOConcurrencyHelpers
 import Logging
 
 final class MQTTSubscriptionsHandler: ChannelDuplexHandler {
@@ -10,10 +11,10 @@ final class MQTTSubscriptionsHandler: ChannelDuplexHandler {
     typealias OutboundOut = MQTTPacket.Outbound
     
     class ListenerEntry {
-        let context: MQTTClientMessageListenContext
-        let listener: MQTTClientMessageListener
+        let context: MQTTMessageListenContext
+        let listener: MQTTMessageListener
         
-        init(context: MQTTClientMessageListenContext, listener: @escaping MQTTClientMessageListener) {
+        init(context: MQTTMessageListenContext, listener: @escaping MQTTMessageListener) {
             self.context = context
             self.listener = listener
         }
@@ -22,17 +23,16 @@ final class MQTTSubscriptionsHandler: ChannelDuplexHandler {
     // MARK: - Vars
     
     let logger: Logger
-    let retryInterval: TimeAmount
     
-    var listeners: [ListenerEntry] = []
+    private let lock = Lock()
     
+    private var listeners: [ListenerEntry] = []
     private var inflightMessages: [UInt16: MQTTMessage] = [:]
     
     // MARK: - Init
     
-    init(logger: Logger, retryInterval: TimeAmount = .seconds(5)) {
+    init(logger: Logger) {
         self.logger = logger
-        self.retryInterval = retryInterval
     }
     
     // MARK: - ChannelDuplexHandler
@@ -53,8 +53,24 @@ final class MQTTSubscriptionsHandler: ChannelDuplexHandler {
     
     // MARK: - Utils
     
+    func addListener(_ entry: ListenerEntry) {
+        lock.withLockVoid {
+            listeners.append(entry)
+        }
+    }
+    
+    func removeListener(_ entry: ListenerEntry) {
+        lock.withLockVoid {
+            if let index = listeners.firstIndex(where: { $0 === entry }) {
+                listeners.remove(at: index)
+            }
+        }
+    }
+    
     private func emit(_ message: MQTTMessage) {
-        listeners.forEach { $0.listener($0.context, message) }
+        let currentListeners = lock.withLock { listeners }
+        
+        currentListeners.forEach { $0.listener($0.context, message) }
     }
     
     private func handlePublish(_ publish: MQTTPacket.Publish, context: ChannelHandlerContext) {
@@ -81,18 +97,27 @@ final class MQTTSubscriptionsHandler: ChannelDuplexHandler {
             let packet = MQTTPacket.Acknowledgement(kind: .pubRec, packetId: packetId)
             context.writeAndFlush(wrapOutboundOut(packet), promise: nil)
             
-            if inflightMessages[packetId] == nil {
-                inflightMessages[packetId] = publish.message
+            lock.withLockVoid {
+                if inflightMessages[packetId] == nil {
+                    inflightMessages[packetId] = publish.message
+                }
             }
         }
     }
     
     private func handleAcknowledgement(packetId: UInt16, context: ChannelHandlerContext) {
-        guard let message = inflightMessages[packetId] else {
-            return
+        let optionalMessage = lock.withLock { () -> MQTTMessage? in
+            guard let message = inflightMessages[packetId] else {
+                return nil
+            }
+                    
+            inflightMessages.removeValue(forKey: packetId)
+            return message
         }
         
-        inflightMessages.removeValue(forKey: packetId)
+        guard let message = optionalMessage else {
+            return
+        }
         
         let packet = MQTTPacket.Acknowledgement(kind: .pubComp, packetId: packetId)
         context.writeAndFlush(wrapOutboundOut(packet), promise: nil)

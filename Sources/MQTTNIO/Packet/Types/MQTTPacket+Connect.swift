@@ -6,7 +6,7 @@ extension MQTTPacket {
         private static let protocolName = "MQTT"
         private static let protocolLevel: UInt8 = 0x04 // 3.1.1
         
-        var config: MQTTConnection.ConnectConfig
+        var configuration: MQTTConnectionConfiguration
         
         func serialize() throws -> MQTTPacket {
             var buffer = ByteBufferAllocator().buffer(capacity: 0)
@@ -19,12 +19,12 @@ extension MQTTPacket {
             let flagsIndex = buffer.writerIndex
             buffer.moveWriterIndex(forwardBy: 1)
             
-            if config.keepAliveInterval <= .seconds(0) {
+            if configuration.keepAliveInterval <= .seconds(0) {
                 buffer.writeInteger(UInt16(0))
-            } else if config.keepAliveInterval >= .seconds(Int64(UInt16.max)) {
+            } else if configuration.keepAliveInterval >= .seconds(Int64(UInt16.max)) {
                 buffer.writeInteger(UInt16.max)
             } else {
-                let seconds = config.keepAliveInterval.nanoseconds / TimeAmount.seconds(1).nanoseconds
+                let seconds = configuration.keepAliveInterval.nanoseconds / TimeAmount.seconds(1).nanoseconds
                 buffer.writeInteger(UInt16(seconds))
             }
             
@@ -38,13 +38,13 @@ extension MQTTPacket {
         private func serializePayload(into buffer: inout ByteBuffer) throws -> Flags {
             var flags: Flags = []
             
-            if config.cleanSession {
+            if configuration.cleanSession {
                 flags.insert(.cleanSession)
             }
             
-            try buffer.writeMQTTString(config.clientId, "Client Identifier")
+            try buffer.writeMQTTString(configuration.clientId, "Client Identifier")
             
-            if let lastWillMessage = config.lastWillMessage {
+            if let lastWillMessage = configuration.lastWillMessage {
                 flags.insert(.containsLastWill)
                 try buffer.writeMQTTString(lastWillMessage.topic, "Topic")
                 
@@ -68,7 +68,7 @@ extension MQTTPacket {
                 }
             }
             
-            if let credentials = config.credentials {
+            if let credentials = configuration.credentials {
                 flags.insert(.containsUsername)
                 try buffer.writeMQTTString(credentials.username, "Username")
                 

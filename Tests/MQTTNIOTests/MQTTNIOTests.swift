@@ -1,5 +1,5 @@
 import Logging
-import MQTTNio
+import MQTTNIO
 import XCTest
 import NIO
 import NIOTestUtils
@@ -23,33 +23,37 @@ final class MQTTNIOTests: XCTestCase {
     // MARK: Tests
 
     func testConnectAndClose() throws {
-        let conn = try MQTTConnection.connect(
-            to: .init(ipAddress: "127.0.0.1", port: 1883),
-            config: .init(keepAliveInterval: .seconds(5)),
-            on: eventLoop
-        ).wait()
+        let client = MQTTClient(eventLoopGroup: group)
         
-        conn.addMessageListener { _, message in
+        _ = try client.connect(configuration: .init(
+            target: .host("localhost", port: 1883),
+            eventLoopGroup: group,
+            keepAliveInterval: .seconds(5)
+        )).wait()
+        
+        client.addMessageListener { _, message in
             print("Received message at \(message.topic): \(message.stringValue ?? "data")")
         }
         
-        _ = try conn.subscribe(to: "nl.roebert.MQTT/tests/subscribe", qos: .exactlyOnce).wait()
+        client.publish(MQTTMessage(topic: "nl.roebert.MQTT/tests/message", payload: "Hello World"))
         
-        let promise = conn.eventLoop.makePromise(of: Void.self)
-        conn.eventLoop.scheduleTask(in: .seconds(15)) {
+        _ = try client.subscribe(to: "nl.roebert.MQTT/tests/subscribe", qos: .exactlyOnce).wait()
+        
+        let promise = eventLoop.makePromise(of: Void.self)
+        eventLoop.scheduleTask(in: .seconds(15)) {
             promise.succeed(())
         }
         try promise.futureResult.wait()
         
-        _ = try conn.unsubscribe(from: "nl.roebert.MQTT/tests/subscribe").wait()
+        _ = try client.unsubscribe(from: "nl.roebert.MQTT/tests/subscribe").wait()
         
-        let promise2 = conn.eventLoop.makePromise(of: Void.self)
-        conn.eventLoop.scheduleTask(in: .seconds(15)) {
+        let promise2 = eventLoop.makePromise(of: Void.self)
+        eventLoop.scheduleTask(in: .seconds(15)) {
             promise2.succeed(())
         }
         try promise2.futureResult.wait()
         
-        try conn.close().wait()
+        try client.disconnect().wait()
     }
 }
 

@@ -1,4 +1,5 @@
 import NIO
+import NIOConcurrencyHelpers
 import Logging
 
 final class MQTTRequestHandler: ChannelDuplexHandler {
@@ -10,6 +11,8 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
     typealias OutboundOut = MQTTPacket.Outbound
     
     // MARK: - Vars
+    
+    private let lock = Lock()
 
     private var maxInflightEntries = 20
     private var entriesInflight: [Entry] = []
@@ -31,13 +34,24 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
     
     // MARK: - Queue
     
-    func perform(_ request: MQTTRequest, context: ChannelHandlerContext) -> EventLoopFuture<Void> {
+    func perform(_ request: MQTTRequest, in eventLoop: EventLoop) -> EventLoopFuture<Void> {
+        let promise = eventLoop.makePromise(of: Void.self)
         
-        let promise = context.eventLoop.makePromise(of: Void.self)
+        request.log(to: logger)
+        
         let entry = Entry(request: request, promise: promise)
-        entriesQueue.append(entry)
-        withRequestContext(in: context) { requestContext in
-            startQueuedEntries(context: requestContext)
+        lock.withLockVoid {
+            entriesQueue.append(entry)
+        }
+        
+        channel?.pipeline.context(handler: self).whenSuccess { [weak self] context in
+            guard let strongSelf = self else {
+                return
+            }
+            
+            strongSelf.withRequestContext(in: context) { requestContext in
+                strongSelf.startQueuedEntries(context: requestContext)
+            }
         }
         
         return promise.futureResult
@@ -79,8 +93,9 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
         updateIsActive(false, context: context)
         
         let disconnect = MQTTPacket.Disconnect()
-        context.writeAndFlush(wrapOutboundOut(disconnect), promise: nil)
-        context.close(mode: mode, promise: promise)
+        context.writeAndFlush(wrapOutboundOut(disconnect)).whenComplete { _ in
+            context.close(mode: mode, promise: promise)
+        }
     }
     
     // MARK: - Utils
@@ -110,7 +125,9 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
     
     private func withRequestContext(in context: ChannelHandlerContext, _ execute: (MQTTRequestContext) -> Void) {
         let requestContext = RequestContext(handler: self, context: context)
-        execute(requestContext)
+        lock.withLockVoid {
+            execute(requestContext)
+        }
         if requestContext.didWrite {
             context.flush()
         }
@@ -133,13 +150,21 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
         }
     }
     
-    private func updateIsActive(_ isActive: Bool, context: ChannelHandlerContext) {
-        guard isActive != self.isActive else {
+    private func updateIsActive(_ newIsActive: Bool, context: ChannelHandlerContext) {
+        let didChange = lock.withLock { () -> Bool in
+            guard newIsActive != self.isActive else {
+                return false
+            }
+            
+            self.isActive = newIsActive
+            return true
+        }
+        
+        guard didChange else {
             return
         }
         
-        self.isActive = isActive
-        if isActive {
+        if newIsActive {
             resumeEntries(context: context)
         } else {
             pauseEntries(context: context)

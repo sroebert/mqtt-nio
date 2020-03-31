@@ -27,7 +27,5 @@ final class MQTTPacketTypeSerializer: ChannelOutboundHandler {
             promise?.fail(error)
             context.fireErrorCaught(error)
         }
-        
-        context.channel.eventLoop.assertInEventLoop()
     }
 }

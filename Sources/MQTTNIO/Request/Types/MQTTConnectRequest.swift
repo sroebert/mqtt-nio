@@ -11,21 +11,21 @@ final class MQTTConnectRequest: MQTTRequest {
     
     // MARK: - Vars
     
-    let config: MQTTConnection.ConnectConfig
+    let configuration: MQTTConnectionConfiguration
     private var timeoutScheduled: Scheduled<Void>?
     
     // MARK: - Init
     
-    init(config: MQTTConnection.ConnectConfig) {
-        self.config = config
+    init(configuration: MQTTConnectionConfiguration) {
+        self.configuration = configuration
     }
     
     // MARK: - MQTTRequest
     
     func start(context: MQTTRequestContext) -> MQTTRequestResult {
-        timeoutScheduled = context.scheduleEvent(Error.timeout, in: config.connectTimeoutInterval)
+        timeoutScheduled = context.scheduleEvent(Error.timeout, in: configuration.connectTimeoutInterval)
         
-        context.write(MQTTPacket.Connect(config: config))
+        context.write(MQTTPacket.Connect(configuration: configuration))
         return .pending
     }
     

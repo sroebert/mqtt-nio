@@ -7,7 +7,7 @@ let package = Package(
        .macOS(.v10_15)
     ],
     products: [
-        .library(name: "MQTTNio", targets: ["MQTTNio"]),
+        .library(name: "MQTTNIO", targets: ["MQTTNIO"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.0.0"),
@@ -15,13 +15,13 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-log.git", from: "1.0.0"),
     ],
     targets: [
-        .target(name: "MQTTNio", dependencies: [
+        .target(name: "MQTTNIO", dependencies: [
             .product(name: "Logging", package: "swift-log"),
             .product(name: "NIO", package: "swift-nio"),
             .product(name: "NIOSSL", package: "swift-nio-ssl"),
         ]),
-        .testTarget(name: "MQTTNioTests", dependencies: [
-            .target(name: "MQTTNio"),
+        .testTarget(name: "MQTTNIOTests", dependencies: [
+            .target(name: "MQTTNIO"),
             .product(name: "NIOTestUtils", package: "swift-nio"),
         ]),
     ]
