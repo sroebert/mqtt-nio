@@ -25,19 +25,14 @@ final class MQTTNIOTests: XCTestCase {
     func testConnectAndClose() throws {
         let client = MQTTClient(eventLoopGroup: group)
         
-        _ = try client.connect(configuration: .init(
+        _ = client.connect(configuration: .init(
             target: .host("localhost", port: 1883),
             eventLoopGroup: group,
             keepAliveInterval: .seconds(5)
-        )).wait()
+        ))
         
-        client.addMessageListener { _, message in
-            print("Received message at \(message.topic): \(message.stringValue ?? "data")")
-        }
-        
-        client.publish(MQTTMessage(topic: "nl.roebert.MQTT/tests/message", payload: "Hello World"))
-        
-        _ = try client.subscribe(to: "nl.roebert.MQTT/tests/subscribe", qos: .exactlyOnce).wait()
+        client.publish(MQTTMessage(topic: "nl.roebert.MQTT/tests/message1", payload: "Hello World"))
+        client.publish(MQTTMessage(topic: "nl.roebert.MQTT/tests/message2", payload: "Hello World"))
         
         let promise = eventLoop.makePromise(of: Void.self)
         eventLoop.scheduleTask(in: .seconds(15)) {
@@ -45,7 +40,7 @@ final class MQTTNIOTests: XCTestCase {
         }
         try promise.futureResult.wait()
         
-        _ = try client.unsubscribe(from: "nl.roebert.MQTT/tests/subscribe").wait()
+        client.publish(MQTTMessage(topic: "nl.roebert.MQTT/tests/message3", payload: "Hello World"))
         
         let promise2 = eventLoop.makePromise(of: Void.self)
         eventLoop.scheduleTask(in: .seconds(15)) {
@@ -60,7 +55,7 @@ final class MQTTNIOTests: XCTestCase {
 let isLoggingConfigured: Bool = {
     LoggingSystem.bootstrap { label in
         var handler = StreamLogHandler.standardOutput(label: label)
-        handler.logLevel = .debug
+        handler.logLevel = .trace
         return handler
     }
     return true

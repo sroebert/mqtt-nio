@@ -122,7 +122,13 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
     
     private func getQueuedEntry() -> Entry? {
         return lock.withLock {
-            guard entriesInflight.count < maxInflightEntries && !entriesQueue.isEmpty else {
+            // If not active and there is an `MQTTConnectRequest` return that one
+            if !isActive, let connectIndex = entriesQueue.firstIndex(where: { $0.request is MQTTConnectRequest }) {
+                return entriesQueue.remove(at: connectIndex)
+            }
+            
+            // Otherwise only return something if active and we are allowed to have more inflight entries.
+            guard isActive && entriesInflight.count < maxInflightEntries && !entriesQueue.isEmpty else {
                 return nil
             }
             return entriesQueue.removeFirst()
@@ -304,9 +310,10 @@ extension MQTTRequestHandler {
 
 extension MQTTRequestHandler {
     final private class Entry {
-        private let request: MQTTRequest
+        let request: MQTTRequest
+        let promise: EventLoopPromise<Void>
+        
         private var isFinished: Bool = false
-        private let promise: EventLoopPromise<Void>
         private let lock = Lock()
         
         init(request: MQTTRequest, promise: EventLoopPromise<Void>) {

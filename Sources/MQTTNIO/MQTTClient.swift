@@ -67,6 +67,38 @@ public class MQTTClient {
         return requestHandler.perform(request, in: eventLoopGroup.next())
     }
     
+    @discardableResult
+    public func publish(
+        topic: String,
+        payload: ByteBuffer? = nil,
+        qos: MQTTQoS = .atMostOnce,
+        retain: Bool = false
+    ) -> EventLoopFuture<Void> {
+        let message = MQTTMessage(
+            topic: topic,
+            payload: payload,
+            qos: qos,
+            retain: retain
+        )
+        return publish(message)
+    }
+    
+    @discardableResult
+    public func publish(
+        topic: String,
+        payload: String,
+        qos: MQTTQoS = .atMostOnce,
+        retain: Bool = false
+    ) -> EventLoopFuture<Void> {
+        let message = MQTTMessage(
+            topic: topic,
+            payload: payload,
+            qos: qos,
+            retain: retain
+        )
+        return publish(message)
+    }
+    
     // MARK: - Subscriptions
     
     @discardableResult
