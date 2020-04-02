@@ -25,6 +25,11 @@ final class MQTTConnectRequest: MQTTRequest {
     func start(context: MQTTRequestContext) -> MQTTRequestResult {
         timeoutScheduled = context.scheduleEvent(Error.timeout, in: configuration.connectTimeoutInterval)
         
+        context.logger.debug("Sending: Connect", metadata: [
+            "clientId": .string(configuration.clientId),
+            "cleanSession": .stringConvertible(configuration.cleanSession),
+        ])
+        
         context.write(MQTTPacket.Connect(configuration: configuration))
         return .pending
     }
@@ -36,6 +41,16 @@ final class MQTTConnectRequest: MQTTRequest {
         guard case .connAck(let connAck) = packet else {
             let error = MQTTConnectionError.protocol("Received invalid packet after sending connect: \(packet)")
             return .failure(error)
+        }
+        
+        switch connAck.returnCode {
+        case .accepted:
+            context.logger.debug("Received: Connect Acknowledgement (Accepted)")
+            
+        default:
+            context.logger.notice("Received: Connect Acknowledgement (Rejected)", metadata: [
+                "returnCode": "\(connAck.returnCode)"
+            ])
         }
         
         switch connAck.returnCode {
@@ -62,10 +77,8 @@ final class MQTTConnectRequest: MQTTRequest {
         guard case Error.timeout = event else {
             return .pending
         }
+        
+        context.logger.notice("Did not receive 'Connect Acknowledgement' in time")
         return .failure(MQTTConnectionError.protocol("Did not receive ConnAck packet in time."))
-    }
-    
-    func log(to logger: Logger) {
-        logger.debug("Establishing connection with MQTT server")
     }
 }

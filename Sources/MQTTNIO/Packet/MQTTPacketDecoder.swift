@@ -6,10 +6,10 @@ final class MQTTPacketDecoder: ByteToMessageDecoder {
     typealias InboundOut = MQTTPacket
 
     /// Logger to send debug messages to.
-    let logger: Logger?
+    let logger: Logger
     
     /// Creates a new `MQTTPacketDecoder`.
-    init(logger: Logger? = nil) {
+    init(logger: Logger) {
         self.logger = logger
     }
     
@@ -37,7 +37,7 @@ final class MQTTPacketDecoder: ByteToMessageDecoder {
         
         // there is sufficient data, use this buffer
         buffer = peekBuffer
-        logger?.trace("Decoded: MQTTPacket (\(message.kind))")
+        logger.trace("Decoded: MQTTPacket (\(message.kind))")
         context.fireChannelRead(wrapInboundOut(message))
         return .continue
     }

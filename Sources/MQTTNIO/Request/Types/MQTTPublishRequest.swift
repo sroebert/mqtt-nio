@@ -41,6 +41,14 @@ final class MQTTPublishRequest: MQTTRequest {
             scheduleRetry(context: context)
         }
         
+        context.logger.debug("Sending: Publish", metadata: [
+            "packetId": .string(packetId.map { $0.description } ?? "none"),
+            "topic": .string(message.topic),
+            "payload": .string(message.stringValue ?? message.payload.map { "\($0.readableBytes) bytes" } ?? "empty"),
+            "qos": .stringConvertible(message.qos.rawValue),
+            "retain": .stringConvertible(message.retain)
+        ])
+        
         context.write(MQTTPacket.Publish(message: message, packetId: packetId))
         return result
     }
@@ -60,6 +68,11 @@ final class MQTTPublishRequest: MQTTRequest {
             guard acknowledgement.kind == .pubAck else {
                 return .pending
             }
+            
+            context.logger.debug("Received: Publish Acknowledgement", metadata: [
+                "packetId": .stringConvertible(acknowledgement.packetId),
+            ])
+            
             cancelRetry()
             return .success
             
@@ -67,6 +80,13 @@ final class MQTTPublishRequest: MQTTRequest {
             if acknowledgement.kind == .pubRec {
                 acknowledgedPub = true
                 cancelRetry()
+                
+                context.logger.debug("Received: Publish Received", metadata: [
+                    "packetId": .stringConvertible(acknowledgement.packetId),
+                ])
+                context.logger.debug("Sending: Publish Release", metadata: [
+                    "packetId": .stringConvertible(acknowledgement.packetId),
+                ])
                 
                 let pubRel = MQTTPacket.Acknowledgement(kind: .pubRel, packetId: packetId)
                 context.write(pubRel)
@@ -78,6 +98,10 @@ final class MQTTPublishRequest: MQTTRequest {
             guard acknowledgedPub && acknowledgement.kind == .pubComp else {
                 return .pending
             }
+            
+            context.logger.debug("Received: Publish Complete", metadata: [
+                "packetId": .stringConvertible(acknowledgement.packetId),
+            ])
             
             cancelRetry()
             return .success
@@ -98,10 +122,6 @@ final class MQTTPublishRequest: MQTTRequest {
     
     func pause(context: MQTTRequestContext) {
         cancelRetry()
-    }
-    
-    func log(to logger: Logger) {
-        logger.debug("Publishing \(message)")
     }
     
     // MARK: - Utils

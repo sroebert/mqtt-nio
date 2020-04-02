@@ -70,10 +70,25 @@ final class MQTTSubscriptionsHandler: ChannelDuplexHandler {
     private func emit(_ message: MQTTMessage) {
         let currentListeners = lock.withLock { listeners }
         
+        logger.debug("Emitting message to listeners", metadata: [
+            "topic": .string(message.topic),
+            "payload": .string(message.stringValue ?? message.payload.map { "\($0.readableBytes) bytes" } ?? "empty"),
+            "qos": .stringConvertible(message.qos.rawValue),
+            "retain": .stringConvertible(message.retain)
+        ])
+        
         currentListeners.forEach { $0.listener($0.context, message) }
     }
     
     private func handlePublish(_ publish: MQTTPacket.Publish, context: ChannelHandlerContext) {
+        logger.debug("Received: Publish", metadata: [
+            "packetId": .string(publish.packetId.map { $0.description } ?? "none"),
+            "topic": .string(publish.message.topic),
+            "payload": .string(publish.message.stringValue ?? publish.message.payload.map { "\($0.readableBytes) bytes" } ?? "empty"),
+            "qos": .stringConvertible(publish.message.qos.rawValue),
+            "retain": .stringConvertible(publish.message.retain)
+        ])
+        
         switch publish.message.qos {
         case .atMostOnce:
             emit(publish.message)
@@ -84,6 +99,10 @@ final class MQTTSubscriptionsHandler: ChannelDuplexHandler {
                 return
             }
             
+            logger.debug("Sending: Publish Acknowledgement", metadata: [
+                "packetId": .stringConvertible(packetId),
+            ])
+            
             let packet = MQTTPacket.Acknowledgement(kind: .pubAck, packetId: packetId)
             context.writeAndFlush(wrapOutboundOut(packet), promise: nil)
             emit(publish.message)
@@ -93,6 +112,10 @@ final class MQTTSubscriptionsHandler: ChannelDuplexHandler {
                 // Should never happen, as this case is already handled
                 return
             }
+            
+            logger.debug("Sending: Publish Received", metadata: [
+                "packetId": .stringConvertible(packetId),
+            ])
             
             let packet = MQTTPacket.Acknowledgement(kind: .pubRec, packetId: packetId)
             context.writeAndFlush(wrapOutboundOut(packet), promise: nil)
@@ -106,6 +129,10 @@ final class MQTTSubscriptionsHandler: ChannelDuplexHandler {
     }
     
     private func handleAcknowledgement(packetId: UInt16, context: ChannelHandlerContext) {
+        logger.debug("Received: Publish Release", metadata: [
+            "packetId": .stringConvertible(packetId),
+        ])
+        
         let optionalMessage = lock.withLock { () -> MQTTMessage? in
             guard let message = inflightMessages[packetId] else {
                 return nil
@@ -116,8 +143,15 @@ final class MQTTSubscriptionsHandler: ChannelDuplexHandler {
         }
         
         guard let message = optionalMessage else {
+            logger.debug("Ignoring 'Publish Release' for unknown packet identifier", metadata: [
+                "packetId": .stringConvertible(packetId),
+            ])
             return
         }
+        
+        logger.debug("Sending: Publish Complete", metadata: [
+            "packetId": .stringConvertible(packetId),
+        ])
         
         let packet = MQTTPacket.Acknowledgement(kind: .pubComp, packetId: packetId)
         context.writeAndFlush(wrapOutboundOut(packet), promise: nil)

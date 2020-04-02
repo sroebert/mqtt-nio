@@ -29,10 +29,29 @@ final class MQTTKeepAliveHandler: ChannelOutboundHandler {
     
     // MARK: - ChannelDuplexHandler
     
+    func triggerUserOutboundEvent(context: ChannelHandlerContext, event: Any, promise: EventLoopPromise<Void>?) {
+        
+        switch event {
+        case MQTTConnectionEvent.didConnect:
+            lock.withLockVoid {
+                schedulePingRequest(in: context.eventLoop)
+            }
+            
+        case MQTTConnectionEvent.willDisconnect:
+            lock.withLockVoid {
+                unschedulePingRequest()
+            }
+            
+        default:
+            break
+        }
+        
+        context.triggerUserOutboundEvent(event, promise: promise)
+    }
+    
     func handlerAdded(context: ChannelHandlerContext) {
         lock.withLockVoid {
             channel = context.channel
-            schedulePingRequest(in: context.eventLoop)
         }
     }
     
@@ -55,14 +74,6 @@ final class MQTTKeepAliveHandler: ChannelOutboundHandler {
         
         // Forward
         context.write(data, promise: promise)
-    }
-    
-    func close(context: ChannelHandlerContext, mode: CloseMode, promise: EventLoopPromise<Void>?) {
-        lock.withLockVoid {
-            unschedulePingRequest()
-        }
-        
-        context.close(mode: mode, promise: promise)
     }
     
     // MARK: - Utils

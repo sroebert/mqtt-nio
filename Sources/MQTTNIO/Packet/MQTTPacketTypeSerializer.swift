@@ -5,11 +5,11 @@ final class MQTTPacketTypeSerializer: ChannelOutboundHandler {
     
     // MARK: - Properties
     
-    let logger: Logger?
+    let logger: Logger
     
     // MARK: - Init
     
-    init(logger: Logger? = nil) {
+    init(logger: Logger) {
         self.logger = logger
     }
     
@@ -24,8 +24,24 @@ final class MQTTPacketTypeSerializer: ChannelOutboundHandler {
             let packet = try outbound.serialize()
             context.write(wrapOutboundOut(packet), promise: promise)
         } catch {
+            logger.notice("Could not serialize outbound packet", metadata: [
+                "outboundType": "\(type(of: outbound))",
+                "error": "\(error)"
+            ])
+            
             promise?.fail(error)
             context.fireErrorCaught(error)
+        }
+    }
+    
+    func triggerUserOutboundEvent(context: ChannelHandlerContext, event: Any, promise: EventLoopPromise<Void>?) {
+        switch event {
+        case is MQTTConnectionEvent:
+            // As these events just have to go through all the handlers, we can succeed the promise here
+            promise?.succeed(())
+            
+        default:
+            context.triggerUserOutboundEvent(event, promise: promise)
         }
     }
 }

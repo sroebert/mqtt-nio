@@ -23,6 +23,8 @@ final class MQTTPingRequest: MQTTRequest {
     // MARK: - MQTTRequest
     
     func start(context: MQTTRequestContext) -> MQTTRequestResult {
+        context.logger.debug("Sending: Ping Request")
+        
         timeoutScheduled = context.scheduleEvent(Error.timeout, in: timeoutInterval)
         
         context.write(MQTTPacket.PingReq())
@@ -34,6 +36,8 @@ final class MQTTPingRequest: MQTTRequest {
             return .pending
         }
         
+        context.logger.debug("Received: Ping Response")
+        
         timeoutScheduled?.cancel()
         timeoutScheduled = nil
         
@@ -44,10 +48,8 @@ final class MQTTPingRequest: MQTTRequest {
         guard case Error.timeout = event else {
             return .pending
         }
+        
+        context.logger.notice("Did not receive 'Ping Response' in time")
         return .failure(Error.timeout)
-    }
-    
-    func log(to logger: Logger) {
-        logger.debug("Pinging the server")
     }
 }

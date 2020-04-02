@@ -5,9 +5,9 @@ final class MQTTPacketTypeParser: ChannelInboundHandler {
     typealias InboundIn = MQTTPacket
     typealias InboundOut = MQTTPacket.Inbound
 
-    let logger: Logger?
+    let logger: Logger
     
-    init(logger: Logger? = nil) {
+    init(logger: Logger) {
         self.logger = logger
     }
     
@@ -18,6 +18,11 @@ final class MQTTPacketTypeParser: ChannelInboundHandler {
             let inbound = try parse(packet)
             context.fireChannelRead(wrapInboundOut(inbound))
         } catch {
+            logger.notice("Could not parse inbound packet", metadata: [
+                "inboundType": "\(type(of: packet))",
+                "error": "\(error)"
+            ])
+            
             context.fireErrorCaught(error)
         }
     }

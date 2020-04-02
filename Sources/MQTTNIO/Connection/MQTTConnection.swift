@@ -12,7 +12,7 @@ class MQTTConnection {
     let configuration: MQTTConnectionConfiguration
     let logger: Logger
     
-    private let stateManager = StateManager()
+    private let stateManager: StateManager
     
     private(set) var channel: EventLoopFuture<Channel> {
         didSet {
@@ -55,6 +55,7 @@ class MQTTConnection {
     ) {
         self.configuration = configuration
         self.logger = logger
+        self.stateManager = StateManager(logger: logger)
         
         self.requestHandler = requestHandler
         self.subscriptionsHandler = subscriptionsHandler
@@ -75,11 +76,19 @@ class MQTTConnection {
     // MARK: - Close
     
     func close() -> EventLoopFuture<Void> {
-        if state == .shutdown {
-            return channel.flatMap { $0.closeFuture }
-        } else {
-            stateManager.initiateUserShutdown()
-            return channel.flatMap { $0.close() }
+        stateManager.initiateUserShutdown()
+        channel.whenSuccess { $0.close(mode: .all, promise: nil) }
+        
+        let eventLoop = self.eventLoop
+        return channel.map { channel -> Channel? in
+            return channel
+        }.flatMapErrorThrowing { _ in
+            return nil
+        }.flatMap { optionalChannel in
+            guard let channel = optionalChannel else {
+                return eventLoop.makeSucceededFuture(())
+            }
+            return channel.closeFuture
         }
     }
     
@@ -88,19 +97,32 @@ class MQTTConnection {
     private func didChangeChannel() {
         // Close the channel if the user already initiated shutdown
         guard !stateManager.userHasInitiatedShutdown else {
-            channel.whenSuccess { channel in
+            channel.whenSuccess { [weak self] channel in
+                self?.logger.debug("Closing channel, user initiated shutdown while connecting")
                 channel.close(mode: .all, promise: nil)
             }
             return
         }
         
-        channel.flatMap { $0.closeFuture }.whenComplete { [weak self] _ in
+        channel.flatMap { $0.closeFuture }.whenComplete { [weak self] result in
             guard let strongSelf = self else {
                 return
             }
             
+            switch result {
+            case .success:
+                strongSelf.logger.debug("Client connection successfully shutdown")
+            case .failure(let error):
+                strongSelf.logger.warning("Client connection shutdown failed", metadata: [
+                    "error": "\(error)"
+                ])
+            }
+            
             // Check if we can reconnect
             guard strongSelf.stateManager.canReconnect else {
+                strongSelf.logger.debug("Client not reconnecting, state does not allow it", metadata: [
+                    "state": "\(strongSelf.state)"
+                ])
                 return
             }
             
@@ -108,6 +130,7 @@ class MQTTConnection {
             strongSelf.state = .transientFailure
             
             // Reconnect
+            strongSelf.logger.debug("Client creating a new channel")
             strongSelf.channel = MQTTConnection.makeChannel(
                 on: strongSelf.channel.eventLoop,
                 configuration: strongSelf.configuration,
@@ -139,6 +162,10 @@ class MQTTConnection {
             return configuration.eventLoopGroup.next().makeFailedFuture(MQTTInternalError(message: "Invalid connection state"))
         }
         
+        logger.debug("Client starting connection", metadata: [
+            "target": "\(configuration.target)",
+        ])
+        
         stateManager.state = .connecting
         
         let bootstrap = ClientBootstrap(group: eventLoop)
@@ -166,8 +193,12 @@ class MQTTConnection {
                 // Error handler
                 MQTTErrorHandler(logger: logger)
             ]).flatMap {
+                logger.debug("Client connected, sending connect request")
+                
                 let connectRequest = MQTTConnectRequest(configuration: configuration)
                 return requestHandler.perform(connectRequest, in: channel.eventLoop)
+            }.flatMap {
+                channel.triggerUserOutboundEvent(MQTTConnectionEvent.didConnect)
             }.map { channel }
         }
         
@@ -175,6 +206,10 @@ class MQTTConnection {
         
         // If we cannot connect, try again in a given interval
         return channel.flatMapError { error in
+            logger.debug("Client connection failed", metadata: [
+                "error": "\(error)",
+            ])
+            
             stateManager.state = .transientFailure
             return MQTTConnection.scheduleReconnectAttempt(
                 in: newReconnectDelay,
@@ -197,6 +232,10 @@ class MQTTConnection {
         subscriptionsHandler: MQTTSubscriptionsHandler,
         logger: Logger
     ) -> EventLoopFuture<Channel> {
+        
+        logger.debug("Client scheduling reconnection", metadata: [
+            "delay": .stringConvertible(delay.nanoseconds / 1_000_000_000),
+        ])
     
         return eventLoop.scheduleTask(in: delay) {
             MQTTConnection.makeChannel(

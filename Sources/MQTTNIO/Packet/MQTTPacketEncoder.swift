@@ -6,29 +6,29 @@ final class MQTTPacketEncoder: MessageToByteEncoder {
     typealias OutboundIn = MQTTPacket
 
     /// Logger to send debug messages to.
-    let logger: Logger?
+    let logger: Logger
 
     /// Creates a new `MQTTPacketEncoder`.
-    init(logger: Logger? = nil) {
+    init(logger: Logger) {
         self.logger = logger
     }
     
     /// See `MessageToByteEncoder`.
-    func encode(data message: MQTTPacket, out: inout ByteBuffer) throws {
-        var message = message
+    func encode(data packet: MQTTPacket, out: inout ByteBuffer) throws {
+        var packet = packet
         // serialize header
-        out.writeInteger(message.kind.value | message.fixedHeaderData)
+        out.writeInteger(packet.kind.value | packet.fixedHeaderData)
         
         // write size
-        try writeMessageSize(message.data.readableBytes, out: &out)
+        try writePacketSize(packet.data.readableBytes, out: &out)
         
-        // serialize the message data
-        out.writeBuffer(&message.data)
+        // serialize the packet data
+        out.writeBuffer(&packet.data)
         
-        self.logger?.trace("Encoded: MQTTPacket (\(message.kind))")
+        logger.trace("Encoded: \(packet.kind)")
     }
     
-    private func writeMessageSize(_ size: Int, out: inout ByteBuffer) throws {
+    private func writePacketSize(_ size: Int, out: inout ByteBuffer) throws {
         var size = size
         var counter = 0
         

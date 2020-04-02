@@ -32,6 +32,11 @@ final class MQTTUnsubscribeRequest: MQTTRequest {
         let packetId = context.getNextPacketId()
         self.packetId = packetId
         
+        context.logger.debug("Sending: Unsubscribe", metadata: [
+            "packetId": .stringConvertible(packetId),
+            "topics": .array(topics.map { .string($0) })
+        ])
+        
         context.write(MQTTPacket.Unsubscribe(
             topics: topics,
             packetId: packetId
@@ -44,6 +49,10 @@ final class MQTTUnsubscribeRequest: MQTTRequest {
             return .pending
         }
         
+        context.logger.debug("Received: Unsubscribe Acknowledgement", metadata: [
+            "packetId": .stringConvertible(unsubAck.packetId),
+        ])
+        
         timeoutScheduled?.cancel()
         timeoutScheduled = nil
 
@@ -54,10 +63,8 @@ final class MQTTUnsubscribeRequest: MQTTRequest {
         guard case Error.timeout = event else {
             return .pending
         }
+        
+        context.logger.notice("Did not receive 'Unsubscribe Acknowledgement' in time")
         return .failure(MQTTConnectionError.protocol("Did not receive UnsubAck packet in time."))
-    }
-    
-    func log(to logger: Logger) {
-        logger.debug("Unsubscribing from: \(topics.joined(separator: ", "))")
     }
 }

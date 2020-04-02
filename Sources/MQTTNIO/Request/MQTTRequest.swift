@@ -2,6 +2,8 @@ import NIO
 import Logging
 
 protocol MQTTRequestContext {
+    var logger: Logger { get }
+    
     func write(_ outbound: MQTTPacket.Outbound)
     
     func getNextPacketId() -> UInt16
@@ -18,8 +20,6 @@ protocol MQTTRequest {
     
     func pause(context: MQTTRequestContext)
     func resume(context: MQTTRequestContext) -> MQTTRequestResult
-    
-    func log(to logger: Logger)
 }
 
 extension MQTTRequest {
@@ -44,4 +44,17 @@ enum MQTTRequestResult {
     case pending
     case success
     case failure(Error)
+    
+    var promiseResult: Result<Void, Error>? {
+        switch self {
+        case .pending:
+            return nil
+            
+        case .success:
+            return .success(())
+            
+        case .failure(let error):
+            return .failure(error)
+        }
+    }
 }

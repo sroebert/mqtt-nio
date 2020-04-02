@@ -24,7 +24,7 @@ public class MQTTClient {
         self.eventLoopGroup = eventLoopGroup
         self.logger = logger
         
-        requestHandler = MQTTRequestHandler(logger: logger)
+        requestHandler = MQTTRequestHandler(logger: logger, eventLoop: eventLoopGroup.next())
         subscriptionsHandler = MQTTSubscriptionsHandler(logger: logger)
     }
     

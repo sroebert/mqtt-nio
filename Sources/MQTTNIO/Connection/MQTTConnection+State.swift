@@ -1,3 +1,4 @@
+import Logging
 import NIOConcurrencyHelpers
 
 extension MQTTConnection {
@@ -12,6 +13,8 @@ extension MQTTConnection {
     class StateManager {
         
         // MARK: - Vars
+        
+        public let logger: Logger
         
         private let lock = Lock()
         private var _state: State = .idle
@@ -36,9 +39,8 @@ extension MQTTConnection {
                 return lock.withLock { _state }
             }
             set {
-                lock.withLockVoid {
-                    updateState(newValue)
-                }
+                let callDelegate = lock.withLock { updateState(newValue) }
+                callDelegate()
             }
         }
         
@@ -52,29 +54,51 @@ extension MQTTConnection {
             }
         }
         
+        // MARK: - Init
+        
+        init(logger: Logger) {
+            self.logger = logger
+        }
+        
         // MARK: - User Shutdown
         
         func initiateUserShutdown() {
-            lock.withLockVoid {
-                updateState(.shutdown)
+            let callDelegate: () -> Void = lock.withLock {
+                logger.debug("User initiated shutdown")
+                
+                let returnValue = updateState(.shutdown)
                 _userInitiatedShutdown = true
+                return returnValue
             }
+            callDelegate()
         }
         
         // MARK: - Private
         
-        private func updateState(_ newState: State) {
+        @discardableResult
+        private func updateState(_ newState: State) -> () -> Void {
             guard !_userInitiatedShutdown, _state != newState else {
-                return
+                logger.debug("Connection state change, ignoring because of user initiated shutdown", metadata: [
+                    "state": "\(_state)",
+                    "ignoredState": "\(newState)"
+                ])
+                return {}
             }
             
             let oldState = _state
             _state = newState
             
-            guard let connection = connection else {
-                return
+            logger.debug("Connection state change", metadata: [
+                "oldState": "\(oldState)",
+                "newState": "\(newState)"
+            ])
+            
+            return {
+                guard let connection = self.connection else {
+                    return
+                }
+                self._delegate?.mqttConnection(connection, didChangeFrom: oldState, to: newState)
             }
-            _delegate?.mqttConnection(connection, didChangeFrom: oldState, to: newState)
         }
     }
 }

@@ -34,6 +34,14 @@ final class MQTTSubscribeRequest: MQTTRequest {
         let packetId = context.getNextPacketId()
         self.packetId = packetId
         
+        context.logger.debug("Sending: Subscribe", metadata: [
+            "packetId": .stringConvertible(packetId),
+            "subscriptions": .array(subscriptions.map { [
+                "topic": .string($0.topic),
+                "qos": .stringConvertible($0.qos.rawValue)
+            ] })
+        ])
+        
         context.write(MQTTPacket.Subscribe(
             subscriptions: subscriptions,
             packetId: packetId
@@ -53,6 +61,23 @@ final class MQTTSubscribeRequest: MQTTRequest {
             return .failure(MQTTConnectionError.protocol("Received an invalid number of subscription results."))
         }
         
+        context.logger.debug("Received: Subscribe Acknowledgement", metadata: [
+            "packetId": .stringConvertible(subAck.packetId),
+            "results": .array(results.map { result in
+                switch result {
+                case .success(let qos):
+                    return [
+                        "accepted": .stringConvertible(true),
+                        "qos": .stringConvertible(qos.rawValue)
+                    ]
+                case .failure:
+                    return [
+                        "accepted": .stringConvertible(false)
+                    ]
+                }
+            })
+        ])
+        
         results = subAck.results
         return .success
     }
@@ -61,11 +86,8 @@ final class MQTTSubscribeRequest: MQTTRequest {
         guard case Error.timeout = event else {
             return .pending
         }
+        
+        context.logger.notice("Did not receive 'Subscription Acknowledgement' in time")
         return .failure(MQTTConnectionError.protocol("Did not receive SubAck packet in time."))
-    }
-    
-    func log(to logger: Logger) {
-        let topics = subscriptions.map { $0.topic }.joined(separator: ",")
-        logger.debug("Subscribing to: \(topics)")
     }
 }
