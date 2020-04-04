@@ -133,6 +133,13 @@ final class MQTTSubscriptionsHandler: ChannelDuplexHandler {
             "packetId": .stringConvertible(packetId),
         ])
         
+        logger.debug("Sending: Publish Complete", metadata: [
+            "packetId": .stringConvertible(packetId),
+        ])
+        
+        let packet = MQTTPacket.Acknowledgement(kind: .pubComp, packetId: packetId)
+        context.writeAndFlush(wrapOutboundOut(packet), promise: nil)
+        
         let optionalMessage = lock.withLock { () -> MQTTMessage? in
             guard let message = inflightMessages[packetId] else {
                 return nil
@@ -143,18 +150,11 @@ final class MQTTSubscriptionsHandler: ChannelDuplexHandler {
         }
         
         guard let message = optionalMessage else {
-            logger.debug("Ignoring 'Publish Release' for unknown packet identifier", metadata: [
+            logger.debug("Received 'Publish Release' for unknown packet identifier", metadata: [
                 "packetId": .stringConvertible(packetId),
             ])
             return
         }
-        
-        logger.debug("Sending: Publish Complete", metadata: [
-            "packetId": .stringConvertible(packetId),
-        ])
-        
-        let packet = MQTTPacket.Acknowledgement(kind: .pubComp, packetId: packetId)
-        context.writeAndFlush(wrapOutboundOut(packet), promise: nil)
         
         emit(message)
     }
