@@ -1,7 +1,6 @@
 import NIO
 import NIOSSL
 import NIOTLS
-import NIOConcurrencyHelpers
 import Logging
 
 class TLSVerificationHandler: ChannelInboundHandler, RemovableChannelHandler {
@@ -13,7 +12,6 @@ class TLSVerificationHandler: ChannelInboundHandler, RemovableChannelHandler {
     // MARK: - Vars
     
     let logger: Logger
-    let lock = Lock()
     private var verificationPromise: EventLoopPromise<Void>!
     
     // MARK: - Init
@@ -25,19 +23,17 @@ class TLSVerificationHandler: ChannelInboundHandler, RemovableChannelHandler {
     // MARK: - Utils
     
     func verify() -> EventLoopFuture<Void> {
-        return lock.withLock { verificationPromise.futureResult }
+        return verificationPromise.futureResult
     }
     
     // MARK: - ChannelInboundHandler
     
     func handlerAdded(context: ChannelHandlerContext) {
-        lock.withLockVoid {
-            verificationPromise = context.eventLoop.makePromise()
-            verificationPromise.futureResult.recover { error in
-                context.fireErrorCaught(error)
-            }.whenComplete { _ in
-                context.pipeline.removeHandler(self, promise: nil)
-            }
+        verificationPromise = context.eventLoop.makePromise()
+        verificationPromise.futureResult.recover { error in
+            context.fireErrorCaught(error)
+        }.whenComplete { _ in
+            context.pipeline.removeHandler(self, promise: nil)
         }
     }
     
@@ -46,9 +42,7 @@ class TLSVerificationHandler: ChannelInboundHandler, RemovableChannelHandler {
             "error": "\(error)"
         ])
         
-        lock.withLockVoid {
-            verificationPromise.fail(error)
-        }
+        verificationPromise.fail(error)
     }
     
     func userInboundEventTriggered(context: ChannelHandlerContext, event: Any) {
@@ -61,8 +55,6 @@ class TLSVerificationHandler: ChannelInboundHandler, RemovableChannelHandler {
             "protocol": .string(tlsProtocol ?? "none")
         ])
         
-        lock.withLockVoid {
-            verificationPromise.succeed(())
-        }
+        verificationPromise.succeed(())
     }
 }

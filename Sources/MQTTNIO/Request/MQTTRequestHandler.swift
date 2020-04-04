@@ -48,12 +48,10 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
     // MARK: - Queue
     
     func perform(_ request: MQTTRequest) -> EventLoopFuture<Void> {
-        let promise = lock.withLock { () -> EventLoopPromise<Void> in
-            let promise = _eventLoop.makePromise(of: Void.self)
-            let entry = Entry(request: request, promise: promise)
-            entriesQueue.append(entry)
-            return promise
-        }
+        let promise = lock.withLock { _eventLoop.makePromise(of: Void.self) }
+        
+        let entry = Entry(request: request, promise: promise)
+        entriesQueue.append(entry)
         
         channel?.pipeline.context(handler: self).whenSuccess { [weak self] context in
             guard let strongSelf = self else {
@@ -71,15 +69,11 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
     // MARK: - ChannelDuplexHandler
     
     func handlerAdded(context: ChannelHandlerContext) {
-        lock.withLockVoid {
-            channel = context.channel
-        }
+        channel = context.channel
     }
     
     func handlerRemoved(context: ChannelHandlerContext) {
-        lock.withLockVoid {
-            channel = nil
-        }
+        channel = nil
     }
 
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
@@ -107,12 +101,12 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
     }
 
     func close(context: ChannelHandlerContext, mode: CloseMode, promise: EventLoopPromise<Void>?) {
-        let wasActive = lock.withLock { isActive }
+        let wasActive = isActive
         
         logger.debug("Triggering willDisconnect event")
         
         context.channel.triggerUserOutboundEvent(MQTTConnectionEvent.willDisconnect).whenComplete { _ in
-            // Only send disconnect packet if we succesfully connect before
+            // Only send disconnect packet if we succesfully connected before
             guard wasActive else {
                 self.logger.debug("Finished disconnecting, not sending Disconnect packet")
                 
@@ -132,51 +126,43 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
     // MARK: - Utils
     
     private func getQueuedEntry() -> Entry? {
-        return lock.withLock {
-            // If not active and there is an `MQTTConnectRequest` return that one
-            if !isActive, let connectIndex = entriesQueue.firstIndex(where: { $0.request is MQTTConnectRequest }) {
-                return entriesQueue.remove(at: connectIndex)
-            }
-            
-            // Otherwise only return something if active and we are allowed to have more inflight entries.
-            guard isActive && entriesInflight.count < maxInflightEntries && !entriesQueue.isEmpty else {
-                return nil
-            }
-            return entriesQueue.removeFirst()
+        // If not active and there is an `MQTTConnectRequest` return that one
+        if !isActive, let connectIndex = entriesQueue.firstIndex(where: { $0.request is MQTTConnectRequest }) {
+            return entriesQueue.remove(at: connectIndex)
         }
+        
+        // Otherwise only return something if active and we are allowed to have more inflight entries.
+        guard isActive && entriesInflight.count < maxInflightEntries && !entriesQueue.isEmpty else {
+            return nil
+        }
+        return entriesQueue.removeFirst()
     }
     
     private func getInflightEntry() -> Entry? {
-        return lock.withLock {
-            guard !entriesInflight.isEmpty else {
-                return nil
-            }
-            return entriesInflight.removeFirst()
+        guard !entriesInflight.isEmpty else {
+            return nil
         }
+        return entriesInflight.removeFirst()
     }
     
     private func startQueuedEntries(context: MQTTRequestContext) {
         while let entry = getQueuedEntry() {
             if !entry.start(context: context) {
-                lock.withLockVoid {
-                    entriesInflight.append(entry)
-                }
+                entriesInflight.append(entry)
             }
         }
     }
     
     private func getNextPacketId() -> UInt16 {
-        return lock.withLock {
-            let identifier = nextPacketIdentifier
-            nextPacketIdentifier &+= 1
-            
-            // Make sure we don't use 0 as an id
-            if nextPacketIdentifier == 0 {
-                nextPacketIdentifier += 1
-            }
-            
-            return identifier
+        let identifier = nextPacketIdentifier
+        nextPacketIdentifier &+= 1
+        
+        // Make sure we don't use 0 as an id
+        if nextPacketIdentifier == 0 {
+            nextPacketIdentifier += 1
         }
+        
+        return identifier
     }
     
     private func withRequestContext(in context: ChannelHandlerContext?, _ execute: (MQTTRequestContext) -> Void) {
@@ -189,42 +175,21 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
     
     private func forEachEntry(with context: ChannelHandlerContext?, _ execute: (Entry, MQTTRequestContext) -> Bool) {
         withRequestContext(in: context) { requestContext in
-            let entries = lock.withLock { entriesInflight }
-            
-            var entriesToRemove: [Entry] = []
-            for entry in entries {
-                if execute(entry, requestContext) {
-                    entriesToRemove.append(entry)
-                }
-            }
-            
-            lock.withLockVoid {
-                for entry in entriesToRemove {
-                    if let index = entriesInflight.firstIndex(where: { $0 === entry }) {
-                        entriesInflight.remove(at: index)
-                    }
-                }
+            entriesInflight = entriesInflight.filter { entry in
+                !execute(entry, requestContext)
             }
             
             startQueuedEntries(context: requestContext)
         }
     }
     
-    private func updateIsActive(_ newIsActive: Bool, context: ChannelHandlerContext) {
-        let didChange = lock.withLock { () -> Bool in
-            guard newIsActive != self.isActive else {
-                return false
-            }
-            
-            self.isActive = newIsActive
-            return true
-        }
-        
-        guard didChange else {
+    private func updateIsActive(_ isActive: Bool, context: ChannelHandlerContext) {
+        guard isActive != self.isActive else {
             return
         }
         
-        if newIsActive {
+        self.isActive = isActive
+        if isActive {
             resumeEntries(context: context)
         } else {
             pauseEntries(context: context)
@@ -244,15 +209,8 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
         }
     }
     
-    fileprivate func triggerRequestEvent(_ event: Any) {
-        let contextFuture: EventLoopFuture<ChannelHandlerContext?> = lock.withLock {
-            guard let channel = channel else {
-                return _eventLoop.makeSucceededFuture(nil)
-            }
-            return channel.pipeline.context(handler: self).flatMapThrowing { _ in nil}
-        }
-        
-        contextFuture.whenSuccess { [weak self] context in
+    fileprivate func triggerRequestEvent(_ event: Any, in eventLoop: EventLoop) {
+        channel?.pipeline.context(handler: self).whenSuccess { [weak self] context in
             guard let strongSelf = self else {
                 return
             }
@@ -303,11 +261,12 @@ extension MQTTRequestHandler {
                 "event": "\(event)"
             ])
             
-            let scheduled = handler.eventLoop.scheduleTask(in: delay) { [weak handler] in
+            let eventLoop = handler.eventLoop
+            let scheduled = eventLoop.scheduleTask(in: delay) { [weak handler] in
                 guard let handler = handler else {
                     return
                 }
-                handler.triggerRequestEvent(event)
+                handler.triggerRequestEvent(event, in: eventLoop)
             }
             scheduled.futureResult.whenFailure { _ in
                 logger.trace("Cancelled scheduled request event", metadata: [
@@ -324,9 +283,6 @@ extension MQTTRequestHandler {
         let request: MQTTRequest
         let promise: EventLoopPromise<Void>
         
-        private var isFinished: Bool = false
-        private let lock = Lock()
-        
         init(request: MQTTRequest, promise: EventLoopPromise<Void>) {
             self.request = request
             self.promise = promise
@@ -334,71 +290,34 @@ extension MQTTRequestHandler {
         
         // MARK: - Promise
         
-        private func promiseResult(for result: MQTTRequestResult) -> Result<Void, Error>? {
-            return lock.withLock {
-                guard !isFinished, let returnValue = result.promiseResult else {
-                    return nil
-                }
-                isFinished = true
-                return returnValue
-            }
-        }
-        
         private func handle(_ result: MQTTRequestResult) -> Bool {
-            guard let promiseResult = self.promiseResult(for: result) else {
+            guard let promiseResult = result.promiseResult else {
                 return false
             }
             promise.completeWith(promiseResult)
             return true
         }
         
-        @discardableResult
-        private func perform(_ action: () -> MQTTRequestResult) -> Bool {
-            let optionalResult: MQTTRequestResult? = lock.withLock {
-                guard !isFinished else {
-                    return nil
-                }
-                return action()
-            }
-            
-            guard let result = optionalResult else {
-                // We are already done
-                return true
-            }
-            return handle(result)
-        }
-        
         // Forwarding
         
         func start(context: MQTTRequestContext) -> Bool {
-            perform {
-                request.start(context: context)
-            }
+            return handle(request.start(context: context))
         }
         
         func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> Bool {
-            perform {
-                request.process(context: context, packet: packet)
-            }
+            handle(request.process(context: context, packet: packet))
         }
         
         func handleEvent(context: MQTTRequestContext, event: Any) -> Bool {
-            perform {
-                request.handleEvent(context: context, event: event)
-            }
+            handle(request.handleEvent(context: context, event: event))
         }
         
         func pause(context: MQTTRequestContext) {
-            perform {
-                request.pause(context: context)
-                return .pending
-            }
+            request.pause(context: context)
         }
         
         func resume(context: MQTTRequestContext) -> Bool {
-            perform {
-                request.resume(context: context)
-            }
+            handle(request.resume(context: context))
         }
     }
 }

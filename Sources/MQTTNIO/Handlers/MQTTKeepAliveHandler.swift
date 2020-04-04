@@ -1,5 +1,4 @@
 import NIO
-import NIOConcurrencyHelpers
 import Logging
 
 final class MQTTKeepAliveHandler: ChannelOutboundHandler {
@@ -15,7 +14,6 @@ final class MQTTKeepAliveHandler: ChannelOutboundHandler {
     let interval: TimeAmount
     let reschedulePings: Bool
     
-    private let lock = Lock()
     private weak var channel: Channel?
     private var scheduledPing: Scheduled<Void>?
     
@@ -33,14 +31,10 @@ final class MQTTKeepAliveHandler: ChannelOutboundHandler {
         
         switch event {
         case MQTTConnectionEvent.didConnect:
-            lock.withLockVoid {
-                schedulePingRequest(in: context.eventLoop)
-            }
+            schedulePingRequest(in: context.eventLoop)
             
         case MQTTConnectionEvent.willDisconnect:
-            lock.withLockVoid {
-                unschedulePingRequest()
-            }
+            unschedulePingRequest()
             
         default:
             break
@@ -50,25 +44,19 @@ final class MQTTKeepAliveHandler: ChannelOutboundHandler {
     }
     
     func handlerAdded(context: ChannelHandlerContext) {
-        lock.withLockVoid {
-            channel = context.channel
-        }
+        channel = context.channel
     }
     
     func handlerRemoved(context: ChannelHandlerContext) {
-        lock.withLockVoid {
-            unschedulePingRequest()
-            channel = nil
-        }
+        unschedulePingRequest()
+        channel = nil
     }
     
     func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
         // Reschedule ping request as we are already sending a packet
         if reschedulePings {
-            lock.withLockVoid {
-                if scheduledPing != nil {
-                    schedulePingRequest(in: context.eventLoop)
-                }
+            if scheduledPing != nil {
+                schedulePingRequest(in: context.eventLoop)
             }
         }
         
@@ -99,14 +87,7 @@ final class MQTTKeepAliveHandler: ChannelOutboundHandler {
     }
     
     private func performPingRequest() {
-        let optionalChannel = lock.withLock { () -> Channel? in
-            guard let channel = channel, scheduledPing != nil else {
-                return nil
-            }
-            return channel
-        }
-        
-        guard let channel = optionalChannel else {
+        guard let channel = channel, scheduledPing != nil else {
             return
         }
         
@@ -117,9 +98,7 @@ final class MQTTKeepAliveHandler: ChannelOutboundHandler {
             guard let strongSelf = self else {
                 return
             }
-            strongSelf.lock.withLockVoid {
-                strongSelf.unschedulePingRequest()
-            }
+            strongSelf.unschedulePingRequest()
             strongSelf.channel?.close(mode: .all, promise: nil)
         }
     }

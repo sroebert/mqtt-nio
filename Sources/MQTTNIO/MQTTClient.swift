@@ -14,7 +14,8 @@ public class MQTTClient {
         set {
             lock.withLockVoid {
                 _configuration = newValue
-                requestHandler.eventLoop = newValue.eventLoopGroup.next()
+                eventLoop = newValue.eventLoopGroup.next()
+                requestHandler.eventLoop = eventLoop
             }
         }
     }
@@ -22,6 +23,7 @@ public class MQTTClient {
     let logger: Logger
     
     private let lock = Lock()
+    private var eventLoop: EventLoop
     private var connection: MQTTConnection?
     
     private let requestHandler: MQTTRequestHandler
@@ -35,8 +37,9 @@ public class MQTTClient {
     {
         _configuration = configuration
         self.logger = logger
+        eventLoop = _configuration.eventLoopGroup.next()
         
-        requestHandler = MQTTRequestHandler(logger: logger, eventLoop: _configuration.eventLoopGroup.next())
+        requestHandler = MQTTRequestHandler(logger: logger, eventLoop: eventLoop)
         subscriptionsHandler = MQTTSubscriptionsHandler(logger: logger)
     }
     
@@ -45,7 +48,7 @@ public class MQTTClient {
     public func connect() -> EventLoopFuture<Void> {
         return lock.withLock {
             guard connection == nil else {
-                return _configuration.eventLoopGroup.next().makeSucceededFuture(())
+                return eventLoop.makeSucceededFuture(())
             }
             
             let connection = MQTTConnection(
@@ -63,7 +66,7 @@ public class MQTTClient {
     public func disconnect() -> EventLoopFuture<Void> {
         return lock.withLock {
             guard let connection = connection else {
-                return _configuration.eventLoopGroup.next().makeSucceededFuture(())
+                return eventLoop.makeSucceededFuture(())
             }
             
             self.connection = nil
