@@ -11,12 +11,12 @@ final class MQTTConnectRequest: MQTTRequest {
     
     // MARK: - Vars
     
-    let configuration: MQTTConnectionConfiguration
+    let configuration: MQTTConfiguration
     private var timeoutScheduled: Scheduled<Void>?
     
     // MARK: - Init
     
-    init(configuration: MQTTConnectionConfiguration) {
+    init(configuration: MQTTConfiguration) {
         self.configuration = configuration
     }
     

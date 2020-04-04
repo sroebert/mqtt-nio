@@ -6,7 +6,19 @@ public class MQTTClient {
     
     // MARK: - Vars
     
-    let eventLoopGroup: EventLoopGroup
+    private var _configuration: MQTTConfiguration
+    var configuration: MQTTConfiguration {
+        get {
+            return lock.withLock { _configuration }
+        }
+        set {
+            lock.withLockVoid {
+                _configuration = newValue
+                requestHandler.eventLoop = newValue.eventLoopGroup.next()
+            }
+        }
+    }
+    
     let logger: Logger
     
     private let lock = Lock()
@@ -18,26 +30,26 @@ public class MQTTClient {
     // MARK: - Init
     
     public init(
-        eventLoopGroup: EventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: 1),
+        configuration: MQTTConfiguration,
         logger: Logger = .init(label: "nl.roebert.MQTTNio"))
     {
-        self.eventLoopGroup = eventLoopGroup
+        _configuration = configuration
         self.logger = logger
         
-        requestHandler = MQTTRequestHandler(logger: logger, eventLoop: eventLoopGroup.next())
+        requestHandler = MQTTRequestHandler(logger: logger, eventLoop: _configuration.eventLoopGroup.next())
         subscriptionsHandler = MQTTSubscriptionsHandler(logger: logger)
     }
     
     // MARK: - Connect
     
-    public func connect(configuration: MQTTConnectionConfiguration) -> EventLoopFuture<Void> {
+    public func connect() -> EventLoopFuture<Void> {
         return lock.withLock {
             guard connection == nil else {
-                return eventLoopGroup.next().makeSucceededFuture(())
+                return _configuration.eventLoopGroup.next().makeSucceededFuture(())
             }
             
             let connection = MQTTConnection(
-                configuration: configuration,
+                configuration: _configuration,
                 requestHandler: requestHandler,
                 subscriptionsHandler: subscriptionsHandler,
                 logger: logger
@@ -51,7 +63,7 @@ public class MQTTClient {
     public func disconnect() -> EventLoopFuture<Void> {
         return lock.withLock {
             guard let connection = connection else {
-                return eventLoopGroup.next().makeSucceededFuture(())
+                return _configuration.eventLoopGroup.next().makeSucceededFuture(())
             }
             
             self.connection = nil
@@ -63,8 +75,9 @@ public class MQTTClient {
     
     @discardableResult
     public func publish(_ message: MQTTMessage) -> EventLoopFuture<Void> {
-        let request = MQTTPublishRequest(message: message, retryInterval: .seconds(5))
-        return requestHandler.perform(request, in: eventLoopGroup.next())
+        let retryInterval = configuration.publishRetryInterval
+        let request = MQTTPublishRequest(message: message, retryInterval: retryInterval)
+        return requestHandler.perform(request)
     }
     
     @discardableResult
@@ -103,8 +116,9 @@ public class MQTTClient {
     
     @discardableResult
     public func subscribe(to subscriptions: [MQTTSubscription]) -> EventLoopFuture<[MQTTSubscriptionResult]> {
-        let request = MQTTSubscribeRequest(subscriptions: subscriptions, timeoutInterval: .seconds(5))
-        return requestHandler.perform(request, in: eventLoopGroup.next()).map { request.results }
+        let timeoutInterval = configuration.subscriptionTimeoutInterval
+        let request = MQTTSubscribeRequest(subscriptions: subscriptions, timeoutInterval: timeoutInterval)
+        return requestHandler.perform(request).map { request.results }
     }
     
     @discardableResult
@@ -119,8 +133,9 @@ public class MQTTClient {
     
     @discardableResult
     func unsubscribe(from topics: [String]) -> EventLoopFuture<Void> {
-        let request = MQTTUnsubscribeRequest(topics: topics, timeoutInterval: .seconds(5))
-        return requestHandler.perform(request, in: eventLoopGroup.next())
+        let timeoutInterval = configuration.subscriptionTimeoutInterval
+        let request = MQTTUnsubscribeRequest(topics: topics, timeoutInterval: timeoutInterval)
+        return requestHandler.perform(request)
     }
     
     @discardableResult

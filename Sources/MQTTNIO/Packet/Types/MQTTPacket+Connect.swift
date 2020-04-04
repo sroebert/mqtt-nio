@@ -6,7 +6,7 @@ extension MQTTPacket {
         private static let protocolName = "MQTT"
         private static let protocolLevel: UInt8 = 0x04 // 3.1.1
         
-        var configuration: MQTTConnectionConfiguration
+        var configuration: MQTTConfiguration
         
         func serialize() throws -> MQTTPacket {
             var buffer = ByteBufferAllocator().buffer(capacity: 0)

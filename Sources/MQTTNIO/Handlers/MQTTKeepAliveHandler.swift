@@ -112,7 +112,7 @@ final class MQTTKeepAliveHandler: ChannelOutboundHandler {
         
         let request = MQTTPingRequest(timeoutInterval: interval)
         channel.pipeline.handler(type: MQTTRequestHandler.self).flatMap {
-            $0.perform(request, in: channel.eventLoop)
+            $0.perform(request)
         }.whenFailure { [weak self] error in
             guard let strongSelf = self else {
                 return

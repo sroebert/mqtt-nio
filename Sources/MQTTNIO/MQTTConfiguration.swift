@@ -2,7 +2,7 @@ import NIO
 import NIOSSL
 import Foundation
 
-public struct MQTTConnectionConfiguration {
+public struct MQTTConfiguration {
     public var target: Target
     public var tls: TLSConfiguration?
     
@@ -19,6 +19,9 @@ public struct MQTTConnectionConfiguration {
     public var reconnectMinDelay: TimeAmount
     public var reconnectMaxDelay: TimeAmount
     
+    public var publishRetryInterval: TimeAmount
+    public var subscriptionTimeoutInterval: TimeAmount
+    
     public init(
         target: Target,
         tls: TLSConfiguration? = nil,
@@ -30,7 +33,9 @@ public struct MQTTConnectionConfiguration {
         keepAliveInterval: TimeAmount = .seconds(60),
         connectTimeoutInterval: TimeAmount = .seconds(30),
         reconnectMinDelay: TimeAmount = .seconds(1),
-        reconnectMaxDelay: TimeAmount = .seconds(120)) {
+        reconnectMaxDelay: TimeAmount = .seconds(120),
+        publishRetryInterval: TimeAmount = .seconds(5),
+        subscriptionTimeoutInterval: TimeAmount = .seconds(5)) {
         
         self.target = target
         self.tls = tls
@@ -43,10 +48,12 @@ public struct MQTTConnectionConfiguration {
         self.connectTimeoutInterval = connectTimeoutInterval
         self.reconnectMinDelay = reconnectMinDelay
         self.reconnectMaxDelay = reconnectMaxDelay
+        self.publishRetryInterval = publishRetryInterval
+        self.subscriptionTimeoutInterval = subscriptionTimeoutInterval
     }
 }
 
-extension MQTTConnectionConfiguration {
+extension MQTTConfiguration {
     public enum Target {
         case host(String, port: Int)
         case unixDomainSocket(String)

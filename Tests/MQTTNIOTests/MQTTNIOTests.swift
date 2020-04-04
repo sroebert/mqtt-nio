@@ -23,14 +23,14 @@ final class MQTTNIOTests: XCTestCase {
     // MARK: Tests
 
     func testConnectAndClose() throws {
-        let client = MQTTClient(eventLoopGroup: group)
-        
-        _ = client.connect(configuration: .init(
+        let client = MQTTClient(configuration: .init(
             target: .host("test.mosquitto.org", port: 8883),
             tls: .forClient(certificateVerification: .none),
             eventLoopGroup: group,
             keepAliveInterval: .seconds(5)
         ))
+        
+        _ = client.connect()
         
         client.publish(MQTTMessage(topic: "nl.roebert.MQTT/tests/message1", payload: "Hello World"))
         client.publish(MQTTMessage(topic: "nl.roebert.MQTT/tests/message2", payload: "Hello World"))

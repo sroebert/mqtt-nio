@@ -13,7 +13,18 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
     // MARK: - Vars
     
     let logger: Logger
-    let eventLoop: EventLoop
+    
+    var _eventLoop: EventLoop
+    var eventLoop: EventLoop {
+        get {
+            return lock.withLock { _eventLoop }
+        }
+        set {
+            lock.withLockVoid {
+                _eventLoop = newValue
+            }
+        }
+    }
     
     private let lock = Lock()
 
@@ -31,17 +42,17 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
 
     public init(logger: Logger, eventLoop: EventLoop) {
         self.logger = logger
-        self.eventLoop = eventLoop
+        _eventLoop = eventLoop
     }
     
     // MARK: - Queue
     
-    func perform(_ request: MQTTRequest, in eventLoop: EventLoop) -> EventLoopFuture<Void> {
-        let promise = eventLoop.makePromise(of: Void.self)
-        
-        let entry = Entry(request: request, promise: promise)
-        lock.withLockVoid {
+    func perform(_ request: MQTTRequest) -> EventLoopFuture<Void> {
+        let promise = lock.withLock { () -> EventLoopPromise<Void> in
+            let promise = _eventLoop.makePromise(of: Void.self)
+            let entry = Entry(request: request, promise: promise)
             entriesQueue.append(entry)
+            return promise
         }
         
         channel?.pipeline.context(handler: self).whenSuccess { [weak self] context in
@@ -236,7 +247,7 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
     fileprivate func triggerRequestEvent(_ event: Any) {
         let contextFuture: EventLoopFuture<ChannelHandlerContext?> = lock.withLock {
             guard let channel = channel else {
-                return eventLoop.makeSucceededFuture(nil)
+                return _eventLoop.makeSucceededFuture(nil)
             }
             return channel.pipeline.context(handler: self).flatMapThrowing { _ in nil}
         }

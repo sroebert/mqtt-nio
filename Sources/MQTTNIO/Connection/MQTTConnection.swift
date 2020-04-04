@@ -10,7 +10,7 @@ class MQTTConnection {
     
     // MARK: - Vars
     
-    let configuration: MQTTConnectionConfiguration
+    let configuration: MQTTConfiguration
     let logger: Logger
     
     private let stateManager: StateManager
@@ -49,7 +49,7 @@ class MQTTConnection {
     // MARK: - Init
     
     init(
-        configuration: MQTTConnectionConfiguration,
+        configuration: MQTTConfiguration,
         requestHandler: MQTTRequestHandler,
         subscriptionsHandler: MQTTSubscriptionsHandler,
         logger: Logger
@@ -151,7 +151,7 @@ class MQTTConnection {
     
     private class func makeChannel(
         on eventLoop: EventLoop,
-        configuration: MQTTConnectionConfiguration,
+        configuration: MQTTConfiguration,
         reconnectDelay: TimeAmount,
         stateManager: StateManager,
         requestHandler: MQTTRequestHandler,
@@ -185,7 +185,7 @@ class MQTTConnection {
                 logger.debug("Client connected, sending connect request")
                 
                 let connectRequest = MQTTConnectRequest(configuration: configuration)
-                return requestHandler.perform(connectRequest, in: channel.eventLoop)
+                return requestHandler.perform(connectRequest)
             }.flatMap {
                 channel.triggerUserOutboundEvent(MQTTConnectionEvent.didConnect)
             }.map { channel }
@@ -214,7 +214,7 @@ class MQTTConnection {
     
     private class func configureChannel(
         _ channel: Channel,
-        configuration: MQTTConnectionConfiguration,
+        configuration: MQTTConfiguration,
         requestHandler: MQTTRequestHandler,
         subscriptionsHandler: MQTTSubscriptionsHandler,
         logger: Logger) -> EventLoopFuture<Void> {
@@ -276,7 +276,7 @@ class MQTTConnection {
     private class func scheduleReconnectAttempt(
         in delay: TimeAmount,
         on eventLoop: EventLoop,
-        configuration: MQTTConnectionConfiguration,
+        configuration: MQTTConfiguration,
         stateManager: StateManager,
         requestHandler: MQTTRequestHandler,
         subscriptionsHandler: MQTTSubscriptionsHandler,
@@ -304,7 +304,7 @@ class MQTTConnection {
 }
 
 extension ClientBootstrap {
-    fileprivate func connect(to target: MQTTConnectionConfiguration.Target) -> EventLoopFuture<Channel> {
+    fileprivate func connect(to target: MQTTConfiguration.Target) -> EventLoopFuture<Channel> {
         switch target {
         case .host(let host, port: let port):
             return connect(host: host, port: port)
