@@ -1,4 +1,5 @@
 import NIO
+import NIOSSL
 import Logging
 
 protocol MQTTConnectionStateDelegate: class {
@@ -174,25 +175,13 @@ class MQTTConnection {
         
         let channel = bootstrap.connect(to: configuration.target).flatMap { channel -> EventLoopFuture<Channel> in
             stateManager.state = .ready
-            return channel.pipeline.addHandlers([
-                // Decoding
-                ByteToMessageHandler(MQTTPacketDecoder(logger: logger)),
-                MQTTPacketTypeParser(logger: logger),
-                
-                // Encoding
-                MessageToByteHandler(MQTTPacketEncoder(logger: logger)),
-                MQTTPacketTypeSerializer(logger: logger),
-                
-                // Continuous handlers
-                MQTTKeepAliveHandler(logger: logger, interval: configuration.keepAliveInterval),
-                subscriptionsHandler,
-                
-                // Outgoing request handlers
-                requestHandler,
-                
-                // Error handler
-                MQTTErrorHandler(logger: logger)
-            ]).flatMap {
+            return configureChannel(
+                channel,
+                configuration: configuration,
+                requestHandler: requestHandler,
+                subscriptionsHandler: subscriptionsHandler,
+                logger: logger
+            ).flatMap {
                 logger.debug("Client connected, sending connect request")
                 
                 let connectRequest = MQTTConnectRequest(configuration: configuration)
@@ -220,6 +209,67 @@ class MQTTConnection {
                 subscriptionsHandler: subscriptionsHandler,
                 logger: logger
             )
+        }
+    }
+    
+    private class func configureChannel(
+        _ channel: Channel,
+        configuration: MQTTConnectionConfiguration,
+        requestHandler: MQTTRequestHandler,
+        subscriptionsHandler: MQTTSubscriptionsHandler,
+        logger: Logger) -> EventLoopFuture<Void> {
+        
+        return configureTLS(
+            with: configuration.tls,
+            serverHostname: configuration.target.hostname?.sniServerHostname,
+            in: channel,
+            logger: logger
+        ).flatMap {
+            channel.pipeline.addHandlers([
+                // Decoding
+                ByteToMessageHandler(MQTTPacketDecoder(logger: logger)),
+                MQTTPacketTypeParser(logger: logger),
+                
+                // Encoding
+                MessageToByteHandler(MQTTPacketEncoder(logger: logger)),
+                MQTTPacketTypeSerializer(logger: logger),
+                
+                // Continuous handlers
+                MQTTKeepAliveHandler(logger: logger, interval: configuration.keepAliveInterval),
+                subscriptionsHandler,
+                
+                // Outgoing request handlers
+                requestHandler,
+                
+                // Error handler
+                MQTTErrorHandler(logger: logger)
+            ])
+        }
+    }
+    
+    private class func configureTLS(
+        with configuration: TLSConfiguration?,
+        serverHostname: String?,
+        in channel: Channel,
+        logger: Logger
+    ) -> EventLoopFuture<Void> {
+        guard let configuration = configuration else {
+            return channel.eventLoop.makeSucceededFuture(())
+        }
+        
+        do {
+            let tlsVerificationHandler = TLSVerificationHandler(logger: logger)
+            return channel.pipeline.addHandlers([
+                try NIOSSLClientHandler(
+                    context: try NIOSSLContext(configuration: configuration),
+                    serverHostname: serverHostname
+                ),
+                tlsVerificationHandler
+            ]).flatMap {
+                tlsVerificationHandler.verify()
+            }
+        } catch {
+            return channel.eventLoop.makeFailedFuture(error)
         }
     }
     
@@ -265,5 +315,40 @@ extension ClientBootstrap {
         case .unixDomainSocket(let unixDomainSocketPath):
             return connect(unixDomainSocketPath: unixDomainSocketPath)
         }
+    }
+}
+
+extension String {
+    private var isIPAddress: Bool {
+        var ipv4Addr = in_addr()
+        var ipv6Addr = in6_addr()
+
+        return self.withCString { ptr in
+            return inet_pton(AF_INET, ptr, &ipv4Addr) == 1 ||
+                   inet_pton(AF_INET6, ptr, &ipv6Addr) == 1
+        }
+    }
+
+    private var isValidSNIServerName: Bool {
+        guard !isIPAddress else {
+            return false
+        }
+
+        guard !self.utf8.contains(0) else {
+            return false
+        }
+
+        guard (1 ... 255).contains(self.utf8.count) else {
+            return false
+        }
+        
+        return true
+    }
+    
+    var sniServerHostname: String? {
+        guard isValidSNIServerName else {
+            return nil
+        }
+        return self
     }
 }

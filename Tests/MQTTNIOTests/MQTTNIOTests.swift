@@ -26,7 +26,8 @@ final class MQTTNIOTests: XCTestCase {
         let client = MQTTClient(eventLoopGroup: group)
         
         _ = client.connect(configuration: .init(
-            target: .host("localhost", port: 1883),
+            target: .host("test.mosquitto.org", port: 8883),
+            tls: .forClient(certificateVerification: .none),
             eventLoopGroup: group,
             keepAliveInterval: .seconds(5)
         ))

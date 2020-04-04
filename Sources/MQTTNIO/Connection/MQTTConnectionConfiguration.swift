@@ -1,8 +1,11 @@
 import NIO
+import NIOSSL
 import Foundation
 
 public struct MQTTConnectionConfiguration {
     public var target: Target
+    public var tls: TLSConfiguration?
+    
     public var eventLoopGroup: EventLoopGroup
     
     public var clientId: String
@@ -18,6 +21,7 @@ public struct MQTTConnectionConfiguration {
     
     public init(
         target: Target,
+        tls: TLSConfiguration? = nil,
         eventLoopGroup: EventLoopGroup,
         clientId: String = "nl.roebert.MQTTNIO.\(UUID())",
         cleanSession: Bool = true,
@@ -29,6 +33,7 @@ public struct MQTTConnectionConfiguration {
         reconnectMaxDelay: TimeAmount = .seconds(120)) {
         
         self.target = target
+        self.tls = tls
         self.eventLoopGroup = eventLoopGroup
         self.clientId = clientId
         self.cleanSession = cleanSession
@@ -46,6 +51,16 @@ extension MQTTConnectionConfiguration {
         case host(String, port: Int)
         case unixDomainSocket(String)
         case socketAddress(SocketAddress)
+        
+        var hostname: String? {
+            switch self {
+            case .host(let hostname, port: _):
+                return hostname
+                
+            default:
+                return nil
+            }
+        }
     }
 
     public struct Credentials {
