@@ -28,8 +28,8 @@ final class MQTTPublishRequest: MQTTRequest {
     
     // MARK: - MQTTRequest
     
-    func start(context: MQTTRequestContext) -> MQTTRequestResult {
-        let result: MQTTRequestResult
+    func start(context: MQTTRequestContext) -> MQTTRequestResult<Void> {
+        let result: MQTTRequestResult<Void>
         switch message.qos {
         case .atMostOnce:
             result = .success
@@ -53,7 +53,7 @@ final class MQTTPublishRequest: MQTTRequest {
         return result
     }
     
-    func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> MQTTRequestResult {
+    func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> MQTTRequestResult<Void> {
         guard case .acknowledgement(let acknowledgement) = packet, acknowledgement.packetId == packetId else {
             return .pending
         }
@@ -108,14 +108,14 @@ final class MQTTPublishRequest: MQTTRequest {
         }
     }
     
-    func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult {
+    func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult<Void> {
         if scheduledRetry != nil, case Event.retry = event {
             retry(context: context)
         }
         return .pending
     }
     
-    func resume(context: MQTTRequestContext) -> MQTTRequestResult {
+    func resume(context: MQTTRequestContext) -> MQTTRequestResult<Void> {
         retry(context: context)
         return .pending
     }

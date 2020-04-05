@@ -2,6 +2,10 @@ import NIO
 import NIOConcurrencyHelpers
 import Logging
 
+protocol MQTTSubscriptionsHandlerDelegate: class {
+    func mqttSubscriptionsHandler(_ handler: MQTTSubscriptionsHandler, didReceiveMessage message: MQTTMessage)
+}
+
 final class MQTTSubscriptionsHandler: ChannelDuplexHandler {
     
     // MARK: - Types
@@ -10,23 +14,12 @@ final class MQTTSubscriptionsHandler: ChannelDuplexHandler {
     typealias OutboundIn = MQTTPacket.Outbound
     typealias OutboundOut = MQTTPacket.Outbound
     
-    class ListenerEntry {
-        let context: MQTTMessageListenContext
-        let listener: MQTTMessageListener
-        
-        init(context: MQTTMessageListenContext, listener: @escaping MQTTMessageListener) {
-            self.context = context
-            self.listener = listener
-        }
-    }
-    
     // MARK: - Vars
     
     let logger: Logger
     
-    private let lock = Lock()
+    weak var delegate: MQTTSubscriptionsHandlerDelegate?
     
-    private var listeners: [ListenerEntry] = []
     private var inflightMessages: [UInt16: MQTTMessage] = [:]
     
     // MARK: - Init
@@ -53,23 +46,7 @@ final class MQTTSubscriptionsHandler: ChannelDuplexHandler {
     
     // MARK: - Utils
     
-    func addListener(_ entry: ListenerEntry) {
-        lock.withLockVoid {
-            listeners.append(entry)
-        }
-    }
-    
-    func removeListener(_ entry: ListenerEntry) {
-        lock.withLockVoid {
-            if let index = listeners.firstIndex(where: { $0 === entry }) {
-                listeners.remove(at: index)
-            }
-        }
-    }
-    
     private func emit(_ message: MQTTMessage) {
-        let currentListeners = lock.withLock { listeners }
-        
         logger.debug("Emitting message to listeners", metadata: [
             "topic": .string(message.topic),
             "payload": .string(message.stringValue ?? message.payload.map { "\($0.readableBytes) bytes" } ?? "empty"),
@@ -77,7 +54,7 @@ final class MQTTSubscriptionsHandler: ChannelDuplexHandler {
             "retain": .stringConvertible(message.retain)
         ])
         
-        currentListeners.forEach { $0.listener($0.context, message) }
+        delegate?.mqttSubscriptionsHandler(self, didReceiveMessage: message)
     }
     
     private func handlePublish(_ publish: MQTTPacket.Publish, context: ChannelHandlerContext) {

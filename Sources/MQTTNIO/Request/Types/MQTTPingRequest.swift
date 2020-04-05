@@ -22,7 +22,7 @@ final class MQTTPingRequest: MQTTRequest {
     
     // MARK: - MQTTRequest
     
-    func start(context: MQTTRequestContext) -> MQTTRequestResult {
+    func start(context: MQTTRequestContext) -> MQTTRequestResult<Void> {
         context.logger.debug("Sending: Ping Request")
         
         timeoutScheduled = context.scheduleEvent(Error.timeout, in: timeoutInterval)
@@ -31,7 +31,7 @@ final class MQTTPingRequest: MQTTRequest {
         return .pending
     }
     
-    func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> MQTTRequestResult {
+    func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> MQTTRequestResult<Void> {
         guard case .pingResp = packet else {
             return .pending
         }
@@ -44,7 +44,7 @@ final class MQTTPingRequest: MQTTRequest {
         return .success
     }
     
-    func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult {
+    func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult<Void> {
         guard case Error.timeout = event else {
             return .pending
         }

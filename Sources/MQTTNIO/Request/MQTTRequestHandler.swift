@@ -1,5 +1,4 @@
 import NIO
-import NIOConcurrencyHelpers
 import Logging
 
 final class MQTTRequestHandler: ChannelDuplexHandler {
@@ -13,24 +12,11 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
     // MARK: - Vars
     
     let logger: Logger
-    
-    var _eventLoop: EventLoop
-    var eventLoop: EventLoop {
-        get {
-            return lock.withLock { _eventLoop }
-        }
-        set {
-            lock.withLockVoid {
-                _eventLoop = newValue
-            }
-        }
-    }
-    
-    private let lock = Lock()
+    let eventLoop: EventLoop
 
     private var maxInflightEntries = 20
-    private var entriesInflight: [Entry] = []
-    private var entriesQueue: [Entry] = []
+    private var entriesInflight: [AnyEntry] = []
+    private var entriesQueue: [AnyEntry] = []
     
     private var nextPacketIdentifier: UInt16 = 1
     
@@ -42,14 +28,13 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
 
     public init(logger: Logger, eventLoop: EventLoop) {
         self.logger = logger
-        _eventLoop = eventLoop
+        self.eventLoop = eventLoop
     }
     
     // MARK: - Queue
     
-    func perform(_ request: MQTTRequest) -> EventLoopFuture<Void> {
-        let promise = lock.withLock { _eventLoop.makePromise(of: Void.self) }
-        
+    func perform<Request: MQTTRequest>(_ request: Request) -> EventLoopFuture<Request.Value> {
+        let promise = eventLoop.makePromise(of: Request.Value.self)
         let entry = Entry(request: request, promise: promise)
         entriesQueue.append(entry)
         
@@ -125,9 +110,9 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
     
     // MARK: - Utils
     
-    private func getQueuedEntry() -> Entry? {
-        // If not active and there is an `MQTTConnectRequest` return that one
-        if !isActive, let connectIndex = entriesQueue.firstIndex(where: { $0.request is MQTTConnectRequest }) {
+    private func getQueuedEntry() -> AnyEntry? {
+        // If not active, only return the one that can be send while not active
+        if !isActive, let connectIndex = entriesQueue.firstIndex(where: { $0.canPerformInInactiveState }) {
             return entriesQueue.remove(at: connectIndex)
         }
         
@@ -138,7 +123,7 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
         return entriesQueue.removeFirst()
     }
     
-    private func getInflightEntry() -> Entry? {
+    private func getInflightEntry() -> AnyEntry? {
         guard !entriesInflight.isEmpty else {
             return nil
         }
@@ -173,7 +158,7 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
         }
     }
     
-    private func forEachEntry(with context: ChannelHandlerContext?, _ execute: (Entry, MQTTRequestContext) -> Bool) {
+    private func forEachEntry(with context: ChannelHandlerContext?, _ execute: (AnyEntry, MQTTRequestContext) -> Bool) {
         withRequestContext(in: context) { requestContext in
             entriesInflight = entriesInflight.filter { entry in
                 !execute(entry, requestContext)
@@ -279,18 +264,44 @@ extension MQTTRequestHandler {
 }
 
 extension MQTTRequestHandler {
-    final private class Entry {
-        let request: MQTTRequest
-        let promise: EventLoopPromise<Void>
+    private class AnyEntry {
+        var canPerformInInactiveState: Bool {
+            fatalError("Should be implemented in subclass")
+        }
         
-        init(request: MQTTRequest, promise: EventLoopPromise<Void>) {
+        func start(context: MQTTRequestContext) -> Bool {
+            fatalError("Should be implemented in subclass")
+        }
+        
+        func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> Bool {
+            fatalError("Should be implemented in subclass")
+        }
+        
+        func handleEvent(context: MQTTRequestContext, event: Any) -> Bool {
+            fatalError("Should be implemented in subclass")
+        }
+        
+        func pause(context: MQTTRequestContext) {
+            fatalError("Should be implemented in subclass")
+        }
+        
+        func resume(context: MQTTRequestContext) -> Bool {
+            fatalError("Should be implemented in subclass")
+        }
+    }
+    
+    final private class Entry<Request: MQTTRequest>: AnyEntry {
+        let request: Request
+        let promise: EventLoopPromise<Request.Value>
+        
+        init(request: Request, promise: EventLoopPromise<Request.Value>) {
             self.request = request
             self.promise = promise
         }
         
         // MARK: - Promise
         
-        private func handle(_ result: MQTTRequestResult) -> Bool {
+        private func handle(_ result: MQTTRequestResult<Request.Value>) -> Bool {
             guard let promiseResult = result.promiseResult else {
                 return false
             }
@@ -300,23 +311,27 @@ extension MQTTRequestHandler {
         
         // Forwarding
         
-        func start(context: MQTTRequestContext) -> Bool {
+        override var canPerformInInactiveState: Bool {
+            return request.canPerformInInactiveState
+        }
+        
+        override func start(context: MQTTRequestContext) -> Bool {
             return handle(request.start(context: context))
         }
         
-        func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> Bool {
+        override func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> Bool {
             handle(request.process(context: context, packet: packet))
         }
         
-        func handleEvent(context: MQTTRequestContext, event: Any) -> Bool {
+        override func handleEvent(context: MQTTRequestContext, event: Any) -> Bool {
             handle(request.handleEvent(context: context, event: event))
         }
         
-        func pause(context: MQTTRequestContext) {
+        override func pause(context: MQTTRequestContext) {
             request.pause(context: context)
         }
         
-        func resume(context: MQTTRequestContext) -> Bool {
+        override func resume(context: MQTTRequestContext) -> Bool {
             handle(request.resume(context: context))
         }
     }

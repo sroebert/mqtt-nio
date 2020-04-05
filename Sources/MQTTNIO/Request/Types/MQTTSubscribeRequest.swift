@@ -14,8 +14,6 @@ final class MQTTSubscribeRequest: MQTTRequest {
     let subscriptions: [MQTTSubscription]
     let timeoutInterval: TimeAmount
     
-    private(set) var results: [MQTTSubscriptionResult] = []
-    
     private var packetId: UInt16?
     private var timeoutScheduled: Scheduled<Void>?
     
@@ -28,7 +26,7 @@ final class MQTTSubscribeRequest: MQTTRequest {
     
     // MARK: - MQTTRequest
     
-    func start(context: MQTTRequestContext) -> MQTTRequestResult {
+    func start(context: MQTTRequestContext) -> MQTTRequestResult<[MQTTSubscriptionResult]> {
         timeoutScheduled = context.scheduleEvent(Error.timeout, in: .seconds(5))
         
         let packetId = context.getNextPacketId()
@@ -49,7 +47,7 @@ final class MQTTSubscribeRequest: MQTTRequest {
         return .pending
     }
     
-    func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> MQTTRequestResult {
+    func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> MQTTRequestResult<[MQTTSubscriptionResult]> {
         guard case .subAck(let subAck) = packet, subAck.packetId == packetId else {
             return .pending
         }
@@ -63,7 +61,7 @@ final class MQTTSubscribeRequest: MQTTRequest {
         
         context.logger.debug("Received: Subscribe Acknowledgement", metadata: [
             "packetId": .stringConvertible(subAck.packetId),
-            "results": .array(results.map { result in
+            "results": .array(subAck.results.map { result in
                 switch result {
                 case .success(let qos):
                     return [
@@ -78,11 +76,10 @@ final class MQTTSubscribeRequest: MQTTRequest {
             })
         ])
         
-        results = subAck.results
-        return .success
+        return .success(subAck.results)
     }
     
-    func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult {
+    func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult<[MQTTSubscriptionResult]> {
         guard case Error.timeout = event else {
             return .pending
         }

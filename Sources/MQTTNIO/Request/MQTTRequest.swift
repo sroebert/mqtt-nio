@@ -13,21 +13,29 @@ protocol MQTTRequestContext {
 }
 
 protocol MQTTRequest {
-    func start(context: MQTTRequestContext) -> MQTTRequestResult
-    func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> MQTTRequestResult
+    associatedtype Value
     
-    func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult
+    var canPerformInInactiveState: Bool { get }
+    
+    func start(context: MQTTRequestContext) -> MQTTRequestResult<Value>
+    func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> MQTTRequestResult<Value>
+    
+    func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult<Value>
     
     func pause(context: MQTTRequestContext)
-    func resume(context: MQTTRequestContext) -> MQTTRequestResult
+    func resume(context: MQTTRequestContext) -> MQTTRequestResult<Value>
 }
 
 extension MQTTRequest {
-    func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) throws -> MQTTRequestResult {
+    var canPerformInInactiveState: Bool {
+        return false
+    }
+    
+    func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) throws -> MQTTRequestResult<Value> {
         return .pending
     }
     
-    func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult {
+    func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult<Value> {
         return .pending
     }
     
@@ -35,26 +43,30 @@ extension MQTTRequest {
         
     }
     
-    func resume(context: MQTTRequestContext) -> MQTTRequestResult {
+    func resume(context: MQTTRequestContext) -> MQTTRequestResult<Value> {
         return .pending
     }
 }
 
-enum MQTTRequestResult {
+enum MQTTRequestResult<Value> {
     case pending
-    case success
+    case success(Value)
     case failure(Error)
     
-    var promiseResult: Result<Void, Error>? {
+    var promiseResult: Result<Value, Error>? {
         switch self {
         case .pending:
             return nil
             
-        case .success:
-            return .success(())
+        case .success(let value):
+            return .success(value)
             
         case .failure(let error):
             return .failure(error)
         }
     }
+}
+
+extension MQTTRequestResult where Value == Void {
+    static let success: MQTTRequestResult<Value> = .success(())
 }

@@ -6,8 +6,6 @@ public struct MQTTConfiguration {
     public var target: Target
     public var tls: TLSConfiguration?
     
-    public var eventLoopGroup: EventLoopGroup
-    
     public var clientId: String
     public var cleanSession: Bool
     public var credentials: Credentials?
@@ -16,8 +14,7 @@ public struct MQTTConfiguration {
     
     public var connectTimeoutInterval: TimeAmount
     
-    public var reconnectMinDelay: TimeAmount
-    public var reconnectMaxDelay: TimeAmount
+    public var reconnectMode: ReconnectMode
     
     public var publishRetryInterval: TimeAmount
     public var subscriptionTimeoutInterval: TimeAmount
@@ -25,29 +22,25 @@ public struct MQTTConfiguration {
     public init(
         target: Target,
         tls: TLSConfiguration? = nil,
-        eventLoopGroup: EventLoopGroup,
         clientId: String = "nl.roebert.MQTTNIO.\(UUID())",
         cleanSession: Bool = true,
         credentials: Credentials? = nil,
         lastWillMessage: MQTTMessage? = nil,
         keepAliveInterval: TimeAmount = .seconds(60),
         connectTimeoutInterval: TimeAmount = .seconds(30),
-        reconnectMinDelay: TimeAmount = .seconds(1),
-        reconnectMaxDelay: TimeAmount = .seconds(120),
+        reconnectMode: ReconnectMode = .retry(minimumDelay: .seconds(1), maximumDelay: .seconds(120)),
         publishRetryInterval: TimeAmount = .seconds(5),
         subscriptionTimeoutInterval: TimeAmount = .seconds(5)) {
         
         self.target = target
         self.tls = tls
-        self.eventLoopGroup = eventLoopGroup
         self.clientId = clientId
         self.cleanSession = cleanSession
         self.credentials = credentials
         self.lastWillMessage = lastWillMessage
         self.keepAliveInterval = keepAliveInterval
         self.connectTimeoutInterval = connectTimeoutInterval
-        self.reconnectMinDelay = reconnectMinDelay
-        self.reconnectMaxDelay = reconnectMaxDelay
+        self.reconnectMode = reconnectMode
         self.publishRetryInterval = publishRetryInterval
         self.subscriptionTimeoutInterval = subscriptionTimeoutInterval
     }
@@ -93,6 +86,22 @@ extension MQTTConfiguration {
         public init(username: String, password: ByteBuffer? = nil) {
             self.username = username
             self.password = password
+        }
+    }
+    
+    public enum ReconnectMode {
+        case none
+        case retry(minimumDelay: TimeAmount, maximumDelay: TimeAmount)
+        
+        var next: ReconnectMode {
+            switch self {
+            case .none:
+                return .none
+                
+            case .retry(let minimumDelay, let maximumDelay):
+                let newDelay = min(minimumDelay * 2, maximumDelay)
+                return .retry(minimumDelay: newDelay, maximumDelay: maximumDelay)
+            }
         }
     }
 }

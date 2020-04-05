@@ -5,6 +5,10 @@ final class MQTTConnectRequest: MQTTRequest {
     
     // MARK: - Types
     
+    struct Response {
+        var isSessionPresent: Bool
+    }
+    
     enum Error: Swift.Error {
         case timeout
     }
@@ -22,7 +26,11 @@ final class MQTTConnectRequest: MQTTRequest {
     
     // MARK: - MQTTRequest
     
-    func start(context: MQTTRequestContext) -> MQTTRequestResult {
+    var canPerformInInactiveState: Bool {
+        return true
+    }
+    
+    func start(context: MQTTRequestContext) -> MQTTRequestResult<Response> {
         timeoutScheduled = context.scheduleEvent(Error.timeout, in: configuration.connectTimeoutInterval)
         
         context.logger.debug("Sending: Connect", metadata: [
@@ -34,7 +42,7 @@ final class MQTTConnectRequest: MQTTRequest {
         return .pending
     }
     
-    func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> MQTTRequestResult {
+    func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> MQTTRequestResult<Response> {
         timeoutScheduled?.cancel()
         timeoutScheduled = nil
         
@@ -55,7 +63,8 @@ final class MQTTConnectRequest: MQTTRequest {
         
         switch connAck.returnCode {
         case .accepted:
-            return .success
+            let response = Response(isSessionPresent: connAck.isSessionPresent)
+            return .success(response)
             
         case .unacceptableProtocolVersion:
             return .failure(MQTTServerError.unacceptableProtocolVersion)
@@ -73,7 +82,7 @@ final class MQTTConnectRequest: MQTTRequest {
         }
     }
     
-    func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult {
+    func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult<Response> {
         guard case Error.timeout = event else {
             return .pending
         }

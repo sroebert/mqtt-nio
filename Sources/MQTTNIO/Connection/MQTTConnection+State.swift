@@ -6,7 +6,7 @@ extension MQTTConnection {
         case idle
         case connecting
         case ready
-        case transientFailure
+        case waitingForReconnect
         case shutdown
     }
     
@@ -20,27 +20,12 @@ extension MQTTConnection {
         private var _state: State = .idle
         private var _userInitiatedShutdown = false
         
-        weak var connection: MQTTConnection?
-        weak var _delegate: MQTTConnectionStateDelegate?
-        
-        var delegate: MQTTConnectionStateDelegate? {
-            get {
-                return lock.withLock { _delegate }
-            }
-            set {
-                lock.withLockVoid {
-                    _delegate = newValue
-                }
-            }
-        }
-        
         var state: State {
             get {
                 return lock.withLock { _state }
             }
             set {
-                let callDelegate = lock.withLock { updateState(newValue) }
-                callDelegate()
+                lock.withLock { updateState(newValue) }
             }
         }
         
@@ -63,26 +48,23 @@ extension MQTTConnection {
         // MARK: - User Shutdown
         
         func initiateUserShutdown() {
-            let callDelegate: () -> Void = lock.withLock {
+            lock.withLockVoid {
                 logger.debug("User initiated shutdown")
                 
-                let returnValue = updateState(.shutdown)
+                updateState(.shutdown)
                 _userInitiatedShutdown = true
-                return returnValue
             }
-            callDelegate()
         }
         
         // MARK: - Private
         
-        @discardableResult
-        private func updateState(_ newState: State) -> () -> Void {
+        private func updateState(_ newState: State) {
             guard !_userInitiatedShutdown, _state != newState else {
                 logger.debug("Connection state change, ignoring because of user initiated shutdown", metadata: [
                     "state": "\(_state)",
                     "ignoredState": "\(newState)"
                 ])
-                return {}
+                return
             }
             
             let oldState = _state
@@ -92,13 +74,6 @@ extension MQTTConnection {
                 "oldState": "\(oldState)",
                 "newState": "\(newState)"
             ])
-            
-            return {
-                guard let connection = self.connection else {
-                    return
-                }
-                self._delegate?.mqttConnection(connection, didChangeFrom: oldState, to: newState)
-            }
         }
     }
 }

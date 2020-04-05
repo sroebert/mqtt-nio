@@ -12,7 +12,7 @@ final class MQTTNIOTests: XCTestCase {
     
     override func setUp() {
         XCTAssertTrue(isLoggingConfigured)
-        self.group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+        self.group = MultiThreadedEventLoopGroup(numberOfThreads: 2)
     }
     
     override func tearDown() {
@@ -24,13 +24,15 @@ final class MQTTNIOTests: XCTestCase {
 
     func testConnectAndClose() throws {
         let client = MQTTClient(configuration: .init(
-            target: .host("test.mosquitto.org", port: 8883),
-            tls: .forClient(certificateVerification: .none),
-            eventLoopGroup: group,
+            target: .host("broker.hivemq.com", port: 1883),
             keepAliveInterval: .seconds(5)
-        ))
+        ), eventLoopGroup: group)
         
-        _ = client.connect()
+        client.addConnectListener { _, _ in
+            print("Did connect!!")
+        }
+        
+        client.connect()
         
         client.publish(MQTTMessage(topic: "nl.roebert.MQTT/tests/message1", payload: "Hello World"))
         client.publish(MQTTMessage(topic: "nl.roebert.MQTT/tests/message2", payload: "Hello World"))
@@ -56,7 +58,7 @@ final class MQTTNIOTests: XCTestCase {
 let isLoggingConfigured: Bool = {
     LoggingSystem.bootstrap { label in
         var handler = StreamLogHandler.standardOutput(label: label)
-        handler.logLevel = .trace
+        handler.logLevel = .debug
         return handler
     }
     return true

@@ -2,7 +2,7 @@ import NIO
 import NIOConcurrencyHelpers
 import Logging
 
-public class MQTTClient {
+public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegate {
     
     // MARK: - Vars
     
@@ -14,59 +14,90 @@ public class MQTTClient {
         set {
             lock.withLockVoid {
                 _configuration = newValue
-                eventLoop = newValue.eventLoopGroup.next()
-                requestHandler.eventLoop = eventLoop
             }
         }
     }
     
+    let eventLoopGroup: EventLoopGroup
     let logger: Logger
     
     private let lock = Lock()
-    private var eventLoop: EventLoop
     private var connection: MQTTConnection?
+    
+    private let connectionEventLoop: EventLoop
+    private let callbackEventLoop: EventLoop
     
     private let requestHandler: MQTTRequestHandler
     private let subscriptionsHandler: MQTTSubscriptionsHandler
+    
+    private let connectListeners: CallbackList<MQTTConnectResponse>
+    private let messageListeners: CallbackList<MQTTMessage>
     
     // MARK: - Init
     
     public init(
         configuration: MQTTConfiguration,
+        eventLoopGroup: EventLoopGroup,
         logger: Logger = .init(label: "nl.roebert.MQTTNio"))
     {
         _configuration = configuration
+        self.eventLoopGroup = eventLoopGroup
         self.logger = logger
-        eventLoop = _configuration.eventLoopGroup.next()
         
-        requestHandler = MQTTRequestHandler(logger: logger, eventLoop: eventLoop)
+        connectionEventLoop = eventLoopGroup.next()
+        callbackEventLoop = eventLoopGroup.next()
+        
+        requestHandler = MQTTRequestHandler(logger: logger, eventLoop: connectionEventLoop)
         subscriptionsHandler = MQTTSubscriptionsHandler(logger: logger)
+        
+        connectListeners = CallbackList(eventLoop: callbackEventLoop)
+        messageListeners = CallbackList(eventLoop: callbackEventLoop)
+        
+        subscriptionsHandler.delegate = self
     }
     
-    // MARK: - Connect
+    // MARK: - Connection
     
+    private var connectionState: MQTTConnection.State? {
+        return lock.withLock { connection?.state }
+    }
+    
+    public var isConnecting: Bool {
+        let state = connectionState
+        return [.idle, .connecting, .waitingForReconnect].contains(state)
+    }
+    
+    public var isConnected: Bool {
+        let state = connectionState
+        return state == .ready
+    }
+    
+    @discardableResult
     public func connect() -> EventLoopFuture<Void> {
         return lock.withLock {
             guard connection == nil else {
-                return eventLoop.makeSucceededFuture(())
+                return connectionEventLoop.makeSucceededFuture(())
             }
             
             let connection = MQTTConnection(
+                eventLoop: connectionEventLoop,
                 configuration: _configuration,
                 requestHandler: requestHandler,
                 subscriptionsHandler: subscriptionsHandler,
                 logger: logger
             )
+            connection.delegate = self
             self.connection = connection
             
             return connection.channel.map { _ in () }
         }
     }
     
+    @discardableResult
     public func disconnect() -> EventLoopFuture<Void> {
         return lock.withLock {
             guard let connection = connection else {
-                return eventLoop.makeSucceededFuture(())
+                return connectionEventLoop.makeSucceededFuture(())
             }
             
             self.connection = nil
@@ -121,7 +152,7 @@ public class MQTTClient {
     public func subscribe(to subscriptions: [MQTTSubscription]) -> EventLoopFuture<[MQTTSubscriptionResult]> {
         let timeoutInterval = configuration.subscriptionTimeoutInterval
         let request = MQTTSubscribeRequest(subscriptions: subscriptions, timeoutInterval: timeoutInterval)
-        return requestHandler.perform(request).map { request.results }
+        return requestHandler.perform(request)
     }
     
     @discardableResult
@@ -149,18 +180,24 @@ public class MQTTClient {
     // MARK: - Listeners
     
     @discardableResult
-    public func addMessageListener(_ listener: @escaping MQTTMessageListener) -> MQTTMessageListenContext {
-        let context = MQTTMessageListenContext()
-        let entry = MQTTSubscriptionsHandler.ListenerEntry(
-            context: context,
-            listener: listener
-        )
-        
-        context.stopper = { [weak self] in
-            self?.subscriptionsHandler.removeListener(entry)
-        }
-        
-        subscriptionsHandler.addListener(entry)
-        return context
+    public func addConnectListener(_ listener: @escaping MQTTConnectListener) -> MQTTListenerContext {
+        return connectListeners.append(listener)
+    }
+    
+    @discardableResult
+    public func addMessageListener(_ listener: @escaping MQTTMessageListener) -> MQTTListenerContext {
+        return messageListeners.append(listener)
+    }
+    
+    // MARK: - MQTTConnectionDelegate
+    
+    func mqttConnection(_ connection: MQTTConnection, didConnectWith response: MQTTConnectResponse) {
+        connectListeners.emit(arguments: response)
+    }
+    
+    // MARK: - MQTTSubscriptionsHandlerDelegate
+    
+    func mqttSubscriptionsHandler(_ handler: MQTTSubscriptionsHandler, didReceiveMessage message: MQTTMessage) {
+        messageListeners.emit(arguments: message)
     }
 }

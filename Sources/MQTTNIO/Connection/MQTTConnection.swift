@@ -2,8 +2,8 @@ import NIO
 import NIOSSL
 import Logging
 
-protocol MQTTConnectionStateDelegate: class {
-    func mqttConnection(_ connection: MQTTConnection, didChangeFrom oldState: MQTTConnection.State, to newState: MQTTConnection.State)
+protocol MQTTConnectionDelegate: class {
+    func mqttConnection(_ connection: MQTTConnection, didConnectWith response: MQTTConnectResponse)
 }
 
 class MQTTConnection {
@@ -15,7 +15,7 @@ class MQTTConnection {
     
     private let stateManager: StateManager
     
-    private(set) var channel: EventLoopFuture<Channel> {
+    private(set) var channel: EventLoopFuture<Channel>! {
         didSet {
             didChangeChannel()
         }
@@ -34,14 +34,7 @@ class MQTTConnection {
         }
     }
     
-    var stateDelegate: MQTTConnectionStateDelegate? {
-        get {
-            return stateManager.delegate
-        }
-        set {
-            stateManager.delegate = newValue
-        }
-    }
+    weak var delegate: MQTTConnectionDelegate?
     
     private let requestHandler: MQTTRequestHandler
     private let subscriptionsHandler: MQTTSubscriptionsHandler
@@ -49,6 +42,7 @@ class MQTTConnection {
     // MARK: - Init
     
     init(
+        eventLoop: EventLoop,
         configuration: MQTTConfiguration,
         requestHandler: MQTTRequestHandler,
         subscriptionsHandler: MQTTSubscriptionsHandler,
@@ -62,12 +56,15 @@ class MQTTConnection {
         self.subscriptionsHandler = subscriptionsHandler
         
         channel = MQTTConnection.makeChannel(
-            on: configuration.eventLoopGroup.next(),
+            on: eventLoop,
             configuration: configuration,
-            reconnectDelay: configuration.reconnectMinDelay,
+            reconnectMode: configuration.reconnectMode,
             stateManager: stateManager,
             requestHandler: requestHandler,
             subscriptionsHandler: subscriptionsHandler,
+            onConnect: { [weak self] in
+                self?.didConnect(with: $0)
+            },
             logger: logger
         )
         
@@ -128,17 +125,20 @@ class MQTTConnection {
             }
             
             // Prepare state for reconnect
-            strongSelf.state = .transientFailure
+            strongSelf.state = .waitingForReconnect
             
             // Reconnect
             strongSelf.logger.debug("Client creating a new channel")
             strongSelf.channel = MQTTConnection.makeChannel(
                 on: strongSelf.channel.eventLoop,
                 configuration: strongSelf.configuration,
-                reconnectDelay: strongSelf.configuration.reconnectMinDelay,
+                reconnectMode: strongSelf.configuration.reconnectMode,
                 stateManager: strongSelf.stateManager,
                 requestHandler: strongSelf.requestHandler,
                 subscriptionsHandler: strongSelf.subscriptionsHandler,
+                onConnect: { [weak self] in
+                    self?.didConnect(with: $0)
+                },
                 logger: strongSelf.logger
             )
         }
@@ -147,20 +147,27 @@ class MQTTConnection {
         }
     }
     
+    // MARK: - Events
+    
+    private func didConnect(with response: MQTTConnectResponse) {
+        delegate?.mqttConnection(self, didConnectWith: response)
+    }
+    
     // MARK: - Utils
     
     private class func makeChannel(
         on eventLoop: EventLoop,
         configuration: MQTTConfiguration,
-        reconnectDelay: TimeAmount,
+        reconnectMode: MQTTConfiguration.ReconnectMode,
         stateManager: StateManager,
         requestHandler: MQTTRequestHandler,
         subscriptionsHandler: MQTTSubscriptionsHandler,
+        onConnect: @escaping (MQTTConnectResponse) -> Void,
         logger: Logger
     ) -> EventLoopFuture<Channel> {
         
-        guard stateManager.state == .idle || stateManager.state == .transientFailure else {
-            return configuration.eventLoopGroup.next().makeFailedFuture(MQTTInternalError(message: "Invalid connection state"))
+        guard stateManager.state == .idle || stateManager.state == .waitingForReconnect else {
+            return eventLoop.makeFailedFuture(MQTTInternalError(message: "Invalid connection state"))
         }
         
         logger.debug("Client starting connection", metadata: [
@@ -173,9 +180,8 @@ class MQTTConnection {
             .channelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SO_REUSEADDR), value: 1)
             .connectTimeout(configuration.connectTimeoutInterval)
         
-        let channel = bootstrap.connect(to: configuration.target).flatMap { channel -> EventLoopFuture<Channel> in
-            stateManager.state = .ready
-            return configureChannel(
+        let channelFuture = bootstrap.connect(to: configuration.target).flatMap { channel -> EventLoopFuture<Channel> in
+            let future = configureChannel(
                 channel,
                 configuration: configuration,
                 requestHandler: requestHandler,
@@ -185,28 +191,45 @@ class MQTTConnection {
                 logger.debug("Client connected, sending connect request")
                 
                 let connectRequest = MQTTConnectRequest(configuration: configuration)
-                return requestHandler.perform(connectRequest)
-            }.flatMap {
-                channel.triggerUserOutboundEvent(MQTTConnectionEvent.didConnect)
-            }.map { channel }
+                return requestHandler.perform(connectRequest).map { response in
+                    if stateManager.state == .connecting {
+                        onConnect(MQTTConnectResponse(response))
+                    }
+                }
+            }.flatMap { response in
+                channel.triggerUserOutboundEvent(MQTTConnectionEvent.didConnect).map { response }
+            }.map {
+                channel
+            }
+            
+            future.whenComplete { _ in
+                stateManager.state = .ready
+            }
+            
+            return future
         }
         
-        let newReconnectDelay = min(reconnectDelay * 2, configuration.reconnectMaxDelay)
-        
-        // If we cannot connect, try again in a given interval
-        return channel.flatMapError { error in
+        channelFuture.whenFailure { error in
             logger.debug("Client connection failed", metadata: [
                 "error": "\(error)",
             ])
-            
-            stateManager.state = .transientFailure
+        }
+        
+        guard case .retry(let delay, _) = reconnectMode else {
+            return channelFuture
+        }
+        
+        // If we cannot connect, try again in a given interval
+        return channelFuture.flatMapError { _ in
+            stateManager.state = .waitingForReconnect
             return MQTTConnection.scheduleReconnectAttempt(
-                in: newReconnectDelay,
-                on: channel.eventLoop,
+                in: delay,
+                on: eventLoop,
                 configuration: configuration,
                 stateManager: stateManager,
                 requestHandler: requestHandler,
                 subscriptionsHandler: subscriptionsHandler,
+                onConnect: onConnect,
                 logger: logger
             )
         }
@@ -280,6 +303,7 @@ class MQTTConnection {
         stateManager: StateManager,
         requestHandler: MQTTRequestHandler,
         subscriptionsHandler: MQTTSubscriptionsHandler,
+        onConnect: @escaping (MQTTConnectResponse) -> Void,
         logger: Logger
     ) -> EventLoopFuture<Channel> {
         
@@ -291,10 +315,11 @@ class MQTTConnection {
             MQTTConnection.makeChannel(
                 on: eventLoop,
                 configuration: configuration,
-                reconnectDelay: delay,
+                reconnectMode: configuration.reconnectMode.next,
                 stateManager: stateManager,
                 requestHandler: requestHandler,
                 subscriptionsHandler: subscriptionsHandler,
+                onConnect: onConnect,
                 logger: logger
             )
         }.futureResult.flatMap { channel in
