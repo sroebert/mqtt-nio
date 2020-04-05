@@ -30,8 +30,9 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     private let requestHandler: MQTTRequestHandler
     private let subscriptionsHandler: MQTTSubscriptionsHandler
     
-    private let connectListeners: CallbackList<MQTTConnectResponse>
-    private let messageListeners: CallbackList<MQTTMessage>
+    private let connectListeners: CallbackList<(MQTTClient, MQTTConnectResponse)>
+    private let disconnectListeners: CallbackList<(MQTTClient, MQTTDisconnectReason)>
+    private let messageListeners: CallbackList<(MQTTClient, MQTTMessage)>
     
     // MARK: - Init
     
@@ -51,6 +52,7 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
         subscriptionsHandler = MQTTSubscriptionsHandler(logger: logger)
         
         connectListeners = CallbackList(eventLoop: callbackEventLoop)
+        disconnectListeners = CallbackList(eventLoop: callbackEventLoop)
         messageListeners = CallbackList(eventLoop: callbackEventLoop)
         
         subscriptionsHandler.delegate = self
@@ -58,19 +60,20 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     
     // MARK: - Connection
     
-    private var connectionState: MQTTConnection.State? {
-        return lock.withLock { connection?.state }
-    }
-    
-    public var isConnecting: Bool {
-        let state = connectionState
-        return [.idle, .connecting, .waitingForReconnect].contains(state)
-    }
-    
-    public var isConnected: Bool {
-        let state = connectionState
-        return state == .ready
-    }
+    // TODO
+//    private var connectionState: MQTTConnection.State? {
+//        return lock.withLock { connection?.state }
+//    }
+//
+//    public var isConnecting: Bool {
+//        let state = connectionState
+//        return [.idle, .connecting, .waitingForReconnect].contains(state)
+//    }
+//
+//    public var isConnected: Bool {
+//        let state = connectionState
+//        return state == .ready
+//    }
     
     @discardableResult
     public func connect() -> EventLoopFuture<Void> {
@@ -89,7 +92,7 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
             connection.delegate = self
             self.connection = connection
             
-            return connection.channel.map { _ in () }
+            return connection.firstConnectFuture
         }
     }
     
@@ -181,23 +184,38 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     
     @discardableResult
     public func addConnectListener(_ listener: @escaping MQTTConnectListener) -> MQTTListenerContext {
-        return connectListeners.append(listener)
+        return connectListeners.append { arguments, context in
+            listener(arguments.0, arguments.1, context)
+        }
+    }
+    
+    @discardableResult
+    public func addDisconnectListener(_ listener: @escaping MQTTDisconnectListener) -> MQTTListenerContext {
+        return disconnectListeners.append { arguments, context in
+            listener(arguments.0, arguments.1, context)
+        }
     }
     
     @discardableResult
     public func addMessageListener(_ listener: @escaping MQTTMessageListener) -> MQTTListenerContext {
-        return messageListeners.append(listener)
+        return messageListeners.append { arguments, context in
+            listener(arguments.0, arguments.1, context)
+        }
     }
     
     // MARK: - MQTTConnectionDelegate
     
     func mqttConnection(_ connection: MQTTConnection, didConnectWith response: MQTTConnectResponse) {
-        connectListeners.emit(arguments: response)
+        connectListeners.emit(arguments: (self, response))
+    }
+    
+    func mqttConnection(_ connection: MQTTConnection, didDisconnectWith reason: MQTTDisconnectReason) {
+        disconnectListeners.emit(arguments: (self, reason))
     }
     
     // MARK: - MQTTSubscriptionsHandlerDelegate
     
     func mqttSubscriptionsHandler(_ handler: MQTTSubscriptionsHandler, didReceiveMessage message: MQTTMessage) {
-        messageListeners.emit(arguments: message)
+        messageListeners.emit(arguments: (self, message))
     }
 }

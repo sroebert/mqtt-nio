@@ -12,10 +12,11 @@ public struct MQTTConfiguration {
     public var lastWillMessage: MQTTMessage?
     public var keepAliveInterval: TimeAmount
     
-    public var connectTimeoutInterval: TimeAmount
+    public var connectionTimeoutInterval: TimeAmount
     
     public var reconnectMode: ReconnectMode
     
+    public var connectRequestTimeoutInterval: TimeAmount
     public var publishRetryInterval: TimeAmount
     public var subscriptionTimeoutInterval: TimeAmount
     
@@ -27,8 +28,9 @@ public struct MQTTConfiguration {
         credentials: Credentials? = nil,
         lastWillMessage: MQTTMessage? = nil,
         keepAliveInterval: TimeAmount = .seconds(60),
-        connectTimeoutInterval: TimeAmount = .seconds(30),
+        connectionTimeoutInterval: TimeAmount = .seconds(30),
         reconnectMode: ReconnectMode = .retry(minimumDelay: .seconds(1), maximumDelay: .seconds(120)),
+        connectRequestTimeoutInterval: TimeAmount = .seconds(5),
         publishRetryInterval: TimeAmount = .seconds(5),
         subscriptionTimeoutInterval: TimeAmount = .seconds(5)) {
         
@@ -39,8 +41,9 @@ public struct MQTTConfiguration {
         self.credentials = credentials
         self.lastWillMessage = lastWillMessage
         self.keepAliveInterval = keepAliveInterval
-        self.connectTimeoutInterval = connectTimeoutInterval
+        self.connectionTimeoutInterval = connectionTimeoutInterval
         self.reconnectMode = reconnectMode
+        self.connectRequestTimeoutInterval = connectRequestTimeoutInterval
         self.publishRetryInterval = publishRetryInterval
         self.subscriptionTimeoutInterval = subscriptionTimeoutInterval
     }
@@ -92,6 +95,15 @@ extension MQTTConfiguration {
     public enum ReconnectMode {
         case none
         case retry(minimumDelay: TimeAmount, maximumDelay: TimeAmount)
+        
+        var shouldRetry: Bool {
+            switch self {
+            case .none:
+                return false
+            case .retry:
+                return true
+            }
+        }
         
         var next: ReconnectMode {
             switch self {

@@ -22,8 +22,8 @@ protocol MQTTRequest {
     
     func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult<Value>
     
-    func pause(context: MQTTRequestContext)
-    func resume(context: MQTTRequestContext) -> MQTTRequestResult<Value>
+    func disconnected(context: MQTTRequestContext) -> MQTTRequestResult<Value>
+    func connected(context: MQTTRequestContext) -> MQTTRequestResult<Value>
 }
 
 extension MQTTRequest {
@@ -31,7 +31,7 @@ extension MQTTRequest {
         return false
     }
     
-    func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) throws -> MQTTRequestResult<Value> {
+    func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> MQTTRequestResult<Value> {
         return .pending
     }
     
@@ -39,11 +39,11 @@ extension MQTTRequest {
         return .pending
     }
     
-    func pause(context: MQTTRequestContext) {
-        
+    func disconnected(context: MQTTRequestContext) -> MQTTRequestResult<Value> {
+        return .pending
     }
     
-    func resume(context: MQTTRequestContext) -> MQTTRequestResult<Value> {
+    func connected(context: MQTTRequestContext) -> MQTTRequestResult<Value> {
         return .pending
     }
 }

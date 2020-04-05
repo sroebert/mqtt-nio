@@ -9,6 +9,8 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
     typealias OutboundIn = Never
     typealias OutboundOut = MQTTPacket.Outbound
     
+    struct DeinitError: Error {}
+    
     // MARK: - Vars
     
     let logger: Logger
@@ -29,6 +31,11 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
     public init(logger: Logger, eventLoop: EventLoop) {
         self.logger = logger
         self.eventLoop = eventLoop
+    }
+    
+    deinit {
+        entriesInflight.forEach { $0.fail(with: DeinitError()) }
+        entriesQueue.forEach { $0.fail(with: DeinitError()) }
     }
     
     // MARK: - Queue
@@ -58,6 +65,7 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
     }
     
     func handlerRemoved(context: ChannelHandlerContext) {
+        disconnectEntries(context: context)
         channel = nil
     }
 
@@ -83,29 +91,6 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
         }
         
         context.triggerUserOutboundEvent(event, promise: promise)
-    }
-
-    func close(context: ChannelHandlerContext, mode: CloseMode, promise: EventLoopPromise<Void>?) {
-        let wasActive = isActive
-        
-        logger.debug("Triggering willDisconnect event")
-        
-        context.channel.triggerUserOutboundEvent(MQTTConnectionEvent.willDisconnect).whenComplete { _ in
-            // Only send disconnect packet if we succesfully connected before
-            guard wasActive else {
-                self.logger.debug("Finished disconnecting, not sending Disconnect packet")
-                
-                context.close(mode: mode, promise: promise)
-                return
-            }
-            
-            self.logger.debug("Finished disconnecting, sending Disconnect packet")
-            
-            let disconnect = MQTTPacket.Disconnect()
-            context.writeAndFlush(self.wrapOutboundOut(disconnect)).whenComplete { _ in
-                context.close(mode: mode, promise: promise)
-            }
-        }
     }
     
     // MARK: - Utils
@@ -150,15 +135,15 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
         return identifier
     }
     
-    private func withRequestContext(in context: ChannelHandlerContext?, _ execute: (MQTTRequestContext) -> Void) {
+    private func withRequestContext(in context: ChannelHandlerContext, _ execute: (MQTTRequestContext) -> Void) {
         let requestContext = RequestContext(handler: self, context: context)
         execute(requestContext)
         if requestContext.didWrite {
-            context?.flush()
+            context.flush()
         }
     }
     
-    private func forEachEntry(with context: ChannelHandlerContext?, _ execute: (AnyEntry, MQTTRequestContext) -> Bool) {
+    private func forEachEntry(with context: ChannelHandlerContext, _ execute: (AnyEntry, MQTTRequestContext) -> Bool) {
         withRequestContext(in: context) { requestContext in
             entriesInflight = entriesInflight.filter { entry in
                 !execute(entry, requestContext)
@@ -169,28 +154,27 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
     }
     
     private func updateIsActive(_ isActive: Bool, context: ChannelHandlerContext) {
-        guard isActive != self.isActive else {
-            return
-        }
+        logger.trace("MQTTRequestHandler changed active state", metadata: [
+            "isActive": .stringConvertible(isActive)
+        ])
         
         self.isActive = isActive
         if isActive {
-            resumeEntries(context: context)
+            connectEntries(context: context)
         } else {
-            pauseEntries(context: context)
+            disconnectEntries(context: context)
         }
     }
     
-    private func pauseEntries(context: ChannelHandlerContext) {
+    private func disconnectEntries(context: ChannelHandlerContext) {
         forEachEntry(with: context) { entry, requestContext in
-            entry.pause(context: requestContext)
-            return false
+            entry.disconnected(context: requestContext)
         }
     }
     
-    private func resumeEntries(context: ChannelHandlerContext) {
+    private func connectEntries(context: ChannelHandlerContext) {
         forEachEntry(with: context) { entry, requestContext in
-            entry.resume(context: requestContext)
+            entry.connected(context: requestContext)
         }
     }
     
@@ -211,11 +195,11 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
 
 extension MQTTRequestHandler {
     private class RequestContext: MQTTRequestContext {
-        var didWrite: Bool = false
-        var handler: MQTTRequestHandler
-        var context: ChannelHandlerContext?
+        private(set) var didWrite: Bool = false
+        let handler: MQTTRequestHandler
+        let context: ChannelHandlerContext
         
-        init(handler: MQTTRequestHandler, context: ChannelHandlerContext?) {
+        init(handler: MQTTRequestHandler, context: ChannelHandlerContext) {
             self.handler = handler
             self.context = context
         }
@@ -225,13 +209,7 @@ extension MQTTRequestHandler {
         }
         
         func write(_ outbound: MQTTPacket.Outbound) {
-            if let context = context {
-                context.write(handler.wrapOutboundOut(outbound), promise: nil)
-            } else {
-                logger.notice("Did not send outbound packet, no connection", metadata: [
-                    "outbound": "\(outbound)"
-                ])
-            }
+            context.write(handler.wrapOutboundOut(outbound), promise: nil)
             didWrite = true
         }
         
@@ -253,11 +231,6 @@ extension MQTTRequestHandler {
                 }
                 handler.triggerRequestEvent(event, in: eventLoop)
             }
-            scheduled.futureResult.whenFailure { _ in
-                logger.trace("Cancelled scheduled request event", metadata: [
-                    "event": "\(event)"
-                ])
-            }
             return scheduled
         }
     }
@@ -265,6 +238,10 @@ extension MQTTRequestHandler {
 
 extension MQTTRequestHandler {
     private class AnyEntry {
+        func fail(with error: Error) {
+            fatalError("Should be implemented in subclass")
+        }
+        
         var canPerformInInactiveState: Bool {
             fatalError("Should be implemented in subclass")
         }
@@ -281,11 +258,11 @@ extension MQTTRequestHandler {
             fatalError("Should be implemented in subclass")
         }
         
-        func pause(context: MQTTRequestContext) {
+        func disconnected(context: MQTTRequestContext) -> Bool {
             fatalError("Should be implemented in subclass")
         }
         
-        func resume(context: MQTTRequestContext) -> Bool {
+        func connected(context: MQTTRequestContext) -> Bool {
             fatalError("Should be implemented in subclass")
         }
     }
@@ -311,6 +288,10 @@ extension MQTTRequestHandler {
         
         // Forwarding
         
+        override func fail(with error: Error) {
+            promise.fail(error)
+        }
+        
         override var canPerformInInactiveState: Bool {
             return request.canPerformInInactiveState
         }
@@ -327,12 +308,12 @@ extension MQTTRequestHandler {
             handle(request.handleEvent(context: context, event: event))
         }
         
-        override func pause(context: MQTTRequestContext) {
-            request.pause(context: context)
+        override func disconnected(context: MQTTRequestContext) -> Bool {
+            handle(request.disconnected(context: context))
         }
         
-        override func resume(context: MQTTRequestContext) -> Bool {
-            handle(request.resume(context: context))
+        override func connected(context: MQTTRequestContext) -> Bool {
+            handle(request.connected(context: context))
         }
     }
 }

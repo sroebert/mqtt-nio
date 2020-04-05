@@ -44,6 +44,13 @@ final class MQTTPingRequest: MQTTRequest {
         return .success
     }
     
+    func disconnected(context: MQTTRequestContext) -> MQTTRequestResult<()> {
+        timeoutScheduled?.cancel()
+        timeoutScheduled = nil
+        
+        return .success(())
+    }
+    
     func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult<Void> {
         guard case Error.timeout = event else {
             return .pending

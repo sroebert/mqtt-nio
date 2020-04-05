@@ -17,15 +17,15 @@ final class MQTTSubscriptionsHandler: ChannelDuplexHandler {
     // MARK: - Vars
     
     let logger: Logger
+    private(set) var inflightMessages: [UInt16: MQTTMessage]
     
     weak var delegate: MQTTSubscriptionsHandlerDelegate?
     
-    private var inflightMessages: [UInt16: MQTTMessage] = [:]
-    
     // MARK: - Init
     
-    init(logger: Logger) {
+    init(logger: Logger, inflightMessages: [UInt16: MQTTMessage] = [:]) {
         self.logger = logger
+        self.inflightMessages = inflightMessages
     }
     
     // MARK: - ChannelDuplexHandler

@@ -4,40 +4,46 @@ import Logging
 
 protocol MQTTConnectionDelegate: class {
     func mqttConnection(_ connection: MQTTConnection, didConnectWith response: MQTTConnectResponse)
+    func mqttConnection(_ connection: MQTTConnection, didDisconnectWith reason: MQTTDisconnectReason)
 }
 
 class MQTTConnection {
     
+    // MARK: - Types
+    
+    private enum ConnectError: Error {
+        case userDidInitiateClose
+    }
+    
+    private struct ConnectionFlags: OptionSet {
+        let rawValue: Int
+        
+        static let notifiedDelegate = ConnectionFlags(rawValue: 1 << 1)
+        static let acceptedByBroker = ConnectionFlags(rawValue: 1 << 2)
+        static let triggeredDidConnect = ConnectionFlags(rawValue: 1 << 3)
+        
+        init(rawValue: Int) {
+            self.rawValue = rawValue
+        }
+    }
+    
     // MARK: - Vars
     
+    let eventLoop: EventLoop
     let configuration: MQTTConfiguration
     let logger: Logger
     
-    private let stateManager: StateManager
-    
-    private(set) var channel: EventLoopFuture<Channel>! {
-        didSet {
-            didChangeChannel()
-        }
-    }
-    
-    var eventLoop: EventLoop {
-        return channel.eventLoop
-    }
-    
-    private(set) var state: State {
-        get {
-            return stateManager.state
-        }
-        set {
-            stateManager.state = newValue
-        }
-    }
+    private let requestHandler: MQTTRequestHandler
+    private let subscriptionsHandler: MQTTSubscriptionsHandler
     
     weak var delegate: MQTTConnectionDelegate?
     
-    private let requestHandler: MQTTRequestHandler
-    private let subscriptionsHandler: MQTTSubscriptionsHandler
+    private(set) var firstConnectFuture: EventLoopFuture<Void>!
+    private var channelFuture: EventLoopFuture<Channel>!
+    
+    private var connectionFlags: ConnectionFlags = []
+    
+    private var didUserInitiateClose: Bool = false
     
     // MARK: - Init
     
@@ -48,282 +54,230 @@ class MQTTConnection {
         subscriptionsHandler: MQTTSubscriptionsHandler,
         logger: Logger
     ) {
+        self.eventLoop = eventLoop
         self.configuration = configuration
         self.logger = logger
-        self.stateManager = StateManager(logger: logger)
         
         self.requestHandler = requestHandler
         self.subscriptionsHandler = subscriptionsHandler
         
-        channel = MQTTConnection.makeChannel(
-            on: eventLoop,
-            configuration: configuration,
-            reconnectMode: configuration.reconnectMode,
-            stateManager: stateManager,
-            requestHandler: requestHandler,
-            subscriptionsHandler: subscriptionsHandler,
-            onConnect: { [weak self] in
-                self?.didConnect(with: $0)
-            },
-            logger: logger
-        )
-        
-        didChangeChannel()
+        channelFuture = connect()
+        firstConnectFuture = channelFuture.map { _ in }
     }
     
     // MARK: - Close
     
     func close() -> EventLoopFuture<Void> {
-        stateManager.initiateUserShutdown()
-        channel.whenSuccess { $0.close(mode: .all, promise: nil) }
-        
-        let eventLoop = self.eventLoop
-        return channel.map { channel -> Channel? in
-            return channel
-        }.flatMapErrorThrowing { _ in
-            return nil
-        }.flatMap { optionalChannel in
-            guard let channel = optionalChannel else {
-                return eventLoop.makeSucceededFuture(())
-            }
-            return channel.closeFuture
+        return eventLoop.flatSubmit {
+            self.didUserInitiateClose = true
+            return self.channelFuture
+        }.flatMap { channel in
+            self.shutdown(channel, reason: .userInitiated)
+        }.recover { _ in
+            // We don't care about channel connection failure as we are closing
         }
     }
     
-    // MARK: - Channel Updates
+    // MARK: - Connect
     
-    private func didChangeChannel() {
-        // Close the channel if the user already initiated shutdown
-        guard !stateManager.userHasInitiatedShutdown else {
-            channel.whenSuccess { [weak self] channel in
-                self?.logger.debug("Closing channel, user initiated shutdown while connecting")
-                channel.close(mode: .all, promise: nil)
-            }
-            return
+    private func connect() -> EventLoopFuture<Channel> {
+        return connect(reconnectMode: configuration.reconnectMode)
+    }
+    
+    private func connect(reconnectMode: MQTTConfiguration.ReconnectMode) -> EventLoopFuture<Channel> {
+        guard !didUserInitiateClose else {
+            logger.debug("Ignoring connect, user initiated close")
+            return eventLoop.makeFailedFuture(ConnectError.userDidInitiateClose)
         }
         
-        channel.flatMap { $0.closeFuture }.whenComplete { [weak self] result in
-            guard let strongSelf = self else {
-                return
-            }
+        return connectToBroker().flatMap { channel in
+            self.logger.debug("Connected to broker", metadata: [
+                "target": "\(self.configuration.target)"
+            ])
             
-            switch result {
-            case .success:
-                strongSelf.logger.debug("Client connection successfully shutdown")
-            case .failure(let error):
-                strongSelf.logger.warning("Client connection shutdown failed", metadata: [
+            return self.requestConnectionWithBroker(for: channel).flatMapError { error in
+                self.logger.debug("Failed Connect request, shutting down channel", metadata: [
                     "error": "\(error)"
                 ])
-            }
-            
-            // Check if we can reconnect
-            guard strongSelf.stateManager.canReconnect else {
-                strongSelf.logger.debug("Client not reconnecting, state does not allow it", metadata: [
-                    "state": "\(strongSelf.state)"
-                ])
-                return
-            }
-            
-            // Prepare state for reconnect
-            strongSelf.state = .waitingForReconnect
-            
-            // Reconnect
-            strongSelf.logger.debug("Client creating a new channel")
-            strongSelf.channel = MQTTConnection.makeChannel(
-                on: strongSelf.channel.eventLoop,
-                configuration: strongSelf.configuration,
-                reconnectMode: strongSelf.configuration.reconnectMode,
-                stateManager: strongSelf.stateManager,
-                requestHandler: strongSelf.requestHandler,
-                subscriptionsHandler: strongSelf.subscriptionsHandler,
-                onConnect: { [weak self] in
-                    self?.didConnect(with: $0)
-                },
-                logger: strongSelf.logger
-            )
-        }
-        channel.whenFailure { [weak self] _ in
-            self?.state = .shutdown
-        }
-    }
-    
-    // MARK: - Events
-    
-    private func didConnect(with response: MQTTConnectResponse) {
-        delegate?.mqttConnection(self, didConnectWith: response)
-    }
-    
-    // MARK: - Utils
-    
-    private class func makeChannel(
-        on eventLoop: EventLoop,
-        configuration: MQTTConfiguration,
-        reconnectMode: MQTTConfiguration.ReconnectMode,
-        stateManager: StateManager,
-        requestHandler: MQTTRequestHandler,
-        subscriptionsHandler: MQTTSubscriptionsHandler,
-        onConnect: @escaping (MQTTConnectResponse) -> Void,
-        logger: Logger
-    ) -> EventLoopFuture<Channel> {
-        
-        guard stateManager.state == .idle || stateManager.state == .waitingForReconnect else {
-            return eventLoop.makeFailedFuture(MQTTInternalError(message: "Invalid connection state"))
-        }
-        
-        logger.debug("Client starting connection", metadata: [
-            "target": "\(configuration.target)",
-        ])
-        
-        stateManager.state = .connecting
-        
-        let bootstrap = ClientBootstrap(group: eventLoop)
-            .channelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SO_REUSEADDR), value: 1)
-            .connectTimeout(configuration.connectTimeoutInterval)
-        
-        let channelFuture = bootstrap.connect(to: configuration.target).flatMap { channel -> EventLoopFuture<Channel> in
-            let future = configureChannel(
-                channel,
-                configuration: configuration,
-                requestHandler: requestHandler,
-                subscriptionsHandler: subscriptionsHandler,
-                logger: logger
-            ).flatMap {
-                logger.debug("Client connected, sending connect request")
                 
-                let connectRequest = MQTTConnectRequest(configuration: configuration)
-                return requestHandler.perform(connectRequest).map { response in
-                    if stateManager.state == .connecting {
-                        onConnect(MQTTConnectResponse(response))
+                // In case of error, properly shutdown and still throw the same error
+                return self.shutdown(channel, reason: .error(error)).flatMapThrowing {
+                    throw error
+                }
+            }.map {
+                // On close, notify delegate and setup a new channel
+                if reconnectMode.shouldRetry {
+                    channel.closeFuture.whenSuccess { result in
+                        self.logger.debug("Channel closed, retrying connection")
+                        
+                        if self.connectionFlags.contains(.notifiedDelegate) {
+                            self.connectionFlags.remove(.notifiedDelegate)
+                            self.delegate?.mqttConnection(self, didDisconnectWith: .connectionClosed)
+                        }
+                        
+                        self.channelFuture = self.connect()
                     }
                 }
-            }.flatMap { response in
-                channel.triggerUserOutboundEvent(MQTTConnectionEvent.didConnect).map { response }
-            }.map {
-                channel
+                return channel
             }
-            
-            future.whenComplete { _ in
-                stateManager.state = .ready
-            }
-            
-            return future
-        }
-        
-        channelFuture.whenFailure { error in
-            logger.debug("Client connection failed", metadata: [
-                "error": "\(error)",
+        }.flatMapError { error in
+            self.logger.debug("Failed to connect to broker", metadata: [
+                "error": "\(error)"
             ])
-        }
-        
-        guard case .retry(let delay, _) = reconnectMode else {
-            return channelFuture
-        }
-        
-        // If we cannot connect, try again in a given interval
-        return channelFuture.flatMapError { _ in
-            stateManager.state = .waitingForReconnect
-            return MQTTConnection.scheduleReconnectAttempt(
-                in: delay,
-                on: eventLoop,
-                configuration: configuration,
-                stateManager: stateManager,
-                requestHandler: requestHandler,
-                subscriptionsHandler: subscriptionsHandler,
-                onConnect: onConnect,
-                logger: logger
-            )
+            
+            guard case .retry(let delay, _) = reconnectMode else {
+                return self.eventLoop.makeFailedFuture(error)
+            }
+            
+            self.logger.debug("Scheduling retry to connect to broker", metadata: [
+                "delay": "\(delay.nanoseconds / 1_000_000_000)"
+            ])
+            
+            // Reconnect after delay
+            return self.eventLoop.scheduleTask(in: delay) {
+                self.connect(reconnectMode: reconnectMode.next)
+            }.futureResult.flatMap { $0 }
         }
     }
     
-    private class func configureChannel(
-        _ channel: Channel,
+    private func connectToBroker() -> EventLoopFuture<Channel> {
+        logger.debug("Connecting to broker", metadata: [
+            "target": "\(configuration.target)"
+        ])
+        
+        return ClientBootstrap(group: eventLoop)
+            .channelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SO_REUSEADDR), value: 1)
+            .connectTimeout(configuration.connectionTimeoutInterval)
+            .channelInitializer { channel in
+                Self.initializeTLS(
+                    for: channel,
+                    in: self.eventLoop,
+                    configuration: self.configuration,
+                    logger: self.logger
+                )
+            }
+            .connect(to: configuration.target)
+            .flatMap { self.addHandlers(to: $0) }
+    }
+    
+    private static func initializeTLS(
+        for channel: Channel,
+        in eventLoop: EventLoop,
         configuration: MQTTConfiguration,
-        requestHandler: MQTTRequestHandler,
-        subscriptionsHandler: MQTTSubscriptionsHandler,
-        logger: Logger) -> EventLoopFuture<Void> {
-        
-        return configureTLS(
-            with: configuration.tls,
-            serverHostname: configuration.target.hostname?.sniServerHostname,
-            in: channel,
-            logger: logger
-        ).flatMap {
-            channel.pipeline.addHandlers([
-                // Decoding
-                ByteToMessageHandler(MQTTPacketDecoder(logger: logger)),
-                MQTTPacketTypeParser(logger: logger),
-                
-                // Encoding
-                MessageToByteHandler(MQTTPacketEncoder(logger: logger)),
-                MQTTPacketTypeSerializer(logger: logger),
-                
-                // Continuous handlers
-                MQTTKeepAliveHandler(logger: logger, interval: configuration.keepAliveInterval),
-                subscriptionsHandler,
-                
-                // Outgoing request handlers
-                requestHandler,
-                
-                // Error handler
-                MQTTErrorHandler(logger: logger)
-            ])
-        }
-    }
-    
-    private class func configureTLS(
-        with configuration: TLSConfiguration?,
-        serverHostname: String?,
-        in channel: Channel,
         logger: Logger
     ) -> EventLoopFuture<Void> {
-        guard let configuration = configuration else {
-            return channel.eventLoop.makeSucceededFuture(())
+        
+        guard let tlsConfiguration = configuration.tls else {
+            return eventLoop.makeSucceededFuture(())
         }
         
         do {
             let tlsVerificationHandler = TLSVerificationHandler(logger: logger)
             return channel.pipeline.addHandlers([
                 try NIOSSLClientHandler(
-                    context: try NIOSSLContext(configuration: configuration),
-                    serverHostname: serverHostname
+                    context: try NIOSSLContext(configuration: tlsConfiguration),
+                    serverHostname: configuration.target.hostname?.sniServerHostname
                 ),
                 tlsVerificationHandler
             ]).flatMap {
                 tlsVerificationHandler.verify()
             }
         } catch {
-            return channel.eventLoop.makeFailedFuture(error)
+            return eventLoop.makeFailedFuture(error)
         }
     }
     
-    private class func scheduleReconnectAttempt(
-        in delay: TimeAmount,
-        on eventLoop: EventLoop,
-        configuration: MQTTConfiguration,
-        stateManager: StateManager,
-        requestHandler: MQTTRequestHandler,
-        subscriptionsHandler: MQTTSubscriptionsHandler,
-        onConnect: @escaping (MQTTConnectResponse) -> Void,
-        logger: Logger
-    ) -> EventLoopFuture<Channel> {
+    private func addHandlers(to channel: Channel) -> EventLoopFuture<Channel> {
+        eventLoop.assertInEventLoop()
         
-        logger.debug("Client scheduling reconnection", metadata: [
-            "delay": .stringConvertible(delay.nanoseconds / 1_000_000_000),
-        ])
+        return channel.pipeline.addHandlers([
+            // Decoding
+            ByteToMessageHandler(MQTTPacketDecoder(logger: logger)),
+            MQTTPacketTypeParser(logger: logger),
+            
+            // Encoding
+            MessageToByteHandler(MQTTPacketEncoder(logger: logger)),
+            MQTTPacketTypeSerializer(logger: logger),
+            
+            // Continuous handlers
+            MQTTKeepAliveHandler(logger: logger, interval: configuration.keepAliveInterval),
+            subscriptionsHandler,
+            
+            // Outgoing request handlers
+            requestHandler,
+            
+            // Error handler
+            MQTTErrorHandler(logger: logger)
+        ]).map { channel }
+    }
     
-        return eventLoop.scheduleTask(in: delay) {
-            MQTTConnection.makeChannel(
-                on: eventLoop,
-                configuration: configuration,
-                reconnectMode: configuration.reconnectMode.next,
-                stateManager: stateManager,
-                requestHandler: requestHandler,
-                subscriptionsHandler: subscriptionsHandler,
-                onConnect: onConnect,
-                logger: logger
-            )
-        }.futureResult.flatMap { channel in
-            channel
+    private func requestConnectionWithBroker(for channel: Channel) -> EventLoopFuture<Void> {
+        eventLoop.assertInEventLoop()
+        
+        let request = MQTTConnectRequest(configuration: configuration)
+        return requestHandler.perform(request).flatMap { response in
+            self.connectionFlags.insert(.notifiedDelegate)
+            self.delegate?.mqttConnection(self, didConnectWith: response)
+            
+            guard response.returnCode == .accepted else {
+                return self.eventLoop.makeFailedFuture(MQTTConnectionError.protocol("Connection not accepted by the server"))
+            }
+            
+            // We established connection
+            self.connectionFlags.insert(.acceptedByBroker)
+            
+            // We don't have to trigger the didConnect if the user already initiated a close
+            guard !self.didUserInitiateClose else {
+                return self.eventLoop.makeSucceededFuture(())
+            }
+            
+            self.connectionFlags.insert(.triggeredDidConnect)
+            return channel.triggerUserOutboundEvent(MQTTConnectionEvent.didConnect)
+        }
+    }
+    
+    // MARK: - Disconnect
+    
+    private func shutdown(_ channel: Channel, reason: MQTTDisconnectReason) -> EventLoopFuture<Void> {
+        eventLoop.assertInEventLoop()
+        
+        return sendDisconnect(for: channel).flatMap {
+            // No we can close the channel
+            channel.close().recover { _ in
+                // We don't really care if the close fails, just continue
+            }.always { _ in
+                if self.connectionFlags.contains(.notifiedDelegate) {
+                    self.connectionFlags.remove(.notifiedDelegate)
+                    self.delegate?.mqttConnection(self, didDisconnectWith: reason)
+                }
+            }
+        }
+    }
+    
+    private func sendDisconnect(for channel: Channel) -> EventLoopFuture<Void> {
+        eventLoop.assertInEventLoop()
+        
+        // Only trigger the `willDisconnect` event if we send a `didConnect` event before.
+        let eventFuture: EventLoopFuture<Void>
+        if connectionFlags.contains(.triggeredDidConnect) {
+            connectionFlags.remove(.triggeredDidConnect)
+            eventFuture = channel.triggerUserOutboundEvent(MQTTConnectionEvent.willDisconnect).recover { _ in
+                // We don't care if this fails
+            }
+        } else {
+            eventFuture = eventLoop.makeSucceededFuture(())
+        }
+        
+        // Only send disconnect if broker has accepted before
+        guard connectionFlags.contains(.acceptedByBroker) else {
+            return eventFuture
+        }
+        
+        connectionFlags.remove(.acceptedByBroker)
+        return eventFuture.flatMap {
+            self.requestHandler.perform(MQTTDisconnectRequest()).recover { _ in
+                // We don't care if this fails
+            }
         }
     }
 }
@@ -370,7 +324,7 @@ extension String {
         return true
     }
     
-    var sniServerHostname: String? {
+    fileprivate var sniServerHostname: String? {
         guard isValidSNIServerName else {
             return nil
         }

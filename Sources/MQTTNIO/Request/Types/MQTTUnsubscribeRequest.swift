@@ -59,6 +59,13 @@ final class MQTTUnsubscribeRequest: MQTTRequest {
         return .success
     }
     
+    func disconnected(context: MQTTRequestContext) -> MQTTRequestResult<()> {
+        timeoutScheduled?.cancel()
+        timeoutScheduled = nil
+        
+        return .failure(MQTTConnectionError.protocol("Disconnected while trying to unsubscribe"))
+    }
+    
     func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult<Void> {
         guard case Error.timeout = event else {
             return .pending

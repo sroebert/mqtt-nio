@@ -24,12 +24,16 @@ final class MQTTNIOTests: XCTestCase {
 
     func testConnectAndClose() throws {
         let client = MQTTClient(configuration: .init(
-            target: .host("broker.hivemq.com", port: 1883),
+//            target: .host("broker.hivemq.com", port: 1883),
+            target: .host("127.0.0.1", port: 1883),
             keepAliveInterval: .seconds(5)
         ), eventLoopGroup: group)
         
-        client.addConnectListener { _, _ in
-            print("Did connect!!")
+        client.addConnectListener { _, response, _ in
+            print("Connected: \(response.returnCode)")
+        }
+        client.addDisconnectListener { _, reason, _ in
+            print("Disconnected: \(reason)")
         }
         
         client.connect()
@@ -58,7 +62,7 @@ final class MQTTNIOTests: XCTestCase {
 let isLoggingConfigured: Bool = {
     LoggingSystem.bootstrap { label in
         var handler = StreamLogHandler.standardOutput(label: label)
-        handler.logLevel = .debug
+        handler.logLevel = .trace
         return handler
     }
     return true

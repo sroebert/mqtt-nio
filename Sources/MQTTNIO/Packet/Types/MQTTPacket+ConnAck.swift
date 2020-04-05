@@ -13,29 +13,25 @@ extension MQTTPacket {
                 throw MQTTConnectionError.protocol("Could not parse ConnAck")
             }
             
+            guard let returnCode = ReturnCode(rawValue: returnCodeValue) else {
+                throw MQTTConnectionError.protocol("Received invalid ConnAck return code")
+            }
+            
             return ConnAck(
                 isSessionPresent: (acknowledgeFlags & 0x01) != 0,
-                returnCode: .init(integerLiteral: returnCodeValue)
+                returnCode: returnCode
             )
         }
     }
 }
 
 extension MQTTPacket.ConnAck {
-    struct ReturnCode: ExpressibleByIntegerLiteral, Equatable {
-        
-        static let accepted: ReturnCode                      = 0
-        
-        static let unacceptableProtocolVersion: ReturnCode   = 1
-        static let identifierRejected: ReturnCode            = 2
-        static let serverUnavailable: ReturnCode             = 3
-        static let badUsernameOrPassword: ReturnCode         = 4
-        static let notAuthorized: ReturnCode                 = 5
-        
-        let value: UInt8
-        
-        init(integerLiteral value: UInt8) {
-            self.value = value
-        }
+    enum ReturnCode: UInt8 {
+        case accepted = 0
+        case unacceptableProtocolVersion = 1
+        case identifierRejected = 2
+        case serverUnavailable = 3
+        case badUsernameOrPassword = 4
+        case notAuthorized = 5
     }
 }

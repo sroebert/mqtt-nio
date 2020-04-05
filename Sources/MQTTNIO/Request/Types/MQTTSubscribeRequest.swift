@@ -79,6 +79,13 @@ final class MQTTSubscribeRequest: MQTTRequest {
         return .success(subAck.results)
     }
     
+    func disconnected(context: MQTTRequestContext) -> MQTTRequestResult<Array<MQTTSubscriptionResult>> {
+        timeoutScheduled?.cancel()
+        timeoutScheduled = nil
+        
+        return .failure(MQTTConnectionError.protocol("Disconnected while trying to subscribe"))
+    }
+    
     func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult<[MQTTSubscriptionResult]> {
         guard case Error.timeout = event else {
             return .pending

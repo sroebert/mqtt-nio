@@ -115,13 +115,14 @@ final class MQTTPublishRequest: MQTTRequest {
         return .pending
     }
     
-    func resume(context: MQTTRequestContext) -> MQTTRequestResult<Void> {
-        retry(context: context)
+    func disconnected(context: MQTTRequestContext) -> MQTTRequestResult<Void> {
+        cancelRetry()
         return .pending
     }
     
-    func pause(context: MQTTRequestContext) {
-        cancelRetry()
+    func connected(context: MQTTRequestContext) -> MQTTRequestResult<Void> {
+        retry(context: context)
+        return .pending
     }
     
     // MARK: - Utils

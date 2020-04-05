@@ -5,10 +5,6 @@ final class MQTTConnectRequest: MQTTRequest {
     
     // MARK: - Types
     
-    struct Response {
-        var isSessionPresent: Bool
-    }
-    
     enum Error: Swift.Error {
         case timeout
     }
@@ -30,8 +26,8 @@ final class MQTTConnectRequest: MQTTRequest {
         return true
     }
     
-    func start(context: MQTTRequestContext) -> MQTTRequestResult<Response> {
-        timeoutScheduled = context.scheduleEvent(Error.timeout, in: configuration.connectTimeoutInterval)
+    func start(context: MQTTRequestContext) -> MQTTRequestResult<MQTTConnectResponse> {
+        timeoutScheduled = context.scheduleEvent(Error.timeout, in: configuration.connectRequestTimeoutInterval)
         
         context.logger.debug("Sending: Connect", metadata: [
             "clientId": .string(configuration.clientId),
@@ -42,7 +38,7 @@ final class MQTTConnectRequest: MQTTRequest {
         return .pending
     }
     
-    func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> MQTTRequestResult<Response> {
+    func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> MQTTRequestResult<MQTTConnectResponse> {
         timeoutScheduled?.cancel()
         timeoutScheduled = nil
         
@@ -61,33 +57,36 @@ final class MQTTConnectRequest: MQTTRequest {
             ])
         }
         
-        switch connAck.returnCode {
-        case .accepted:
-            let response = Response(isSessionPresent: connAck.isSessionPresent)
-            return .success(response)
-            
-        case .unacceptableProtocolVersion:
-            return .failure(MQTTServerError.unacceptableProtocolVersion)
-        case .identifierRejected:
-            return .failure(MQTTServerError.identifierRejected)
-        case .serverUnavailable:
-            return .failure(MQTTServerError.serverUnavailable)
-        case .badUsernameOrPassword:
-            return .failure(MQTTServerError.badUsernameOrPassword)
-        case .notAuthorized:
-            return .failure(MQTTServerError.notAuthorized)
-            
-        default:
-            return .failure(MQTTServerError.unknown)
-        }
+        return .success(MQTTConnectResponse(
+            isSessionPresent: connAck.isSessionPresent,
+            returnCode: connAck.returnCode.connectResponseReturnCode
+        ))
     }
     
-    func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult<Response> {
+    func disconnected(context: MQTTRequestContext) -> MQTTRequestResult<MQTTConnectResponse> {
+        context.logger.notice("Disconnected while waiting for 'Connect Acknowledgement'")
+        return .failure(MQTTConnectionError.protocol("Disconnected while waiting for ConnAck packet."))
+    }
+    
+    func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult<MQTTConnectResponse> {
         guard case Error.timeout = event else {
             return .pending
         }
         
         context.logger.notice("Did not receive 'Connect Acknowledgement' in time")
         return .failure(MQTTConnectionError.protocol("Did not receive ConnAck packet in time."))
+    }
+}
+
+extension MQTTPacket.ConnAck.ReturnCode {
+    fileprivate var connectResponseReturnCode: MQTTConnectResponse.ReturnCode {
+        switch self {
+        case .accepted: return .accepted
+        case .unacceptableProtocolVersion: return .unacceptableProtocolVersion
+        case .identifierRejected: return .identifierRejected
+        case .serverUnavailable: return .serverUnavailable
+        case .badUsernameOrPassword: return .badUsernameOrPassword
+        case .notAuthorized: return .notAuthorized
+        }
     }
 }
