@@ -3,7 +3,7 @@ import NIOSSL
 import NIOTLS
 import Logging
 
-class TLSVerificationHandler: ChannelInboundHandler, RemovableChannelHandler {
+final class TLSVerificationHandler: ChannelInboundHandler, RemovableChannelHandler {
     
     // MARK: - Types
     

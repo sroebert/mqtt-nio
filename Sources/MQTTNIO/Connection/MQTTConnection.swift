@@ -5,9 +5,11 @@ import Logging
 protocol MQTTConnectionDelegate: class {
     func mqttConnection(_ connection: MQTTConnection, didConnectWith response: MQTTConnectResponse)
     func mqttConnection(_ connection: MQTTConnection, didDisconnectWith reason: MQTTDisconnectReason)
+    
+    func mqttConnection(_ connection: MQTTConnection, caughtError error: Error)
 }
 
-class MQTTConnection {
+final class MQTTConnection: MQTTErrorHandlerDelegate {
     
     // MARK: - Types
     
@@ -121,6 +123,8 @@ class MQTTConnection {
                 return channel
             }
         }.flatMapError { error in
+            self.delegate?.mqttConnection(self, caughtError: error)
+            
             self.logger.debug("Failed to connect to broker", metadata: [
                 "error": "\(error)"
             ])
@@ -148,25 +152,12 @@ class MQTTConnection {
         return ClientBootstrap(group: eventLoop)
             .channelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SO_REUSEADDR), value: 1)
             .connectTimeout(configuration.connectionTimeoutInterval)
-            .channelInitializer { channel in
-                Self.initializeTLS(
-                    for: channel,
-                    in: self.eventLoop,
-                    configuration: self.configuration,
-                    logger: self.logger
-                )
-            }
+            .channelInitializer { self.initializeTLS(for: $0) }
             .connect(to: configuration.target)
             .flatMap { self.addHandlers(to: $0) }
     }
     
-    private static func initializeTLS(
-        for channel: Channel,
-        in eventLoop: EventLoop,
-        configuration: MQTTConfiguration,
-        logger: Logger
-    ) -> EventLoopFuture<Void> {
-        
+    private func initializeTLS(for channel: Channel) -> EventLoopFuture<Void> {
         guard let tlsConfiguration = configuration.tls else {
             return eventLoop.makeSucceededFuture(())
         }
@@ -183,12 +174,16 @@ class MQTTConnection {
                 tlsVerificationHandler.verify()
             }
         } catch {
+            delegate?.mqttConnection(self, caughtError: error)
             return eventLoop.makeFailedFuture(error)
         }
     }
     
     private func addHandlers(to channel: Channel) -> EventLoopFuture<Channel> {
         eventLoop.assertInEventLoop()
+        
+        let errorHandler = MQTTErrorHandler(logger: logger)
+        errorHandler.delegate = self
         
         return channel.pipeline.addHandlers([
             // Decoding
@@ -207,7 +202,7 @@ class MQTTConnection {
             requestHandler,
             
             // Error handler
-            MQTTErrorHandler(logger: logger)
+            errorHandler
         ]).map { channel }
     }
     
@@ -279,6 +274,12 @@ class MQTTConnection {
                 // We don't care if this fails
             }
         }
+    }
+    
+    // MARK: - MQTTErrorHandlerDelegate
+    
+    func mttErrorHandler(_ handler: MQTTErrorHandler, caughtError error: Error) {
+        delegate?.mqttConnection(self, caughtError: error)
     }
 }
 

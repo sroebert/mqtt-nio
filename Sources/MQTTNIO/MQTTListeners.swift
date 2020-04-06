@@ -25,6 +25,8 @@ public enum MQTTDisconnectReason {
 public typealias MQTTConnectListener = (_ client: MQTTClient, _ response: MQTTConnectResponse, _ context: MQTTListenerContext) -> Void
 public typealias MQTTDisconnectListener = (_ client: MQTTClient, _ reason: MQTTDisconnectReason, _ context: MQTTListenerContext) -> Void
 
+public typealias MQTTErrorListener = (_ client: MQTTClient, _ error: Error, _ context: MQTTListenerContext) -> Void
+
 public typealias MQTTMessageListener = (_ client: MQTTClient, _ message: MQTTMessage, _ context: MQTTListenerContext) -> Void
 
 extension CallbackList.Entry : MQTTListenerContext {

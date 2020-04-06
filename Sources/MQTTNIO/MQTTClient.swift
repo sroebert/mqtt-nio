@@ -33,6 +33,7 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     private let connectListeners: CallbackList<(MQTTClient, MQTTConnectResponse)>
     private let disconnectListeners: CallbackList<(MQTTClient, MQTTDisconnectReason)>
     private let messageListeners: CallbackList<(MQTTClient, MQTTMessage)>
+    private let errorListeners: CallbackList<(MQTTClient, Error)>
     
     // MARK: - Init
     
@@ -54,6 +55,7 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
         connectListeners = CallbackList(eventLoop: callbackEventLoop)
         disconnectListeners = CallbackList(eventLoop: callbackEventLoop)
         messageListeners = CallbackList(eventLoop: callbackEventLoop)
+        errorListeners = CallbackList(eventLoop: callbackEventLoop)
         
         subscriptionsHandler.delegate = self
     }
@@ -197,6 +199,13 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     }
     
     @discardableResult
+    public func addErrorListener(_ listener: @escaping MQTTErrorListener) -> MQTTListenerContext {
+        return errorListeners.append { arguments, context in
+            listener(arguments.0, arguments.1, context)
+        }
+    }
+    
+    @discardableResult
     public func addMessageListener(_ listener: @escaping MQTTMessageListener) -> MQTTListenerContext {
         return messageListeners.append { arguments, context in
             listener(arguments.0, arguments.1, context)
@@ -211,6 +220,10 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     
     func mqttConnection(_ connection: MQTTConnection, didDisconnectWith reason: MQTTDisconnectReason) {
         disconnectListeners.emit(arguments: (self, reason))
+    }
+    
+    func mqttConnection(_ connection: MQTTConnection, caughtError error: Error) {
+        errorListeners.emit(arguments: (self, error))
     }
     
     // MARK: - MQTTSubscriptionsHandlerDelegate

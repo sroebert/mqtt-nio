@@ -35,6 +35,9 @@ final class MQTTNIOTests: XCTestCase {
         client.addDisconnectListener { _, reason, _ in
             print("Disconnected: \(reason)")
         }
+        client.addErrorListener { _, error, _ in
+            print("Error: \(error)")
+        }
         
         client.connect()
         
@@ -62,7 +65,7 @@ final class MQTTNIOTests: XCTestCase {
 let isLoggingConfigured: Bool = {
     LoggingSystem.bootstrap { label in
         var handler = StreamLogHandler.standardOutput(label: label)
-        handler.logLevel = .trace
+        handler.logLevel = .notice
         return handler
     }
     return true

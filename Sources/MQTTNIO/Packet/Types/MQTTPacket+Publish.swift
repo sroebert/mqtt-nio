@@ -5,9 +5,19 @@ extension MQTTPacket {
         
         // MARK: - Properties
         
-        var message: MQTTMessage
+        var message: MQTTMessage {
+            return messageWrapper.message
+        }
         var packetId: UInt16?
         var isDuplicate: Bool = false
+        
+        private let messageWrapper: MessageWrapper
+        
+        init(message: MQTTMessage, packetId: UInt16?, isDuplicate: Bool = false) {
+            messageWrapper = MessageWrapper(message: message)
+            self.packetId = packetId
+            self.isDuplicate = isDuplicate
+        }
         
         // MARK: - MQTTPacketDuplexType
         
@@ -96,6 +106,15 @@ extension MQTTPacket {
 }
 
 extension MQTTPacket.Publish {
+    // Wrapper to avoid heap allocations when added to NIOAny
+    fileprivate class MessageWrapper {
+        let message: MQTTMessage
+        
+        init(message: MQTTMessage) {
+            self.message = message
+        }
+    }
+    
     struct Flags: OptionSet {
         let rawValue: UInt8
 

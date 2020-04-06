@@ -6,7 +6,15 @@ extension MQTTPacket {
         private static let protocolName = "MQTT"
         private static let protocolLevel: UInt8 = 0x04 // 3.1.1
         
-        var configuration: MQTTConfiguration
+        private let configurationWrapper: ConfigurationWrapper
+        
+        init(configuration: MQTTConfiguration) {
+            configurationWrapper = ConfigurationWrapper(configuration: configuration)
+        }
+        
+        var configuration: MQTTConfiguration {
+            return configurationWrapper.configuration
+        }
         
         func serialize() throws -> MQTTPacket {
             var buffer = ByteBufferAllocator().buffer(capacity: 0)
@@ -84,6 +92,15 @@ extension MQTTPacket {
 }
 
 extension MQTTPacket.Connect {
+    // Wrapper to avoid heap allocations when added to NIOAny
+    fileprivate class ConfigurationWrapper {
+        let configuration: MQTTConfiguration
+        
+        init(configuration: MQTTConfiguration) {
+            self.configuration = configuration
+        }
+    }
+    
     fileprivate struct Flags: OptionSet {
         let rawValue: UInt8
         

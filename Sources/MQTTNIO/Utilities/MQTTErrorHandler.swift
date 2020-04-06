@@ -2,10 +2,16 @@ import NIO
 import NIOSSL
 import Logging
 
+protocol MQTTErrorHandlerDelegate: class {
+    func mttErrorHandler(_ handler: MQTTErrorHandler, caughtError error: Error)
+}
+
 final class MQTTErrorHandler: ChannelInboundHandler {
     typealias InboundIn = Never
     
     let logger: Logger
+    
+    weak var delegate: MQTTErrorHandlerDelegate?
     
     init(logger: Logger) {
         self.logger = logger
@@ -19,7 +25,7 @@ final class MQTTErrorHandler: ChannelInboundHandler {
             return
         }
         
-        // TODO: Forward to error listeners
+        delegate?.mttErrorHandler(self, caughtError: error)
         
         context.close(promise: nil)
     }

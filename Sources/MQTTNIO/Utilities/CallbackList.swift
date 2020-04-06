@@ -1,13 +1,13 @@
 import NIO
 import NIOConcurrencyHelpers
 
-class CallbackList<Arguments> {
+final class CallbackList<Arguments> {
     
     // MARK: - Types
     
     typealias Callback = (Arguments, Entry) -> Void
     
-    class Entry {
+    final class Entry {
         weak var list: CallbackList<Arguments>?
         let callback: Callback
         

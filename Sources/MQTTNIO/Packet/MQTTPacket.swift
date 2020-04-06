@@ -1,9 +1,43 @@
 import NIO
 
-struct MQTTPacket: Equatable {
-    var kind: Kind
-    var fixedHeaderData: UInt8
-    var data: ByteBuffer
+struct MQTTPacket {
+    var kind: Kind {
+        get {
+            return storage.kind
+        }
+        set {
+            if !isKnownUniquelyReferenced(&storage) {
+                storage = storage.copy()
+            }
+            storage.kind = newValue
+        }
+    }
+    
+    var fixedHeaderData: UInt8 {
+        get {
+            return storage.fixedHeaderData
+        }
+        set {
+            if !isKnownUniquelyReferenced(&storage) {
+                storage = storage.copy()
+            }
+            storage.fixedHeaderData = newValue
+        }
+    }
+    
+    var data: ByteBuffer {
+        get {
+            return storage.data
+        }
+        set {
+            if !isKnownUniquelyReferenced(&storage) {
+                storage = storage.copy()
+            }
+            storage.data = newValue
+        }
+    }
+    
+    private var storage: Storage
 
     init<Data>(kind: Kind, fixedHeaderData: UInt8 = 0, bytes: Data)
         where Data: Sequence, Data.Element == UInt8
@@ -27,8 +61,27 @@ struct MQTTPacket: Equatable {
     }
 
     init(kind: Kind, fixedHeaderData: UInt8 = 0, data: ByteBuffer = ByteBufferAllocator().buffer(capacity: 0)) {
-        self.kind = kind
-        self.fixedHeaderData = fixedHeaderData
-        self.data = data
+        storage = Storage(kind: kind, fixedHeaderData: fixedHeaderData, data: data)
+    }
+    
+    // Wrapper to avoid heap allocations when added to NIOAny
+    fileprivate class Storage {
+        var kind: Kind
+        var fixedHeaderData: UInt8
+        var data: ByteBuffer
+        
+        init(kind: Kind, fixedHeaderData: UInt8, data: ByteBuffer) {
+            self.kind = kind
+            self.fixedHeaderData = fixedHeaderData
+            self.data = data
+        }
+        
+        func copy() -> Storage {
+            return .init(
+                kind: kind,
+                fixedHeaderData: fixedHeaderData,
+                data: data
+            )
+        }
     }
 }
