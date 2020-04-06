@@ -24,6 +24,8 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     private let lock = Lock()
     private var connection: MQTTConnection?
     
+    private var _isConnected: Bool = false
+    
     private let connectionEventLoop: EventLoop
     private let callbackEventLoop: EventLoop
     
@@ -62,20 +64,13 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     
     // MARK: - Connection
     
-    // TODO
-//    private var connectionState: MQTTConnection.State? {
-//        return lock.withLock { connection?.state }
-//    }
-//
-//    public var isConnecting: Bool {
-//        let state = connectionState
-//        return [.idle, .connecting, .waitingForReconnect].contains(state)
-//    }
-//
-//    public var isConnected: Bool {
-//        let state = connectionState
-//        return state == .ready
-//    }
+    public var isConnecting: Bool {
+        return lock.withLock { connection != nil && !_isConnected }
+    }
+
+    public var isConnected: Bool {
+        return lock.withLock { _isConnected }
+    }
     
     @discardableResult
     public func connect() -> EventLoopFuture<Void> {
@@ -215,10 +210,20 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     // MARK: - MQTTConnectionDelegate
     
     func mqttConnection(_ connection: MQTTConnection, didConnectWith response: MQTTConnectResponse) {
+        
+        lock.withLockVoid {
+            _isConnected = true
+        }
+        
         connectListeners.emit(arguments: (self, response))
     }
     
     func mqttConnection(_ connection: MQTTConnection, didDisconnectWith reason: MQTTDisconnectReason) {
+        
+        lock.withLockVoid {
+            _isConnected = false
+        }
+        
         disconnectListeners.emit(arguments: (self, reason))
     }
     
