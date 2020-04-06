@@ -44,6 +44,19 @@ final class MQTTSubscriptionsHandler: ChannelDuplexHandler {
         }
     }
     
+    func triggerUserOutboundEvent(context: ChannelHandlerContext, event: Any, promise: EventLoopPromise<Void>?) {
+        
+        switch event {
+        case MQTTConnectionEvent.didConnect(let isSessionPresent) where !isSessionPresent:
+            inflightMessages.removeAll()
+            
+        default:
+            break
+        }
+        
+        context.triggerUserOutboundEvent(event, promise: promise)
+    }
+    
     // MARK: - Utils
     
     private func emit(_ message: MQTTMessage) {

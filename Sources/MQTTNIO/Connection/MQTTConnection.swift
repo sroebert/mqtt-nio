@@ -227,7 +227,7 @@ final class MQTTConnection: MQTTErrorHandlerDelegate {
             }
             
             self.connectionFlags.insert(.triggeredDidConnect)
-            return channel.triggerUserOutboundEvent(MQTTConnectionEvent.didConnect)
+            return channel.triggerUserOutboundEvent(MQTTConnectionEvent.didConnect(isSessionPresent: response.isSessionPresent))
         }
     }
     

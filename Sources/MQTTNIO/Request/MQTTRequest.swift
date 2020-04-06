@@ -23,7 +23,7 @@ protocol MQTTRequest {
     func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult<Value>
     
     func disconnected(context: MQTTRequestContext) -> MQTTRequestResult<Value>
-    func connected(context: MQTTRequestContext) -> MQTTRequestResult<Value>
+    func connected(context: MQTTRequestContext, isSessionPresent: Bool) -> MQTTRequestResult<Value>
 }
 
 extension MQTTRequest {
@@ -43,7 +43,7 @@ extension MQTTRequest {
         return .pending
     }
     
-    func connected(context: MQTTRequestContext) -> MQTTRequestResult<Value> {
+    func connected(context: MQTTRequestContext, isSessionPresent: Bool) -> MQTTRequestResult<Value> {
         return .pending
     }
 }

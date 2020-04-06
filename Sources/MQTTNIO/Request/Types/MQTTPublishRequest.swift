@@ -120,7 +120,12 @@ final class MQTTPublishRequest: MQTTRequest {
         return .pending
     }
     
-    func connected(context: MQTTRequestContext) -> MQTTRequestResult<Void> {
+    func connected(context: MQTTRequestContext, isSessionPresent: Bool) -> MQTTRequestResult<Void> {
+        
+        if !isSessionPresent && acknowledgedPub {
+            return .failure(MQTTConnectionError.protocol("Session cleared while waiting for 'Publish Completion'"))
+        }
+        
         retry(context: context)
         return .pending
     }

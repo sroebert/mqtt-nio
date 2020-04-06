@@ -210,7 +210,6 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     // MARK: - MQTTConnectionDelegate
     
     func mqttConnection(_ connection: MQTTConnection, didConnectWith response: MQTTConnectResponse) {
-        
         lock.withLockVoid {
             _isConnected = true
         }
@@ -219,7 +218,6 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     }
     
     func mqttConnection(_ connection: MQTTConnection, didDisconnectWith reason: MQTTDisconnectReason) {
-        
         lock.withLockVoid {
             _isConnected = false
         }

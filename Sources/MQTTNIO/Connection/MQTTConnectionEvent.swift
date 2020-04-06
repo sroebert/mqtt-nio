@@ -1,4 +1,4 @@
 enum MQTTConnectionEvent {
-    case didConnect
+    case didConnect(isSessionPresent: Bool)
     case willDisconnect
 }

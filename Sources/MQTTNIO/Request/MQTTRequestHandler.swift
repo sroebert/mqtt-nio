@@ -65,26 +65,34 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
     }
     
     func handlerRemoved(context: ChannelHandlerContext) {
-        disconnectEntries(context: context)
+        forEachEntry(with: context) { entry, requestContext in
+            entry.disconnected(context: requestContext)
+        }
+        
         channel = nil
     }
 
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         let packet = unwrapInboundIn(data)
         
-        forEachEntry(with: context) { entry, context in
-            entry.process(context: context, packet: packet)
+        forEachEntry(with: context) { entry, requestContext in
+            entry.process(context: requestContext, packet: packet)
         }
     }
     
     func triggerUserOutboundEvent(context: ChannelHandlerContext, event: Any, promise: EventLoopPromise<Void>?) {
         switch event {
-        case MQTTConnectionEvent.didConnect:
-            updateIsActive(true, context: context)
-            
+        case MQTTConnectionEvent.didConnect(let isSessionPresent):
+            isActive = true
+            forEachEntry(with: context) { entry, requestContext in
+                entry.connected(context: requestContext, isSessionPresent: isSessionPresent)
+            }
             
         case MQTTConnectionEvent.willDisconnect:
-            updateIsActive(false, context: context)
+            isActive = false
+            forEachEntry(with: context) { entry, requestContext in
+                entry.disconnected(context: requestContext)
+            }
             
         default:
             break
@@ -150,31 +158,6 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
             }
             
             startQueuedEntries(context: requestContext)
-        }
-    }
-    
-    private func updateIsActive(_ isActive: Bool, context: ChannelHandlerContext) {
-        logger.trace("MQTTRequestHandler changed active state", metadata: [
-            "isActive": .stringConvertible(isActive)
-        ])
-        
-        self.isActive = isActive
-        if isActive {
-            connectEntries(context: context)
-        } else {
-            disconnectEntries(context: context)
-        }
-    }
-    
-    private func disconnectEntries(context: ChannelHandlerContext) {
-        forEachEntry(with: context) { entry, requestContext in
-            entry.disconnected(context: requestContext)
-        }
-    }
-    
-    private func connectEntries(context: ChannelHandlerContext) {
-        forEachEntry(with: context) { entry, requestContext in
-            entry.connected(context: requestContext)
         }
     }
     
@@ -262,7 +245,7 @@ extension MQTTRequestHandler {
             fatalError("Should be implemented in subclass")
         }
         
-        func connected(context: MQTTRequestContext) -> Bool {
+        func connected(context: MQTTRequestContext, isSessionPresent: Bool) -> Bool {
             fatalError("Should be implemented in subclass")
         }
     }
@@ -312,8 +295,8 @@ extension MQTTRequestHandler {
             handle(request.disconnected(context: context))
         }
         
-        override func connected(context: MQTTRequestContext) -> Bool {
-            handle(request.connected(context: context))
+        override func connected(context: MQTTRequestContext, isSessionPresent: Bool) -> Bool {
+            handle(request.connected(context: context, isSessionPresent: isSessionPresent))
         }
     }
 }
