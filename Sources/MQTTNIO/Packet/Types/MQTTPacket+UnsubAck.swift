@@ -11,7 +11,7 @@ extension MQTTPacket {
         
         static func parse(from packet: inout MQTTPacket) throws -> MQTTPacket.UnsubAck {
             guard let packetId = packet.data.readInteger(as: UInt16.self) else {
-                throw MQTTConnectionError.protocol("Missing packet identifier")
+                throw MQTTProtocolError.parsingError("Missing packet identifier")
             }
             return UnsubAck(packetId: packetId)
         }

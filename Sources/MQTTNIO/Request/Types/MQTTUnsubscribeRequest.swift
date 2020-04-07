@@ -63,7 +63,7 @@ final class MQTTUnsubscribeRequest: MQTTRequest {
         timeoutScheduled?.cancel()
         timeoutScheduled = nil
         
-        return .failure(MQTTConnectionError.protocol("Disconnected while trying to unsubscribe"))
+        return .failure(MQTTConnectionError.connectionClosed)
     }
     
     func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult<Void> {
@@ -72,6 +72,6 @@ final class MQTTUnsubscribeRequest: MQTTRequest {
         }
         
         context.logger.notice("Did not receive 'Unsubscribe Acknowledgement' in time")
-        return .failure(MQTTConnectionError.protocol("Did not receive UnsubAck packet in time."))
+        return .failure(MQTTConnectionError.timeoutWaitingForAcknowledgement)
     }
 }

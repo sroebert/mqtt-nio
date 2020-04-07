@@ -214,8 +214,8 @@ final class MQTTConnection: MQTTErrorHandlerDelegate {
             self.connectionFlags.insert(.notifiedDelegate)
             self.delegate?.mqttConnection(self, didConnectWith: response)
             
-            guard response.returnCode == .accepted else {
-                return self.eventLoop.makeFailedFuture(MQTTConnectionError.protocol("Connection not accepted by the server"))
+            if let error = Self.error(for: response.returnCode) {
+                return self.eventLoop.makeFailedFuture(error)
             }
             
             // We established connection
@@ -228,6 +228,23 @@ final class MQTTConnection: MQTTErrorHandlerDelegate {
             
             self.connectionFlags.insert(.triggeredDidConnect)
             return channel.triggerUserOutboundEvent(MQTTConnectionEvent.didConnect(isSessionPresent: response.isSessionPresent))
+        }
+    }
+    
+    private static func error(for returnCode: MQTTConnectResponse.ReturnCode) -> Error? {
+        switch returnCode {
+        case .accepted:
+            return nil
+        case .unacceptableProtocolVersion:
+            return MQTTProtocolError.unacceptableVersion
+        case .identifierRejected:
+            return MQTTConnectionError.identifierRejected
+        case .serverUnavailable:
+            return MQTTConnectionError.serverUnavailable
+        case .badUsernameOrPassword:
+            return MQTTConnectionError.badUsernameOrPassword
+        case .notAuthorized:
+            return MQTTConnectionError.notAuthorized
         }
     }
     

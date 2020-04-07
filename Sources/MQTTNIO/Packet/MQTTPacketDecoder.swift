@@ -56,7 +56,7 @@ final class MQTTPacketDecoder: ByteToMessageDecoder {
         var lastByte: UInt8
         repeat {
             guard counter < 4 else {
-                throw MQTTConnectionError.protocol("Invalid message size received")
+                throw MQTTProtocolError.parsingError("Invalid packet size received.")
             }
             
             guard let byte = peekBuffer.readInteger(as: UInt8.self) else {

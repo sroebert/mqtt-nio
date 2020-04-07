@@ -56,7 +56,7 @@ final class MQTTSubscribeRequest: MQTTRequest {
         timeoutScheduled = nil
         
         guard subAck.results.count == subscriptions.count else {
-            return .failure(MQTTConnectionError.protocol("Received an invalid number of subscription results."))
+            return .failure(MQTTProtocolError.parsingError("Received an invalid number of subscription results."))
         }
         
         context.logger.debug("Received: Subscribe Acknowledgement", metadata: [
@@ -83,7 +83,7 @@ final class MQTTSubscribeRequest: MQTTRequest {
         timeoutScheduled?.cancel()
         timeoutScheduled = nil
         
-        return .failure(MQTTConnectionError.protocol("Disconnected while trying to subscribe"))
+        return .failure(MQTTConnectionError.connectionClosed)
     }
     
     func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult<[MQTTSubscriptionResult]> {
@@ -92,6 +92,6 @@ final class MQTTSubscribeRequest: MQTTRequest {
         }
         
         context.logger.notice("Did not receive 'Subscription Acknowledgement' in time")
-        return .failure(MQTTConnectionError.protocol("Did not receive SubAck packet in time."))
+        return .failure(MQTTConnectionError.timeoutWaitingForAcknowledgement)
     }
 }

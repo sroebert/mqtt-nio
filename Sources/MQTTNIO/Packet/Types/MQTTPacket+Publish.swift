@@ -30,7 +30,7 @@ extension MQTTPacket {
             if flags.qos != .atMostOnce {
                 packetId = packet.data.readInteger(as: UInt16.self)
                 guard packetId != nil else {
-                    throw MQTTConnectionError.protocol("Missing packet identifier")
+                    throw MQTTProtocolError.parsingError("Missing packet identifier")
                 }
             } else {
                 packetId = nil
@@ -66,7 +66,7 @@ extension MQTTPacket {
             
             if flags.qos != .atMostOnce {
                 guard let packetId = packetId else {
-                    throw MQTTConnectionError.protocol("Missing packet identifier")
+                    throw MQTTProtocolError.parsingError("Missing packet identifier")
                 }
                 buffer.writeInteger(packetId)
             }

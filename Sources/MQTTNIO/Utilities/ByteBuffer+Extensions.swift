@@ -3,11 +3,11 @@ import NIO
 extension ByteBuffer {
     mutating func readMQTTString(_ errorVariableName: String) throws -> String {
         guard let length = readInteger(as: UInt16.self) else {
-            throw MQTTConnectionError.protocol("Missing data for '\(errorVariableName)'")
+            throw MQTTProtocolError.parsingError("Missing data for '\(errorVariableName)'")
         }
         
         guard let string = readString(length: Int(length)) else {
-            throw MQTTConnectionError.protocol("Missing data for '\(errorVariableName)'")
+            throw MQTTProtocolError.parsingError("Missing data for '\(errorVariableName)'")
         }
         
         return string
@@ -15,7 +15,7 @@ extension ByteBuffer {
     
     mutating func writeMQTTString(_ string: String, _ errorVariableName: String) throws {
         guard string.count <= UInt16.max else {
-            throw MQTTConnectionError.protocol("'\(errorVariableName)' is too long")
+            throw MQTTValueError.valueTooLarge(errorVariableName)
         }
         
         writeInteger(UInt16(string.count))
@@ -30,7 +30,7 @@ extension ByteBuffer {
         
         let length = writeBuffer(&payload)
         guard length <= UInt16.max else {
-            throw MQTTConnectionError.protocol("'\(errorVariableName)' is too long")
+            throw MQTTValueError.valueTooLarge(errorVariableName)
         }
         
         setInteger(UInt16(length), at: lengthIndex)

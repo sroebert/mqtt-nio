@@ -10,11 +10,11 @@ extension MQTTPacket {
                 let acknowledgeFlags = packet.data.readInteger(as: UInt8.self),
                 let returnCodeValue = packet.data.readInteger(as: UInt8.self)
             else {
-                throw MQTTConnectionError.protocol("Could not parse ConnAck")
+                throw MQTTProtocolError.parsingError("Invalid ConnAck structure")
             }
             
             guard let returnCode = ReturnCode(rawValue: returnCodeValue) else {
-                throw MQTTConnectionError.protocol("Received invalid ConnAck return code")
+                throw MQTTProtocolError.parsingError("Invalid ConnAck return code")
             }
             
             return ConnAck(

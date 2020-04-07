@@ -34,7 +34,7 @@ final class MQTTPacketEncoder: MessageToByteEncoder {
         
         repeat {
             guard counter < 4 else {
-                throw MQTTConnectionError.protocol("The data of the message to encode is too large")
+                throw MQTTProtocolError.parsingError("Payload for packet too large.")
             }
             
             var byte = UInt8(size % 128)

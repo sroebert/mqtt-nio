@@ -25,7 +25,7 @@ extension MQTTPacket {
             let kind = try parseKind(from: packet)
             
             guard let packetId = packet.data.readInteger(as: UInt16.self) else {
-                throw MQTTConnectionError.protocol("Missing packet identifier")
+                throw MQTTProtocolError.parsingError("Missing packet identifier")
             }
             return Acknowledgement(kind: kind, packetId: packetId)
         }
@@ -71,7 +71,7 @@ extension MQTTPacket {
                 
             case .pubRel:
                 guard packet.fixedHeaderData == Self.relFixedHeaderData else {
-                    throw MQTTConnectionError.protocol("Invalid PubRel fixed header data")
+                    throw MQTTProtocolError.parsingError("Invalid PubRel fixed header data")
                 }
                 return .pubRel
                 
@@ -79,7 +79,7 @@ extension MQTTPacket {
                 return .pubComp
                 
             default:
-               throw MQTTConnectionError.protocol("Invalid packet kind")
+                throw MQTTProtocolError.parsingError("Invalid packet type '\(packet.kind.value)'")
             }
         }
     }

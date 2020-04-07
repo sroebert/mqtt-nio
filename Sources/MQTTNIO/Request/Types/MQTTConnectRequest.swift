@@ -43,7 +43,7 @@ final class MQTTConnectRequest: MQTTRequest {
         timeoutScheduled = nil
         
         guard case .connAck(let connAck) = packet else {
-            let error = MQTTConnectionError.protocol("Received invalid packet after sending connect: \(packet)")
+            let error = MQTTProtocolError.parsingError("Received invalid packet after sending Connect: \(packet)")
             return .failure(error)
         }
         
@@ -65,7 +65,7 @@ final class MQTTConnectRequest: MQTTRequest {
     
     func disconnected(context: MQTTRequestContext) -> MQTTRequestResult<MQTTConnectResponse> {
         context.logger.notice("Disconnected while waiting for 'Connect Acknowledgement'")
-        return .failure(MQTTConnectionError.protocol("Disconnected while waiting for ConnAck packet."))
+        return .failure(MQTTConnectionError.connectionClosed)
     }
     
     func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult<MQTTConnectResponse> {
@@ -74,7 +74,7 @@ final class MQTTConnectRequest: MQTTRequest {
         }
         
         context.logger.notice("Did not receive 'Connect Acknowledgement' in time")
-        return .failure(MQTTConnectionError.protocol("Did not receive ConnAck packet in time."))
+        return .failure(MQTTConnectionError.timeoutWaitingForAcknowledgement)
     }
 }
 
