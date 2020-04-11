@@ -2,6 +2,14 @@
 
 Non-blocking, event-driven Swift client for MQTT ([3.1.1](http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html)) build on [SwiftNIO](https://github.com/apple/swift-nio).
 
+## Installation
+
+Use the SPM string to easily include the dependendency in your Package.swift file.
+
+```swift
+.package(url: "https://github.com/sroebert/mqtt-nio.git", from: ...)
+```
+
 ## Supported Platforms
 
 MQTTNIO supports the following platforms:
@@ -100,16 +108,3 @@ client.addMessageListener { _, message, _ in
     print("Received: \(message)")
 }
 ```
-
-## Installation
-
-### Swift Package Manager
-
-```swift
-dependencies: [
-    .package(url: "https://github.com/sroebert/mqtt-nio.git", from: "1.0.0")
-]
-```
-
-## License
-MIT
