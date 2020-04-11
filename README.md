@@ -1,10 +1,23 @@
 # MQTTNIO
 
-MQTT 3.1.1 Client written on the SwiftNIO framework.
+Non-blocking, event-driven Swift client for MQTT ([3.1.1](http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html)) build on [SwiftNIO](https://github.com/apple/swift-nio).
 
-* Written in Swift 5.
-* Uses `Logging` framework for logging debug messages.
-* Based on [MQTT 3.1.1 Specification](http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html)
+## Supported Platforms
+
+MQTTNIO supports the following platforms:
+
+- Ubuntu 14.04+
+- macOS 10.12+
+
+## Dependencies
+
+This package has three dependencies:
+
+- [`apple/swift-nio`](https://github.com/apple/swift-nio) for IO
+- [`apple/swift-nio-ssl`](https://github.com/apple/swift-nio-ssl) for TLS
+- [`apple/swift-log`](https://github.com/apple/swift-log) for logging
+
+This package has no additional system dependencies.
 
 ## Usage
 
