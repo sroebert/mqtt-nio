@@ -1,18 +1,26 @@
-language: generic
+branches:
+  only:
+    - master
+    - develop
 
-jobs:
+env:
+  global:
+    - CODECOV_ELIGIBLE=true
+
+matrix:
   include:
     - os: linux
-      dist: trusty
+      dist: bionic
+      sudo: required
+    - os: linux
+      dist: xenial
       sudo: required
     - os: osx
       osx_image: xcode11.4
       sudo: required
 
 before_install:
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; wget https://swift.org/builds/swift-5.2.1-release/ubuntu1804/swift-5.2.1-RELEASE/swift-5.2.1-RELEASE-ubuntu18.04.tar.gz ; fi
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; tar xzf swift-5.2.1-RELEASE-ubuntu18.04.tar.gz ; fi
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; export PATH=${PWD}/swift-5.2.1-RELEASE-ubuntu18.04/usr/bin:"${PATH}" ; fi
+  - git clone https://github.com/IBM-Swift/Package-Builder.git
 
 install:
   # Mac OS
@@ -23,9 +31,8 @@ install:
   # Linux
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then echo | sudo apt-add-repository ppa:mosquitto-dev/mosquitto-ppa ; fi
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get update ; fi
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install -y mosquitto ; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install -y --allow-unauthenticated mosquitto ; fi
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then mosquitto -c ./.travis/mosquitto.conf -d ; fi
 
 script:
-  - swift build
-  - swift test
+  - ./Package-Builder/build-package.sh -projectDir $TRAVIS_BUILD_DIR
