@@ -7,6 +7,12 @@ jobs:
       sudo: required
     - os: osx
       osx_image: xcode11.4
+      sudo: required
+
+before_install:
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; wget https://swift.org/builds/swift-5.2.1-release/ubuntu1804/swift-5.2.1-RELEASE/swift-5.2.1-RELEASE-ubuntu18.04.tar.gz ; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; tar xzf swift-5.2.1-RELEASE-ubuntu18.04.tar.gz ; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; export PATH=${PWD}/swift-5.2.1-RELEASE-ubuntu18.04/usr/bin:"${PATH}" ; fi
 
 install:
   # Mac OS

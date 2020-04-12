@@ -24,11 +24,14 @@ final class MQTTNIOTests: XCTestCase {
 
     func testConnectAndDisconnect() throws {
         let client = MQTTClient(configuration: .init(
-            target: .host("127.0.0.1", port: 1883)
+            target: .host("0.0.0.0", port: 1883)
         ), eventLoopGroup: group)
         
-        try client.connect().wait()
-        try client.disconnect().wait()
+        let connectFuture = client.connect()
+        wait(for: connectFuture)
+        
+        let disconnectFuture = client.disconnect()
+        wait(for: disconnectFuture)
     }
 }
 
