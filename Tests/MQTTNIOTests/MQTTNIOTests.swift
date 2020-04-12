@@ -22,42 +22,12 @@ final class MQTTNIOTests: XCTestCase {
     
     // MARK: Tests
 
-    func testConnectAndClose() throws {
+    func testConnectAndDisconnect() throws {
         let client = MQTTClient(configuration: .init(
-//            target: .host("broker.hivemq.com", port: 1883),
-            target: .host("127.0.0.1", port: 1883),
-            keepAliveInterval: .seconds(5)
+            target: .host("127.0.0.1", port: 1883)
         ), eventLoopGroup: group)
         
-        client.addConnectListener { _, response, _ in
-            print("Connected: \(response.returnCode)")
-        }
-        client.addDisconnectListener { _, reason, _ in
-            print("Disconnected: \(reason)")
-        }
-        client.addErrorListener { _, error, _ in
-            print("Error: \(error)")
-        }
-        
-        client.connect()
-        
-        client.publish(MQTTMessage(topic: "nl.roebert.MQTT/tests/message1", payload: "Hello World"))
-        client.publish(MQTTMessage(topic: "nl.roebert.MQTT/tests/message2", payload: "Hello World"))
-        
-        let promise = eventLoop.makePromise(of: Void.self)
-        eventLoop.scheduleTask(in: .seconds(15)) {
-            promise.succeed(())
-        }
-        try promise.futureResult.wait()
-        
-        client.publish(MQTTMessage(topic: "nl.roebert.MQTT/tests/message3", payload: "Hello World"))
-        
-        let promise2 = eventLoop.makePromise(of: Void.self)
-        eventLoop.scheduleTask(in: .seconds(15)) {
-            promise2.succeed(())
-        }
-        try promise2.futureResult.wait()
-        
+        try client.connect().wait()
         try client.disconnect().wait()
     }
 }
