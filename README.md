@@ -2,6 +2,8 @@
 
 Non-blocking, event-driven Swift client for MQTT ([3.1.1](http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html)) build on [SwiftNIO](https://github.com/apple/swift-nio).
 
+[![Build Status](https://travis-ci.org/sroebert/mqtt-nio.svg)](https://travis-ci.org/sroebert/mqtt-nio)
+
 ## Installation
 
 Use the SPM string to easily include the dependendency in your Package.swift file.
