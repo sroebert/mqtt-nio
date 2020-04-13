@@ -22,7 +22,7 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     /// The configuration of the client.
     ///
     /// When changing values in the configuration, make sure to call `reconnect()` to apply the new values.
-    var configuration: MQTTConfiguration {
+    public var configuration: MQTTConfiguration {
         get {
             return lock.withLock { _configuration }
         }

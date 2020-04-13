@@ -19,7 +19,7 @@ public struct MQTTSubscription {
 /// The result returned from the broker when subscribing, indicating the result.
 ///
 /// For each `MQTTSubscription` trying to subscribe to, an `MQTTSubscriptionResult` will be returned from the broker.
-public enum MQTTSubscriptionResult {
+public enum MQTTSubscriptionResult: Equatable {
     /// Succesfully subscribed, with the given QoS level.
     case success(MQTTQoS)
     /// Failed to subscribe.

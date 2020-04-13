@@ -1,7 +1,7 @@
 @testable import MQTTNIO
 import XCTest
 
-class MQTTPipelineTypeSizeTests: XCTestCase {
+class SizeTests: XCTestCase {
     
     // MARK: - Utils
     

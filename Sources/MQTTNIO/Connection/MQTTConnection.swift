@@ -152,14 +152,14 @@ final class MQTTConnection: MQTTErrorHandlerDelegate {
         return ClientBootstrap(group: eventLoop)
             .channelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SO_REUSEADDR), value: 1)
             .connectTimeout(configuration.connectionTimeoutInterval)
-            .channelInitializer { self.initializeTLS(for: $0) }
             .connect(to: configuration.target)
+            .flatMap { self.initializeTLS(for: $0) }
             .flatMap { self.addHandlers(to: $0) }
     }
     
-    private func initializeTLS(for channel: Channel) -> EventLoopFuture<Void> {
+    private func initializeTLS(for channel: Channel) -> EventLoopFuture<Channel> {
         guard let tlsConfiguration = configuration.tls else {
-            return eventLoop.makeSucceededFuture(())
+            return eventLoop.makeSucceededFuture(channel)
         }
         
         do {
@@ -172,6 +172,8 @@ final class MQTTConnection: MQTTErrorHandlerDelegate {
                 tlsVerificationHandler
             ]).flatMap {
                 tlsVerificationHandler.verify()
+            }.map {
+                channel
             }
         } catch {
             delegate?.mqttConnection(self, caughtError: error)
