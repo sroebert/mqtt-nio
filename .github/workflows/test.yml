@@ -1,0 +1,27 @@
+name: test
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  test:
+    name: Test
+
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-16.04, ubuntu-latest]
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Setup Mosquitto Containers
+      run: docker-compose pull
+    - name: Run Mosquitto Containers
+      run: docker-compose up -d
+
+    - name: Run tests
+      run: swift test --sanitize=thread --enable-test-discovery

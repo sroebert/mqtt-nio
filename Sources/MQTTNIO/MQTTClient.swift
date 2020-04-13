@@ -102,6 +102,10 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
         subscriptionsHandler.delegate = self
     }
     
+    deinit {
+        requestHandler.failEntries()
+    }
+    
     // MARK: - Connection
 
     /// Boolean indicating whether the client is currently trying to connect to a broker.

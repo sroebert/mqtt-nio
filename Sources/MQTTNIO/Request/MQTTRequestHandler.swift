@@ -1,4 +1,5 @@
 import NIO
+import NIOConcurrencyHelpers
 import Logging
 
 final class MQTTRequestHandler: ChannelDuplexHandler {
@@ -15,6 +16,8 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
     
     let logger: Logger
     let eventLoop: EventLoop
+    
+    private let lock = Lock()
 
     private var maxInflightEntries = 20
     private var entriesInflight: [AnyEntry] = []
@@ -33,17 +36,14 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
         self.eventLoop = eventLoop
     }
     
-    deinit {
-        entriesInflight.forEach { $0.fail(with: DeinitError()) }
-        entriesQueue.forEach { $0.fail(with: DeinitError()) }
-    }
-    
     // MARK: - Queue
     
     func perform<Request: MQTTRequest>(_ request: Request) -> EventLoopFuture<Request.Value> {
         let promise = eventLoop.makePromise(of: Request.Value.self)
         let entry = Entry(request: request, promise: promise)
-        entriesQueue.append(entry)
+        lock.withLockVoid {
+            entriesQueue.append(entry)
+        }
         
         channel?.pipeline.context(handler: self).whenSuccess { [weak self] context in
             guard let strongSelf = self else {
@@ -56,6 +56,15 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
         }
         
         return promise.futureResult
+    }
+    
+    func failEntries() {
+        eventLoop.execute {
+            self.entriesInflight.forEach { $0.fail(with: DeinitError()) }
+            
+            let entriesQueue = self.lock.withLock { self.entriesQueue }
+            entriesQueue.forEach { $0.fail(with: DeinitError()) }
+        }
     }
     
     // MARK: - ChannelDuplexHandler
@@ -104,16 +113,18 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
     // MARK: - Utils
     
     private func getQueuedEntry() -> AnyEntry? {
-        // If not active, only return the one that can be send while not active
-        if !isActive, let connectIndex = entriesQueue.firstIndex(where: { $0.canPerformInInactiveState }) {
-            return entriesQueue.remove(at: connectIndex)
+        return lock.withLock {
+            // If not active, only return the one that can be send while not active
+            if !isActive, let connectIndex = entriesQueue.firstIndex(where: { $0.canPerformInInactiveState }) {
+                return entriesQueue.remove(at: connectIndex)
+            }
+            
+            // Otherwise only return something if active and we are allowed to have more inflight entries.
+            guard isActive && entriesInflight.count < maxInflightEntries && !entriesQueue.isEmpty else {
+                return nil
+            }
+            return entriesQueue.removeFirst()
         }
-        
-        // Otherwise only return something if active and we are allowed to have more inflight entries.
-        guard isActive && entriesInflight.count < maxInflightEntries && !entriesQueue.isEmpty else {
-            return nil
-        }
-        return entriesQueue.removeFirst()
     }
     
     private func getInflightEntry() -> AnyEntry? {

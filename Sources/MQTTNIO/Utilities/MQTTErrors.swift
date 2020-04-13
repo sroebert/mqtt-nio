@@ -14,7 +14,7 @@ public enum MQTTConnectionError: Error {
     /// The broker indicated that it is unavailable.
     case serverUnavailable
     
-    /// The client provided an invalid username or password.
+    /// The client provided a bad username or password.
     case badUsernameOrPassword
     
     /// The client is unauthorized.

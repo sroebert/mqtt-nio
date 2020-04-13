@@ -1,0 +1,24 @@
+version: "2"
+services:
+  mosquitto:
+    image: eclipse-mosquitto
+    container_name: mosquitto
+    volumes:
+      - ./Docker/certs:/mosquitto/data/certs
+      - ./Docker/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+    ports:
+      - 1883:1883
+      - 8883:8883
+    restart: unless-stopped
+
+  mosquitto-authenticated:
+    image: eclipse-mosquitto
+    container_name: mosquitto-authenticated
+    volumes:
+      - ./Docker/certs:/mosquitto/data/certs
+      - ./Docker/mosquitto-authenticated/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - ./Docker/mosquitto-authenticated/passwd:/mosquitto/config/passwd
+    ports:
+      - 1884:1883
+      - 8884:8883
+    restart: unless-stopped

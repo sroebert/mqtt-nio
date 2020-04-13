@@ -30,4 +30,4 @@ function copy_keys_to_broker () {
 
 generate_CA
 generate_server
-generate_client
+# generate_client

@@ -24,13 +24,13 @@ class MQTTNIOTestCase: XCTestCase {
     
     var plainClient: MQTTClient {
         return MQTTClient(configuration: .init(
-            target: .host("localhost", port: 1884)
+            target: .host("localhost", port: 1883)
         ), eventLoopGroup: group)
     }
     
     var sslNoVerifyClient: MQTTClient {
         return MQTTClient(configuration: .init(
-            target: .host("localhost", port: 8884),
+            target: .host("localhost", port: 8883),
             tls: .forClient(certificateVerification: .none)
         ), eventLoopGroup: group)
     }
@@ -41,15 +41,21 @@ class MQTTNIOTestCase: XCTestCase {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-        let caCertifcateURL = rootDir.appendingPathComponent(".travis/certs/ca.crt")
+        let caCertifcateURL = rootDir.appendingPathComponent("Docker/certs/ca.crt")
         let caCertificate = try! NIOSSLCertificate.fromPEMFile(caCertifcateURL.path)[0]
         
         return MQTTClient(configuration: .init(
-            target: .host("localhost", port: 8884),
+            target: .host("localhost", port: 8883),
             tls: .forClient(
                 certificateVerification: .noHostnameVerification,
                 trustRoots: .certificates([caCertificate])
             )
+        ), eventLoopGroup: group)
+    }
+    
+    var authenticationClient: MQTTClient {
+        return MQTTClient(configuration: .init(
+            target: .host("localhost", port: 1884)
         ), eventLoopGroup: group)
     }
     
