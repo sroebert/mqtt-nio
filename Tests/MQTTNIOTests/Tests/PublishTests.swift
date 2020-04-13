@@ -197,11 +197,8 @@ final class PublishTests: MQTTNIOTestCase {
                 XCTFail()
                 
             case .failure(let error):
-                if case MQTTConnectionError.identifierRejected = error {
-                    expectation.fulfill()
-                } else {
-                    XCTFail()
-                }
+                XCTAssertEqual(error as? MQTTConnectionError, MQTTConnectionError.identifierRejected)
+                expectation.fulfill()
             }
         }
         
