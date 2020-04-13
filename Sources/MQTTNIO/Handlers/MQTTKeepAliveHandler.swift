@@ -1,6 +1,7 @@
 import NIO
 import Logging
 
+/// Handler for keeping the MQTT connection alive by sending ping requests.
 final class MQTTKeepAliveHandler: ChannelOutboundHandler {
     
     // MARK: - Types
@@ -53,7 +54,7 @@ final class MQTTKeepAliveHandler: ChannelOutboundHandler {
     }
     
     func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
-        // Reschedule ping request as we are already sending a packet
+        // Reschedule ping request as we are already sending a different packet
         if reschedulePings {
             if scheduledPing != nil {
                 schedulePingRequest(in: context.eventLoop)
@@ -98,6 +99,8 @@ final class MQTTKeepAliveHandler: ChannelOutboundHandler {
             guard let strongSelf = self else {
                 return
             }
+            
+            // We failed to receive a ping response in time, so close the connection.
             strongSelf.unschedulePingRequest()
             strongSelf.channel?.close(mode: .all, promise: nil)
         }

@@ -3,6 +3,7 @@ import NIOSSL
 import NIOTLS
 import Logging
 
+/// Handler for verifying the SSL connection with the broker.
 final class TLSVerificationHandler: ChannelInboundHandler, RemovableChannelHandler {
     
     // MARK: - Types

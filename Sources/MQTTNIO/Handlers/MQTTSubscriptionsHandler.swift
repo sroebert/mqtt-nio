@@ -6,6 +6,7 @@ protocol MQTTSubscriptionsHandlerDelegate: class {
     func mqttSubscriptionsHandler(_ handler: MQTTSubscriptionsHandler, didReceiveMessage message: MQTTMessage)
 }
 
+/// Handler for receiving publish messages from the broker.
 final class MQTTSubscriptionsHandler: ChannelDuplexHandler {
     
     // MARK: - Types
