@@ -23,6 +23,8 @@ final class PublishTests: MQTTNIOTestCase {
         wait(for: client.publish(topic: topic, payload: payload, qos: qos))
         
         wait(for: [expectation], timeout: 2)
+        
+        wait(for: client.disconnect())
     }
     
     func testQoS1() throws {
@@ -46,6 +48,8 @@ final class PublishTests: MQTTNIOTestCase {
         wait(for: client.publish(topic: topic, payload: payload, qos: qos))
         
         wait(for: [expectation], timeout: 2)
+        
+        wait(for: client.disconnect())
     }
     
     func testQoS2() throws {
@@ -69,6 +73,8 @@ final class PublishTests: MQTTNIOTestCase {
         wait(for: client.publish(topic: topic, payload: payload, qos: qos))
         
         wait(for: [expectation], timeout: 2)
+        
+        wait(for: client.disconnect())
     }
     
     func testRetain() throws {
@@ -77,6 +83,8 @@ final class PublishTests: MQTTNIOTestCase {
         
         let topic = "mqtt-nio/tests/retain"
         let payload = "Hello World!"
+        
+        wait(for: client.publish(topic: topic, retain: true))
         
         let expectation1 = XCTestExpectation(description: "Received payload")
         client.addMessageListener { _, message, context in
@@ -103,6 +111,8 @@ final class PublishTests: MQTTNIOTestCase {
         wait(for: client.subscribe(to: topic))
 
         wait(for: [expectation2], timeout: 2)
+        
+        wait(for: client.disconnect())
     }
     
     func testKeepSession() {
@@ -126,6 +136,8 @@ final class PublishTests: MQTTNIOTestCase {
         wait(for: client.publish(topic: topic, payload: payload))
         
         wait(for: [expectation], timeout: 2)
+        
+        wait(for: client.disconnect())
     }
     
     func testMultiSubscribe() {
@@ -138,10 +150,13 @@ final class PublishTests: MQTTNIOTestCase {
             MQTTSubscription(topic: "mqtt-nio/tests/multi-subscribe/3", qos: .exactlyOnce)
         ]))
         
-        XCTAssertEqual(results.count, 3)
-        XCTAssertEqual(results[0], .success(.atMostOnce))
-        XCTAssertEqual(results[1], .success(.atLeastOnce))
-        XCTAssertEqual(results[2], .success(.exactlyOnce))
+        XCTAssertNotNil(results)
+        XCTAssertEqual(results!.count, 3)
+        XCTAssertEqual(results![0], .success(.atMostOnce))
+        XCTAssertEqual(results![1], .success(.atLeastOnce))
+        XCTAssertEqual(results![2], .success(.exactlyOnce))
+        
+        wait(for: client.disconnect())
     }
     
     func testUnsubscribe() {
@@ -168,6 +183,8 @@ final class PublishTests: MQTTNIOTestCase {
         wait(seconds: 1)
         
         wait(for: [expectation], timeout: 2)
+        
+        wait(for: client.disconnect())
     }
     
     func testKeepAlive() {
@@ -182,6 +199,8 @@ final class PublishTests: MQTTNIOTestCase {
         
         XCTAssertTrue(client.isConnected)
         wait(for: client.publish(topic: topic, payload: payload))
+        
+        wait(for: client.disconnect())
     }
     
     func testInvalidClient() {

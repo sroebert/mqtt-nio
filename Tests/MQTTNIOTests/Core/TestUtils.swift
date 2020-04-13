@@ -11,15 +11,15 @@ func assertFailure<Value>(_ result: Result<Value, Error>, file: StaticString = #
 
 extension XCTestCase {
     @discardableResult
-    func wait<T>(for future: EventLoopFuture<T>, timeout: TimeInterval = 2, file: StaticString = #file, line: UInt = #line) -> T {
-        var value: T!
+    func wait<T>(for future: EventLoopFuture<T>, timeout: TimeInterval = 2, file: StaticString = #file, line: UInt = #line) -> T? {
+        var value: T?
         
         let expectation = XCTestExpectation(description: "Waiting for future completion")
         future.whenComplete { result in
             assertSuccess(result, file: file, line: line)
             expectation.fulfill()
             
-            value = try! result.get()
+            value = try? result.get()
         }
         
         let expectationResult = XCTWaiter.wait(for: [expectation], timeout: timeout)

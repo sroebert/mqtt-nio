@@ -24,13 +24,13 @@ class MQTTNIOTestCase: XCTestCase {
     
     var plainClient: MQTTClient {
         return MQTTClient(configuration: .init(
-            target: .host("0.0.0.0", port: 1883)
+            target: .host("localhost", port: 1884)
         ), eventLoopGroup: group)
     }
     
     var sslNoVerifyClient: MQTTClient {
         return MQTTClient(configuration: .init(
-            target: .host("0.0.0.0", port: 8883),
+            target: .host("localhost", port: 8884),
             tls: .forClient(certificateVerification: .none)
         ), eventLoopGroup: group)
     }
@@ -41,14 +41,14 @@ class MQTTNIOTestCase: XCTestCase {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-        let certificateURL = rootDir.appendingPathComponent(".travis/certs/server.crt")
-        let certificate = try! NIOSSLCertificate.fromPEMFile(certificateURL.path)[0]
+        let caCertifcateURL = rootDir.appendingPathComponent(".travis/certs/ca.crt")
+        let caCertificate = try! NIOSSLCertificate.fromPEMFile(caCertifcateURL.path)[0]
         
         return MQTTClient(configuration: .init(
-            target: .host("0.0.0.0", port: 8883),
+            target: .host("localhost", port: 8884),
             tls: .forClient(
                 certificateVerification: .noHostnameVerification,
-                trustRoots: .certificates([certificate])
+                trustRoots: .certificates([caCertificate])
             )
         ), eventLoopGroup: group)
     }
@@ -67,7 +67,7 @@ class MQTTNIOTestCase: XCTestCase {
 let isLoggingConfigured: Bool = {
     LoggingSystem.bootstrap { label in
         var handler = StreamLogHandler.standardOutput(label: label)
-        handler.logLevel = .trace
+        handler.logLevel = .error
         return handler
     }
     return true
