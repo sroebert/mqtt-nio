@@ -1,8 +1,11 @@
+import Foundation
 import NIO
 import NIOSSL
+import NIOHTTP1
+import NIOWebSocket
 import Logging
 
-protocol MQTTConnectionDelegate: class {
+protocol MQTTConnectionDelegate: AnyObject {
     func mqttConnection(_ connection: MQTTConnection, didConnectWith response: MQTTConnectResponse)
     func mqttConnection(_ connection: MQTTConnection, didDisconnectWith reason: MQTTDisconnectReason)
     
@@ -15,6 +18,7 @@ final class MQTTConnection: MQTTErrorHandlerDelegate {
     
     private enum ConnectError: Error {
         case userDidInitiateClose
+        case invalidWebSocketTarget
     }
     
     private struct ConnectionFlags: OptionSet {
@@ -149,12 +153,21 @@ final class MQTTConnection: MQTTErrorHandlerDelegate {
             "target": "\(configuration.target)"
         ])
         
+        let target = configuration.target
         return ClientBootstrap(group: eventLoop)
             .channelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SO_REUSEADDR), value: 1)
             .connectTimeout(configuration.connectionTimeoutInterval)
-            .connect(to: configuration.target)
+            .connect(to: target)
             .flatMap { self.initializeTLS(for: $0) }
-            .flatMap { self.addHandlers(to: $0) }
+            .flatMap {
+                if let webSocketsConfiguration = self.configuration.webSockets {
+                    return self.upgradeWebSocket(for: $0, config: webSocketsConfiguration) {
+                        self.addHandlers(to: $0)
+                    }
+                } else {
+                    return self.addHandlers(to: $0)
+                }
+            }
     }
     
     private func initializeTLS(for channel: Channel) -> EventLoopFuture<Channel> {
@@ -178,6 +191,56 @@ final class MQTTConnection: MQTTErrorHandlerDelegate {
         } catch {
             delegate?.mqttConnection(self, caughtError: error)
             return eventLoop.makeFailedFuture(error)
+        }
+    }
+    
+    private func upgradeWebSocket(
+        for channel: Channel,
+        config: MQTTConfiguration.WebSocketsConfiguration,
+        completionHandler: @escaping (Channel) -> EventLoopFuture<Channel>
+    ) -> EventLoopFuture<Channel> {
+        
+        guard case .host(let host, _) = configuration.target else {
+            return channel.eventLoop.makeFailedFuture(ConnectError.invalidWebSocketTarget)
+        }
+        
+        let promise = channel.eventLoop.makePromise(of: Channel.self)
+        
+        let initialRequestHandler = WebSocketInitialRequestHandler(
+            logger: logger,
+            host: host,
+            path: config.path,
+            headers: config.headers
+        ) { context, error in
+            context.fireErrorCaught(error)
+            promise.succeed(context.channel)
+        }
+        
+        let requestKey = Data(
+            (0..<16).map { _ in UInt8.random(in: .min ..< .max) }
+        ).base64EncodedString()
+        
+        let upgrader = NIOWebSocketClientUpgrader(
+            requestKey: requestKey
+        ) { channel, _ in
+            let future = channel.pipeline.addHandler(WebSocketHandler()).flatMap {
+                completionHandler(channel)
+            }
+            future.cascade(to: promise)
+            return future.map { _ in }
+        }
+        
+        let config: NIOHTTPClientUpgradeConfiguration = (
+            upgraders: [ upgrader ],
+            completionHandler: { context in
+                channel.pipeline.removeHandler(initialRequestHandler, promise: nil)
+            }
+        )
+        
+        return channel.pipeline.addHTTPClientHandlers(withClientUpgrade: config).flatMap {
+            channel.pipeline.addHandler(initialRequestHandler)
+        }.flatMap {
+            promise.futureResult
         }
     }
     

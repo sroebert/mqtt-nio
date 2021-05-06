@@ -10,6 +10,9 @@ public struct MQTTConfiguration {
     /// The TLS configuration for the connection with the broker. If `nil`, the connection is insecure.
     public var tls: TLSConfiguration?
     
+    /// The configuration which should be set when using web sockets to connect.
+    public var webSockets: WebSocketsConfiguration?
+    
     /// The client identifier to use for the connection with the broker. This should be unique for each client connected to the broker.
     public var clientId: String
     
@@ -59,6 +62,7 @@ public struct MQTTConfiguration {
     public init(
         target: Target,
         tls: TLSConfiguration? = nil,
+        webSockets: WebSocketsConfiguration? = nil,
         clientId: String = "nl.roebert.MQTTNIO.\(UUID())",
         cleanSession: Bool = true,
         credentials: Credentials? = nil,
@@ -72,6 +76,7 @@ public struct MQTTConfiguration {
         
         self.target = target
         self.tls = tls
+        self.webSockets = webSockets
         self.clientId = clientId
         self.cleanSession = cleanSession
         self.credentials = credentials
@@ -101,7 +106,7 @@ extension MQTTConfiguration {
         /// The optional hostname for the target. This is used for the `TLS` configuration.
         var hostname: String? {
             switch self {
-            case .host(let hostname, port: _):
+            case .host(let hostname, _):
                 return hostname
                 
             default:
@@ -151,6 +156,31 @@ extension MQTTConfiguration {
             self.username = username
             self.password = password
         }
+    }
+    
+    /// The configuration to setup a connection using websockets.
+    public struct WebSocketsConfiguration {
+        
+        /// The web socket path to use.
+        public var path: String
+        
+        /// Extra headers to send with the web socket upgrade request.
+        public var headers: [String: String]
+        
+        /// Creates a `WebSocketsConfiguration` struct.
+        /// - Parameters:
+        ///   - path: The web socket path to use. The default value is `"/mqtt"`.
+        ///   - headers: The extra headers to send when making the web socket upgrade request. The default value is an empty dictionary.
+        public init(
+            path: String = "/mqtt",
+            headers: [String: String] = [:]
+        ) {
+            self.path = path
+            self.headers = headers
+        }
+        
+        /// The basic configuration for using web sockets.
+        public static let enabled: Self = .init()
     }
     
     /// The reconnect mode for an `MQTTClient` to use when it gets disconnected from the broker.

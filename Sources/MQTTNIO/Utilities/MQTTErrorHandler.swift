@@ -2,7 +2,7 @@ import NIO
 import NIOSSL
 import Logging
 
-protocol MQTTErrorHandlerDelegate: class {
+protocol MQTTErrorHandlerDelegate: AnyObject {
     func mttErrorHandler(_ handler: MQTTErrorHandler, caughtError error: Error)
 }
 

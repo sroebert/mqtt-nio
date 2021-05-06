@@ -2,7 +2,7 @@ import NIO
 import NIOConcurrencyHelpers
 import Logging
 
-protocol MQTTSubscriptionsHandlerDelegate: class {
+protocol MQTTSubscriptionsHandlerDelegate: AnyObject {
     func mqttSubscriptionsHandler(_ handler: MQTTSubscriptionsHandler, didReceiveMessage message: MQTTMessage)
 }
 
