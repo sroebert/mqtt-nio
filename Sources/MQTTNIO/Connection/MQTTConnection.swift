@@ -156,6 +156,7 @@ final class MQTTConnection: MQTTErrorHandlerDelegate {
         let target = configuration.target
         return ClientBootstrap(group: eventLoop)
             .channelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SO_REUSEADDR), value: 1)
+            .channelOption(ChannelOptions.socket(IPPROTO_TCP, TCP_NODELAY), value: 1)
             .connectTimeout(configuration.connectionTimeoutInterval)
             .connect(to: target)
             .flatMap { self.initializeTLS(for: $0) }
@@ -213,7 +214,7 @@ final class MQTTConnection: MQTTErrorHandlerDelegate {
             headers: config.headers
         ) { context, error in
             context.fireErrorCaught(error)
-            promise.succeed(context.channel)
+            promise.fail(error)
         }
         
         let requestKey = Data(
