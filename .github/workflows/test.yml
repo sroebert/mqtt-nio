@@ -13,10 +13,13 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-16.04, ubuntu-latest]
+        os: [ubuntu-18.04, ubuntu-latest]
 
     steps:
     - uses: actions/checkout@v2
+
+    - name: Setup Certificates
+      run: ./Docker/certs/generate.sh
 
     - name: Setup Mosquitto Containers
       run: docker-compose pull
@@ -24,4 +27,4 @@ jobs:
       run: docker-compose up -d
 
     - name: Run tests
-      run: swift test --sanitize=thread --enable-test-discovery
+      run: swift test --sanitize=thread

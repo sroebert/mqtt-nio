@@ -28,10 +28,25 @@ class MQTTNIOTestCase: XCTestCase {
         ), eventLoopGroup: group)
     }
     
+    var wsClient: MQTTClient {
+        return MQTTClient(configuration: .init(
+            target: .host("localhost", port: 1884),
+            webSockets: .enabled
+        ), eventLoopGroup: group)
+    }
+    
     var sslNoVerifyClient: MQTTClient {
         return MQTTClient(configuration: .init(
             target: .host("localhost", port: 8883),
             tls: .forClient(certificateVerification: .none)
+        ), eventLoopGroup: group)
+    }
+    
+    var wsSslNoVerifyClient: MQTTClient {
+        return MQTTClient(configuration: .init(
+            target: .host("localhost", port: 8884),
+            tls: .forClient(certificateVerification: .none),
+            webSockets: .enabled
         ), eventLoopGroup: group)
     }
     
@@ -55,7 +70,7 @@ class MQTTNIOTestCase: XCTestCase {
     
     var authenticationClient: MQTTClient {
         return MQTTClient(configuration: .init(
-            target: .host("localhost", port: 1884)
+            target: .host("localhost", port: 1885)
         ), eventLoopGroup: group)
     }
     

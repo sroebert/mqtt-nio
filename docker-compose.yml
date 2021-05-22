@@ -9,6 +9,8 @@ services:
     ports:
       - 1883:1883
       - 8883:8883
+      - 1884:1884
+      - 8884:8884
     restart: unless-stopped
 
   mosquitto-authenticated:
@@ -19,6 +21,6 @@ services:
       - ./Docker/mosquitto-authenticated/mosquitto.conf:/mosquitto/config/mosquitto.conf
       - ./Docker/mosquitto-authenticated/passwd:/mosquitto/config/passwd
     ports:
-      - 1884:1883
-      - 8884:8883
+      - 1885:1883
+      - 8885:8883
     restart: unless-stopped

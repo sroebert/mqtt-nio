@@ -12,8 +12,28 @@ final class ConnectTests: MQTTNIOTestCase {
         XCTAssertFalse(client.isConnected)
     }
     
+    func testWebsockets() throws {
+        let client = wsClient
+        
+        wait(for: client.connect())
+        XCTAssertTrue(client.isConnected)
+        
+        wait(for: client.disconnect())
+        XCTAssertFalse(client.isConnected)
+    }
+    
     func testSSLWithoutVerification() throws {
         let client = sslNoVerifyClient
+        
+        wait(for: client.connect())
+        XCTAssertTrue(client.isConnected)
+        
+        wait(for: client.disconnect())
+        XCTAssertFalse(client.isConnected)
+    }
+    
+    func testWebsocketsSSLWithoutVerification() throws {
+        let client = wsSslNoVerifyClient
         
         wait(for: client.connect())
         XCTAssertTrue(client.isConnected)
