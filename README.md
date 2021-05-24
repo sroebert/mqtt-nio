@@ -33,12 +33,11 @@ This package has no additional system dependencies.
 
 ### Create Client and Connect
 ```swift
-let group = MultiThreadedEventLoopGroup(numberOfThreads: 2)
 let client = MQTTClient(
     configuration: .init(
         target: .host("127.0.0.1", port: 1883),
     ),
-    eventLoopGroup: group
+    eventLoopGroupProvider: .createNew
 )
 client.connect()
 ```

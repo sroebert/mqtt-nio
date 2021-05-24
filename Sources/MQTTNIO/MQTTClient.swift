@@ -36,6 +36,9 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     /// The `EventLoopGroup` used for the connection with the broker and the callbacks to the listeners.
     let eventLoopGroup: EventLoopGroup
     
+    /// Indicates whether the event loop group should be shutdown when this class is deallocated.
+    private let shouldShutdownEventLoopGroup: Bool
+    
     /// The `Logger` used for logging events from the client.
     let logger: Logger
     
@@ -77,15 +80,24 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     /// Creates an `MQTTClient`
     /// - Parameters:
     ///   - configuration: The configuration for the client.
-    ///   - eventLoopGroup: The `EventLoopGroup` to use for connection and callbacks. It will be most efficient to use a group that has at least two separate `EventGroup`s on separate threads. (e.g. `MultiThreadedEventLoopGroup(numberOfThreads: 2)`).
+    ///   - eventLoopGroupProvider: The provider for creating the `EventLoopGroup` used by this client. Either this provides a shared group or indicates the client should create its own group. The default value is to create a new group.
     ///   - logger: The logger for logging connection events. The default value is an instance of the default `Logger`.
     public init(
         configuration: MQTTConfiguration,
-        eventLoopGroup: EventLoopGroup,
-        logger: Logger = .init(label: "nl.roebert.MQTTNio"))
-    {
+        eventLoopGroupProvider: NIOEventLoopGroupProvider = .createNew,
+        logger: Logger = .init(label: "nl.roebert.MQTTNio")
+    ) {
         _configuration = configuration
-        self.eventLoopGroup = eventLoopGroup
+        
+        switch eventLoopGroupProvider {
+        case .createNew:
+            eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+            shouldShutdownEventLoopGroup = true
+            
+        case .shared(let eventLoopGroup):
+            self.eventLoopGroup = eventLoopGroup
+            shouldShutdownEventLoopGroup = false
+        }
         self.logger = logger
         
         connectionEventLoop = eventLoopGroup.next()
@@ -102,8 +114,29 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
         subscriptionsHandler.delegate = self
     }
     
+    /// Creates an `MQTTClient`
+    /// - Parameters:
+    ///   - configuration: The configuration for the client.
+    ///   - eventLoopGroup: The `EventLoopGroup` to use for connection and callbacks. It will be most efficient to use a group that has at least two separate `EventGroup`s on separate threads. (e.g. `MultiThreadedEventLoopGroup(numberOfThreads: 1)`).
+    ///   - logger: The logger for logging connection events. The default value is an instance of the default `Logger`.
+    public convenience init(
+        configuration: MQTTConfiguration,
+        eventLoopGroup: EventLoopGroup,
+        logger: Logger = .init(label: "nl.roebert.MQTTNio")
+    ) {
+        self.init(
+            configuration: configuration,
+            eventLoopGroupProvider: .shared(eventLoopGroup),
+            logger: logger
+        )
+    }
+    
     deinit {
         requestHandler.failEntries()
+        
+        if shouldShutdownEventLoopGroup {
+            try? eventLoopGroup.syncShutdownGracefully()
+        }
     }
     
     // MARK: - Connection
