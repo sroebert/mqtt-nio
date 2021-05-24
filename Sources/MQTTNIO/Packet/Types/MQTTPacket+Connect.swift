@@ -4,7 +4,6 @@ import Logging
 extension MQTTPacket {
     struct Connect: MQTTPacketOutboundType {
         private static let protocolName = "MQTT"
-        private static let protocolLevel: UInt8 = 0x04 // 3.1.1
         
         private let configurationWrapper: ConfigurationWrapper
         
@@ -16,63 +15,93 @@ extension MQTTPacket {
             return configurationWrapper.configuration
         }
         
-        func serialize() throws -> MQTTPacket {
-            var buffer = ByteBufferAllocator().buffer(capacity: 0)
+        func serialize(version: MQTTProtocolVersion) throws -> MQTTPacket {
+            var buffer = Allocator.shared.buffer(capacity: 0)
             
-            // Variable header
-            try buffer.writeMQTTString(Self.protocolName, "Protocol name")
-            buffer.writeInteger(Self.protocolLevel)
-            
-            // leave room for flags
-            let flagsIndex = buffer.writerIndex
-            buffer.moveWriterIndex(forwardBy: 1)
-            
-            if configuration.keepAliveInterval <= .seconds(0) {
-                buffer.writeInteger(UInt16(0))
-            } else if configuration.keepAliveInterval >= .seconds(Int64(UInt16.max)) {
-                buffer.writeInteger(UInt16.max)
-            } else {
-                let seconds = configuration.keepAliveInterval.nanoseconds / TimeAmount.seconds(1).nanoseconds
-                buffer.writeInteger(UInt16(seconds))
-            }
-            
-            // Payload
-            let flags = try serializePayload(into: &buffer)
+            let flagsIndex = try serializeVariableHeader(into: &buffer, version: version)
+            let flags = try serializePayload(into: &buffer, version: version)
             buffer.setInteger(flags.rawValue, at: flagsIndex)
             
             return MQTTPacket(kind: .connect, data: buffer)
         }
         
-        private func serializePayload(into buffer: inout ByteBuffer) throws -> Flags {
+        private func serializeVariableHeader(
+            into buffer: inout ByteBuffer,
+            version: MQTTProtocolVersion
+        ) throws -> Int {
+            // Protocol name
+            try buffer.writeMQTTString(Self.protocolName, "Protocol name")
+            
+            // Protocol level
+            buffer.writeInteger(version.rawValue)
+            
+            // Leave room for flags
+            let flagsIndex = buffer.writerIndex
+            buffer.moveWriterIndex(forwardBy: 1)
+            
+            // Keep alive
+            if configuration.keepAliveInterval <= .seconds(0) {
+                buffer.writeInteger(UInt16(0))
+            } else if configuration.keepAliveInterval >= .seconds(Int64(UInt16.max)) {
+                buffer.writeInteger(UInt16.max)
+            } else {
+                buffer.writeInteger(UInt16(configuration.keepAliveInterval.seconds))
+            }
+            
+            // Properties
+            if version >= .version5 {
+                let properties = configuration.connectProperties.packetProperties
+                try buffer.writeMQTTProperties(properties)
+            }
+        
+            return flagsIndex
+        }
+        
+        private func serializePayload(
+            into buffer: inout ByteBuffer,
+            version: MQTTProtocolVersion
+        ) throws -> Flags {
             var flags: Flags = []
             
-            if configuration.cleanSession {
-                flags.insert(.cleanSession)
+            if configuration.clean {
+                flags.insert(.clean)
             }
             
             try buffer.writeMQTTString(configuration.clientId, "Client Identifier")
             
-            if let lastWillMessage = configuration.lastWillMessage {
-                flags.insert(.containsLastWill)
-                try buffer.writeMQTTString(lastWillMessage.topic, "Topic")
+            if let willMessage = configuration.willMessage {
+                flags.insert(.containsWill)
                 
-                if var payload = lastWillMessage.payload {
-                    try buffer.writeMQTTDataWithLength(&payload, "Last Will Payload")
-                } else {
-                    buffer.writeInteger(UInt16(0))
+                if version >= .version5 {
+                    let properties = willMessage.packetProperties
+                    try buffer.writeMQTTProperties(properties)
                 }
                 
-                switch lastWillMessage.qos {
+                try buffer.writeMQTTString(willMessage.topic, "Topic")
+                
+                switch willMessage.payload {
+                case .empty:
+                    var emptyData = ByteBuffer()
+                    try buffer.writeMQTTDataWithLength(&emptyData, "Last Will Payload")
+                    
+                case .bytes(var bytes):
+                    try buffer.writeMQTTDataWithLength(&bytes, "Last Will Payload")
+                    
+                case .string(let string, _):
+                    try buffer.writeMQTTString(string, "Last Will Payload")
+                }
+                
+                switch willMessage.qos {
                 case .atMostOnce:
                     break
                 case .atLeastOnce:
-                    flags.insert(.lastWillQoS1)
+                    flags.insert(.willQoS1)
                 case .exactlyOnce:
-                    flags.insert(.lastWillQoS2)
+                    flags.insert(.willQoS2)
                 }
                 
-                if lastWillMessage.retain {
-                    flags.insert(.lastWillRetain)
+                if willMessage.retain {
+                    flags.insert(.willRetain)
                 }
             }
             
@@ -104,11 +133,11 @@ extension MQTTPacket.Connect {
     fileprivate struct Flags: OptionSet {
         let rawValue: UInt8
         
-        static let cleanSession = Flags(rawValue: 1 << 1)
-        static let containsLastWill = Flags(rawValue: 1 << 2)
-        static let lastWillQoS1 = Flags(rawValue: 1 << 3)
-        static let lastWillQoS2 = Flags(rawValue: 1 << 4)
-        static let lastWillRetain = Flags(rawValue: 1 << 5)
+        static let clean = Flags(rawValue: 1 << 1)
+        static let containsWill = Flags(rawValue: 1 << 2)
+        static let willQoS1 = Flags(rawValue: 1 << 3)
+        static let willQoS2 = Flags(rawValue: 1 << 4)
+        static let willRetain = Flags(rawValue: 1 << 5)
         static let containsPassword = Flags(rawValue: 1 << 6)
         static let containsUsername = Flags(rawValue: 1 << 7)
         

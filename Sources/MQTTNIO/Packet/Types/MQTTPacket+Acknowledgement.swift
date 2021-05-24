@@ -21,7 +21,10 @@ extension MQTTPacket {
         
         // MARK: - MQTTPacketDuplexType
         
-        static func parse(from packet: inout MQTTPacket) throws -> MQTTPacket.Acknowledgement {
+        static func parse(
+            from packet: inout MQTTPacket,
+            version: MQTTProtocolVersion
+        ) throws -> Self {
             let kind = try parseKind(from: packet)
             
             guard let packetId = packet.data.readInteger(as: UInt16.self) else {
@@ -30,8 +33,8 @@ extension MQTTPacket {
             return Acknowledgement(kind: kind, packetId: packetId)
         }
         
-        func serialize() throws -> MQTTPacket {
-            var buffer = ByteBufferAllocator().buffer(capacity: 2)
+        func serialize(version: MQTTProtocolVersion) throws -> MQTTPacket {
+            var buffer = Allocator.shared.buffer(capacity: 2)
             buffer.writeInteger(packetId)
             
             let packetKind: MQTTPacket.Kind

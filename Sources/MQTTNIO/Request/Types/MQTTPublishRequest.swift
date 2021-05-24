@@ -44,7 +44,7 @@ final class MQTTPublishRequest: MQTTRequest {
         context.logger.debug("Sending: Publish", metadata: [
             "packetId": .string(packetId.map { $0.description } ?? "none"),
             "topic": .string(message.topic),
-            "payload": .string(message.payloadString ?? message.payload.map { "\($0.readableBytes) bytes" } ?? "empty"),
+            "payload": .string(message.payload.debugDescription),
             "qos": .stringConvertible(message.qos.rawValue),
             "retain": .stringConvertible(message.retain)
         ])

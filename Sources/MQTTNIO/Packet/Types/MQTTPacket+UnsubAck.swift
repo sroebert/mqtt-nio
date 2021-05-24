@@ -9,7 +9,10 @@ extension MQTTPacket {
         
         // MARK: - MQTTPacketOutboundType
         
-        static func parse(from packet: inout MQTTPacket) throws -> MQTTPacket.UnsubAck {
+        static func parse(
+            from packet: inout MQTTPacket,
+            version: MQTTProtocolVersion
+        ) throws -> Self {
             guard let packetId = packet.data.readInteger(as: UInt16.self) else {
                 throw MQTTProtocolError.parsingError("Missing packet identifier")
             }

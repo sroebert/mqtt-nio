@@ -254,11 +254,17 @@ final class MQTTConnection: MQTTErrorHandlerDelegate {
         return channel.pipeline.addHandlers([
             // Decoding
             ByteToMessageHandler(MQTTPacketDecoder(logger: logger)),
-            MQTTPacketTypeParser(logger: logger),
+            MQTTPacketTypeParser(
+                version: configuration.protocolVersion,
+                logger: logger
+            ),
             
             // Encoding
             MessageToByteHandler(MQTTPacketEncoder(logger: logger)),
-            MQTTPacketTypeSerializer(logger: logger),
+            MQTTPacketTypeSerializer(
+                version: configuration.protocolVersion,
+                logger: logger
+            ),
             
             // Continuous handlers
             MQTTKeepAliveHandler(logger: logger, interval: configuration.keepAliveInterval),

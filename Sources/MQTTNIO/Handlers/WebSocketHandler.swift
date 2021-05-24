@@ -18,7 +18,7 @@ final class WebSocketHandler: ChannelDuplexHandler {
         }
         
         let type: FrameType
-        private(set) var buffer = ByteBufferAllocator().buffer(capacity: 0)
+        private(set) var buffer = Allocator.shared.buffer(capacity: 0)
 
         mutating func append(_ data: ByteBuffer) {
             var data = data

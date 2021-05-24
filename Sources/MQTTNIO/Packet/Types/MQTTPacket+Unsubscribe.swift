@@ -10,8 +10,8 @@ extension MQTTPacket {
         
         // MARK: - MQTTPacketOutboundType
         
-        func serialize() throws -> MQTTPacket {
-            var buffer = ByteBufferAllocator().buffer(capacity: 0)
+        func serialize(version: MQTTProtocolVersion) throws -> MQTTPacket {
+            var buffer = Allocator.shared.buffer(capacity: 0)
             
             buffer.writeInteger(packetId)
             

@@ -5,7 +5,10 @@ extension MQTTPacket {
         var isSessionPresent: Bool
         var returnCode: ReturnCode
         
-        static func parse(from packet: inout MQTTPacket) throws -> Self {
+        static func parse(
+            from packet: inout MQTTPacket,
+            version: MQTTProtocolVersion
+        ) throws -> Self {
             guard
                 let acknowledgeFlags = packet.data.readInteger(as: UInt8.self),
                 let returnCodeValue = packet.data.readInteger(as: UInt8.self)

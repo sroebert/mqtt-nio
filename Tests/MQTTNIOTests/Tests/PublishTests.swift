@@ -12,7 +12,7 @@ final class PublishTests: MQTTNIOTestCase {
         
         let expectation = XCTestExpectation(description: "Received payload")
         client.addMessageListener { _, message, _ in
-            XCTAssertEqual(message.payloadString, payload)
+            XCTAssertEqual(message.payload.string, payload)
             XCTAssertEqual(message.qos, qos)
             expectation.fulfill()
         }
@@ -37,7 +37,7 @@ final class PublishTests: MQTTNIOTestCase {
         
         let expectation = XCTestExpectation(description: "Received payload")
         client.addMessageListener { _, message, _ in
-            XCTAssertEqual(message.payloadString, payload)
+            XCTAssertEqual(message.payload.string, payload)
             XCTAssertEqual(message.qos, qos)
             expectation.fulfill()
         }
@@ -62,7 +62,7 @@ final class PublishTests: MQTTNIOTestCase {
         
         let expectation = XCTestExpectation(description: "Received payload")
         client.addMessageListener { _, message, _ in
-            XCTAssertEqual(message.payloadString, payload)
+            XCTAssertEqual(message.payload.string, payload)
             XCTAssertEqual(message.qos, qos)
             expectation.fulfill()
         }
@@ -88,7 +88,7 @@ final class PublishTests: MQTTNIOTestCase {
         
         let expectation1 = XCTestExpectation(description: "Received payload")
         client.addMessageListener { _, message, context in
-            XCTAssertEqual(message.payloadString, payload)
+            XCTAssertEqual(message.payload.string, payload)
             XCTAssertFalse(message.retain)
             expectation1.fulfill()
             
@@ -101,7 +101,7 @@ final class PublishTests: MQTTNIOTestCase {
         
         let expectation2 = XCTestExpectation(description: "Received payload")
         client.addMessageListener { _, message, context in
-            XCTAssertEqual(message.payloadString, payload)
+            XCTAssertEqual(message.payload.string, payload)
             XCTAssertTrue(message.retain)
             expectation2.fulfill()
         }
@@ -117,7 +117,7 @@ final class PublishTests: MQTTNIOTestCase {
     
     func testKeepSession() {
         let client = plainClient
-        client.configuration.cleanSession = false
+        client.configuration.clean = false
         
         let topic = "mqtt-nio/tests/keep-session"
         let payload = "Hello World!"
@@ -127,7 +127,7 @@ final class PublishTests: MQTTNIOTestCase {
         
         let expectation = XCTestExpectation(description: "Received payload")
         client.addMessageListener { _, message, context in
-            XCTAssertEqual(message.payloadString, payload)
+            XCTAssertEqual(message.payload.string, payload)
             expectation.fulfill()
         }
         
@@ -170,7 +170,7 @@ final class PublishTests: MQTTNIOTestCase {
         expectation.assertForOverFulfill = true
         
         client.addMessageListener { _, message, _ in
-            XCTAssertEqual(message.payloadString, payload)
+            XCTAssertEqual(message.payload.string, payload)
             expectation.fulfill()
         }
         
@@ -205,7 +205,7 @@ final class PublishTests: MQTTNIOTestCase {
     
     func testInvalidClient() {
         let client = plainClient
-        client.configuration.cleanSession = false
+        client.configuration.clean = false
         client.configuration.clientId = ""
         client.configuration.reconnectMode = .none
         

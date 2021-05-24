@@ -42,13 +42,10 @@ struct MQTTPacket {
     init<Data>(kind: Kind, fixedHeaderData: UInt8 = 0, bytes: Data)
         where Data: Sequence, Data.Element == UInt8
     {
-        var buffer = ByteBufferAllocator().buffer(capacity: 0)
-        buffer.writeBytes(bytes)
-        
         self.init(
             kind: kind,
             fixedHeaderData: fixedHeaderData,
-            data: buffer
+            data: bytes.byteBuffer
         )
     }
     
@@ -60,7 +57,11 @@ struct MQTTPacket {
         )
     }
 
-    init(kind: Kind, fixedHeaderData: UInt8 = 0, data: ByteBuffer = ByteBufferAllocator().buffer(capacity: 0)) {
+    init(
+        kind: Kind,
+        fixedHeaderData: UInt8 = 0,
+        data: ByteBuffer = Allocator.shared.buffer(capacity: 0)
+    ) {
         storage = Storage(kind: kind, fixedHeaderData: fixedHeaderData, data: data)
     }
     

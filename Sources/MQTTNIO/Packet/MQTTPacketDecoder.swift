@@ -24,7 +24,7 @@ final class MQTTPacketDecoder: ByteToMessageDecoder {
         }
 
         // peek at the message size
-        guard let messageSize = try peekMessageSize(using: &peekBuffer) else {
+        guard let messageSize = try peekBuffer.peekMQTTVariableByteInteger("Packet size") else {
             return .needMoreData
         }
         
@@ -45,32 +45,5 @@ final class MQTTPacketDecoder: ByteToMessageDecoder {
     func decodeLast(context: ChannelHandlerContext, buffer: inout ByteBuffer, seenEOF: Bool) throws -> DecodingState {
         // ignore
         return .needMoreData
-    }
-    
-    private func peekMessageSize(using peekBuffer: inout ByteBuffer) throws -> Int? {
-        // the message size is between 1 and 4 bytes appearing immediately after the message header
-        var size = 0
-        var multiplier = 1
-        var counter = 0
-        
-        var lastByte: UInt8
-        repeat {
-            guard counter < 4 else {
-                throw MQTTProtocolError.parsingError("Invalid packet size received.")
-            }
-            
-            guard let byte = peekBuffer.readInteger(as: UInt8.self) else {
-                return nil
-            }
-            
-            size += Int(0b01111111 & byte) * multiplier
-            
-            lastByte = byte
-            counter += 1
-            multiplier *= 128
-            
-        } while (lastByte & 0b10000000) != 0
-        
-        return size
     }
 }

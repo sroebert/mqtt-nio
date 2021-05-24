@@ -218,19 +218,22 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     ///   - payload: The optional payload of the message. The default is `nil`.
     ///   - qos: The QoS level for the message. The default is `.atMostOnce`.
     ///   - retain: Boolean indicating whether to retain the message. The default value is `false`.
+    ///   - properties: The message properties to send when publishing to a 5.0 MQTT broker.
     /// - Returns: An `EventLoopFuture` for when the publishing has completed.
     @discardableResult
     public func publish(
         topic: String,
-        payload: ByteBuffer? = nil,
+        payload: MQTTPayload = .empty,
         qos: MQTTQoS = .atMostOnce,
-        retain: Bool = false
+        retain: Bool = false,
+        properties: MQTTMessage.Properties = .init()
     ) -> EventLoopFuture<Void> {
         let message = MQTTMessage(
             topic: topic,
             payload: payload,
             qos: qos,
-            retain: retain
+            retain: retain,
+            properties: properties
         )
         return publish(message)
     }
@@ -243,19 +246,22 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     ///   - payload: The payload of the message in the form of a string.
     ///   - qos: The QoS level for the message. The default is `.atMostOnce`.
     ///   - retain: Boolean indicating whether to retain the message. The default value is `false`.
+    ///   - properties: The message properties to send when publishing to a 5.0 MQTT broker.
     /// - Returns: An `EventLoopFuture` for when the publishing has completed.
     @discardableResult
     public func publish(
         topic: String,
         payload: String,
         qos: MQTTQoS = .atMostOnce,
-        retain: Bool = false
+        retain: Bool = false,
+        properties: MQTTMessage.Properties = .init()
     ) -> EventLoopFuture<Void> {
         let message = MQTTMessage(
             topic: topic,
             payload: payload,
             qos: qos,
-            retain: retain
+            retain: retain,
+            properties: properties
         )
         return publish(message)
     }

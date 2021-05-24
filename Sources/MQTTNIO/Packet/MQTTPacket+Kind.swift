@@ -22,6 +22,8 @@ extension MQTTPacket {
         
         static let disconnect: Kind    = 0xE0
         
+        static let auth: Kind          = 0xF0
+        
         let value: UInt8
         
         init(integerLiteral value: UInt8) {
@@ -48,6 +50,8 @@ extension MQTTPacket {
             case .pingResp: return "PINGRESP"
             
             case .disconnect: return "DISCONNECT"
+                
+            case .auth: return "AUTH"
                 
             default:
                 return String(value)

@@ -21,7 +21,10 @@ extension MQTTPacket {
         
         // MARK: - MQTTPacketDuplexType
         
-        static func parse(from packet: inout MQTTPacket) throws -> MQTTPacket.Publish {
+        static func parse(
+            from packet: inout MQTTPacket,
+            version: MQTTProtocolVersion
+        ) throws -> Self {
             let flags = Flags(rawValue: packet.fixedHeaderData)
             
             let topic = try packet.data.readMQTTString("Topic")
@@ -36,13 +39,11 @@ extension MQTTPacket {
                 packetId = nil
             }
             
-            let payload: ByteBuffer?
+            let payload: MQTTPayload
             if packet.data.readableBytes > 0 {
-                var buffer = ByteBufferAllocator().buffer(capacity: 0)
-                buffer.writeBuffer(&packet.data)
-                payload = buffer
+                payload = .bytes(packet.data)
             } else {
-                payload = nil
+                payload = .empty
             }
             
             return Publish(
@@ -57,10 +58,10 @@ extension MQTTPacket {
             )
         }
         
-        func serialize() throws -> MQTTPacket {
+        func serialize(version: MQTTProtocolVersion) throws -> MQTTPacket {
             let flags = generateFlags()
             
-            var buffer = ByteBufferAllocator().buffer(capacity: 0)
+            var buffer = Allocator.shared.buffer(capacity: 0)
             
             try buffer.writeMQTTString(message.topic, "Topic")
             
@@ -71,8 +72,15 @@ extension MQTTPacket {
                 buffer.writeInteger(packetId)
             }
             
-            if var payload = message.payload {
-                buffer.writeBuffer(&payload)
+            switch message.payload {
+            case .empty:
+                break
+            
+            case .bytes(var bytes):
+                buffer.writeBuffer(&bytes)
+                
+            case .string(let string, _):
+                buffer.writeString(string)
             }
             
             return MQTTPacket(kind: .publish, fixedHeaderData: flags.rawValue, data: buffer)

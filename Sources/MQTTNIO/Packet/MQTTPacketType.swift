@@ -1,11 +1,14 @@
 import NIO
 
 protocol MQTTPacketInboundType {
-    static func parse(from packet: inout MQTTPacket) throws -> Self
+    static func parse(
+        from packet: inout MQTTPacket,
+        version: MQTTProtocolVersion
+    ) throws -> Self
 }
 
 protocol MQTTPacketOutboundType {
-    func serialize() throws -> MQTTPacket
+    func serialize(version: MQTTProtocolVersion) throws -> MQTTPacket
 }
 
 typealias MQTTPacketDuplexType = MQTTPacketInboundType & MQTTPacketOutboundType
@@ -18,27 +21,31 @@ extension MQTTPacket {
         case pingResp(PingResp)
         case subAck(SubAck)
         case unsubAck(UnsubAck)
+        case auth(Auth)
         case unknown(MQTTPacket)
         
-        init(packet: MQTTPacket) throws {
+        init(packet: MQTTPacket, version: MQTTProtocolVersion) throws {
             switch packet.kind {
             case .connAck:
-                self = try .connAck(.parse(from: packet))
+                self = try .connAck(.parse(from: packet, version: version))
                 
             case .publish:
-                self = try .publish(.parse(from: packet))
+                self = try .publish(.parse(from: packet, version: version))
                 
             case .pubAck, .pubRec, .pubRel, .pubComp:
-                self = try .acknowledgement(.parse(from: packet))
+                self = try .acknowledgement(.parse(from: packet, version: version))
                 
             case .pingResp:
-                self = try .pingResp(.parse(from: packet))
+                self = try .pingResp(.parse(from: packet, version: version))
                 
             case .subAck:
-                self = try .subAck(.parse(from: packet))
+                self = try .subAck(.parse(from: packet, version: version))
                 
             case .unsubAck:
-                self = try .unsubAck(.parse(from: packet))
+                self = try .unsubAck(.parse(from: packet, version: version))
+                
+            case .auth:
+                self = try .auth(.parse(from: packet, version: version))
                 
             default:
                 self = .unknown(packet)
@@ -50,8 +57,11 @@ extension MQTTPacket {
 }
 
 extension MQTTPacketInboundType {
-    static func parse(from packet: MQTTPacket) throws -> Self {
+    static func parse(
+        from packet: MQTTPacket,
+        version: MQTTProtocolVersion
+    ) throws -> Self {
         var packet = packet
-        return try parse(from: &packet)
+        return try parse(from: &packet, version: version)
     }
 }

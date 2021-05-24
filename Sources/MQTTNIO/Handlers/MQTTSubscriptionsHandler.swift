@@ -63,7 +63,7 @@ final class MQTTSubscriptionsHandler: ChannelDuplexHandler {
     private func emit(_ message: MQTTMessage) {
         logger.debug("Emitting message to listeners", metadata: [
             "topic": .string(message.topic),
-            "payload": .string(message.payloadString ?? message.payload.map { "\($0.readableBytes) bytes" } ?? "empty"),
+            "payload": .string(message.payload.debugDescription),
             "qos": .stringConvertible(message.qos.rawValue),
             "retain": .stringConvertible(message.retain)
         ])
@@ -75,7 +75,7 @@ final class MQTTSubscriptionsHandler: ChannelDuplexHandler {
         logger.debug("Received: Publish", metadata: [
             "packetId": .string(publish.packetId.map { $0.description } ?? "none"),
             "topic": .string(publish.message.topic),
-            "payload": .string(publish.message.payloadString ?? publish.message.payload.map { "\($0.readableBytes) bytes" } ?? "empty"),
+            "payload": .string(publish.message.payload.debugDescription),
             "qos": .stringConvertible(publish.message.qos.rawValue),
             "retain": .stringConvertible(publish.message.retain)
         ])

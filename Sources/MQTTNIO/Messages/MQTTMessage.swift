@@ -8,32 +8,38 @@ public struct MQTTMessage {
     /// The optional payload of the message as bytes.
     ///
     /// Most frequently this message will be an UTF-8 string, but it depends on the context.
-    public var payload: ByteBuffer?
+    public var payload: MQTTPayload
     
-    /// The QoS level with which this message will be send or was send.
+    /// The QoS level with which this message will be sent or was sent.
     public var qos: MQTTQoS
     
     /// Indicating whether this message will be retained by the broker.
     ///
-    /// If retained, it will be send to a client as soon as they subscribe for the topic of the message.
+    /// If retained, it will be sent to a client as soon as they subscribe for the topic of the message.
     public var retain: Bool
+    
+    /// The message properties to send when publishing to a 5.0 MQTT broker.
+    public var properties: Properties
     
     /// Creates an `MQTTMessage`.
     /// - Parameters:
     ///   - topic: The topic for the message.
-    ///   - payload: The optional payload of the message. The default is `nil`.
+    ///   - payload: The payload of the message. The default is `.empty`.
     ///   - qos: The QoS level for the message. The default is `.atMostOnce`.
     ///   - retain: Boolean indicating whether to retain the message. The default value is `false`.
+    ///   - properties: The message properties to send when publishing to a 5.0 MQTT broker.
     public init(
         topic: String,
-        payload: ByteBuffer? = nil,
+        payload: MQTTPayload = .empty,
         qos: MQTTQoS = .atMostOnce,
-        retain: Bool = false) {
-        
+        retain: Bool = false,
+        properties: Properties = Properties()
+    ) {
         self.topic = topic
         self.payload = payload
         self.qos = qos
         self.retain = retain
+        self.properties = properties
     }
     
     /// Creates an `MQTTMessage`.
@@ -42,27 +48,20 @@ public struct MQTTMessage {
     ///   - payload: The payload of the message in the form of a string.
     ///   - qos: The QoS level for the message. The default is `.atMostOnce`.
     ///   - retain: Boolean indicating whether to retain the message. The default value is `false`.
+    ///   - properties: The message properties to send when publishing to a 5.0 MQTT broker.
     public init(
         topic: String,
-        payload: String,
+        payload: String?,
         qos: MQTTQoS = .atMostOnce,
-        retain: Bool = false) {
-        
-        self.topic = topic
-        
-        var buffer = ByteBufferAllocator().buffer(capacity: 0)
-        buffer.writeString(payload)
-        self.payload = buffer
-        
-        self.qos = qos
-        self.retain = retain
-    }
-    
-    /// Optional string value created from the payload of this message.
-    public var payloadString: String? {
-        guard var payload = payload else {
-            return nil
-        }
-        return payload.readString(length: payload.readableBytes)
+        retain: Bool = false,
+        properties: Properties = Properties()
+    ) {
+        self.init(
+            topic: topic,
+            payload: payload.map { .string($0) } ?? .empty,
+            qos: qos,
+            retain: retain,
+            properties: properties
+        )
     }
 }

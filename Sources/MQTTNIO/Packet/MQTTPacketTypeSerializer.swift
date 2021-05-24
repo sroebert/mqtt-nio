@@ -5,11 +5,13 @@ final class MQTTPacketTypeSerializer: ChannelOutboundHandler {
     
     // MARK: - Properties
     
+    let version: MQTTProtocolVersion
     let logger: Logger
     
     // MARK: - Init
     
-    init(logger: Logger) {
+    init(version: MQTTProtocolVersion, logger: Logger) {
+        self.version = version
         self.logger = logger
     }
     
@@ -21,7 +23,7 @@ final class MQTTPacketTypeSerializer: ChannelOutboundHandler {
     func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
         let outbound = unwrapOutboundIn(data)
         do {
-            let packet = try outbound.serialize()
+            let packet = try outbound.serialize(version: version)
             context.write(wrapOutboundOut(packet), promise: promise)
         } catch {
             logger.notice("Could not serialize outbound packet", metadata: [

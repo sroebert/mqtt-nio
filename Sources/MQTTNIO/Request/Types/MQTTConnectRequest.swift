@@ -31,7 +31,7 @@ final class MQTTConnectRequest: MQTTRequest {
         
         context.logger.debug("Sending: Connect", metadata: [
             "clientId": .string(configuration.clientId),
-            "cleanSession": .stringConvertible(configuration.cleanSession),
+            "clean": .stringConvertible(configuration.clean),
         ])
         
         context.write(MQTTPacket.Connect(configuration: configuration))

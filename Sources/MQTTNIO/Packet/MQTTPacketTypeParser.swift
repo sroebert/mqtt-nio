@@ -5,9 +5,11 @@ final class MQTTPacketTypeParser: ChannelInboundHandler {
     typealias InboundIn = MQTTPacket
     typealias InboundOut = MQTTPacket.Inbound
 
+    let version: MQTTProtocolVersion
     let logger: Logger
     
-    init(logger: Logger) {
+    init(version: MQTTProtocolVersion, logger: Logger) {
+        self.version = version
         self.logger = logger
     }
     
@@ -28,6 +30,6 @@ final class MQTTPacketTypeParser: ChannelInboundHandler {
     }
     
     private func parse(_ packet: MQTTPacket) throws -> MQTTPacket.Inbound {
-        return try MQTTPacket.Inbound(packet: packet)
+        return try MQTTPacket.Inbound(packet: packet, version: version)
     }
 }

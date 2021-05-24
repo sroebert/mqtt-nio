@@ -13,22 +13,29 @@ public struct MQTTConfiguration {
     /// The configuration which should be set when using web sockets to connect.
     public var webSockets: WebSocketsConfiguration?
     
+    /// The MQTT protocol version to use when connecting to the broker.
+    public var protocolVersion: MQTTProtocolVersion
+    
     /// The client identifier to use for the connection with the broker. This should be unique for each client connected to the broker.
     public var clientId: String
     
     /// Boolean, indicating whether the session for the client should be cleaned by the broker. If set to `false`, the broker will
     /// try to keep the session and the subscribed topics for the client. When connected, a boolean is returned from the broker
-    /// indicating whether it has an active session for the client.
-    public var cleanSession: Bool
+    /// indicating whether it has an active session for the client. The behavior for this setting is different between protocol version 3.1.1 and 5,
+    /// this is explained in detail in the documentation for the different MQTT version.
+    public var clean: Bool
     
     /// The optional credentials used to connect to the broker.
     public var credentials: Credentials?
     
-    /// The optional `MQTTMessage` the broker should send if the client would disconnect abnormally..
-    public var lastWillMessage: MQTTMessage?
+    /// The optional `MQTTMessage` the broker should send under certain conditions if the client would disconnect.
+    public var willMessage: MQTTWillMessage?
     
     /// The time interval in which a message must be send to the broker to keep the connection alive.
     public var keepAliveInterval: TimeAmount
+    
+    /// The connection properties to send when connecting with a 5.0 MQTT broker.
+    public var connectProperties: ConnectProperties
     
     /// The interval after which connection with the broker will fail.
     public var connectionTimeoutInterval: TimeAmount
@@ -49,11 +56,14 @@ public struct MQTTConfiguration {
     /// - Parameters:
     ///   - target: The target for the broker the client should connect to.
     ///   - tls: The TLS configuration for the connection with the broker. The default value is `nil`.
+    ///   - webSockets: The configuration which should be set when using web sockets to connect. The default value is `nil`, indicating that web sockets should not be used.
+    ///   - protocolVersion: The MQTT protocol version to use when connecting to the broker. The default value is 3.1.1.
     ///   - clientId: The client identifier to use for the connection with the broker. The default value is `nl.roebert.MQTTNIO.` followed by a `UUID`.
-    ///   - cleanSession: Boolean, indicating whether the session for the client should be cleaned by the broker. The default value is `true`.
+    ///   - clean: Boolean, indicating whether the session for the client should be cleaned by the broker. The default value is `true`.
     ///   - credentials: The credentials used to connect to the broker. The default value is `nil`.
-    ///   - lastWillMessage: The  `MQTTMessage` the broker should send if the client would disconnect abnormally. The default value is `nil`.
+    ///   - willMessage: The optional `MQTTMessage` the broker should send under certain conditions if the client would disconnect. The default value is `nil`.
     ///   - keepAliveInterval: The time interval in which a message must be send to the broker to keep the connection alive. The default value is `60` seconds.
+    ///   - connectProperties: The connection properties to send when connecting with a 5.0 MQTT broker.
     ///   - connectionTimeoutInterval: The interval after which connection with the broker will fail. The default value is `30` seconds.
     ///   - reconnectMode: The mode for reconnection that will be used if the client is disconnected from the server. The default value is `retry` with a minimum of `1` second and maximum of `120` seconds.
     ///   - connectRequestTimeoutInterval: The time to wait for the server to respond to a connect message from the client. The default value is `5` seconds.
@@ -63,25 +73,29 @@ public struct MQTTConfiguration {
         target: Target,
         tls: TLSConfiguration? = nil,
         webSockets: WebSocketsConfiguration? = nil,
+        protocolVersion: MQTTProtocolVersion = .version3_1_1,
         clientId: String = "nl.roebert.MQTTNIO.\(UUID())",
-        cleanSession: Bool = true,
+        clean: Bool = true,
         credentials: Credentials? = nil,
-        lastWillMessage: MQTTMessage? = nil,
+        willMessage: MQTTWillMessage? = nil,
         keepAliveInterval: TimeAmount = .seconds(60),
+        connectProperties: ConnectProperties = ConnectProperties(),
         connectionTimeoutInterval: TimeAmount = .seconds(30),
         reconnectMode: ReconnectMode = .retry(minimumDelay: .seconds(1), maximumDelay: .seconds(120)),
         connectRequestTimeoutInterval: TimeAmount = .seconds(5),
         publishRetryInterval: TimeAmount = .seconds(5),
-        subscriptionTimeoutInterval: TimeAmount = .seconds(5)) {
-        
+        subscriptionTimeoutInterval: TimeAmount = .seconds(5)
+    ) {
         self.target = target
         self.tls = tls
         self.webSockets = webSockets
+        self.protocolVersion = protocolVersion
         self.clientId = clientId
-        self.cleanSession = cleanSession
+        self.clean = clean
         self.credentials = credentials
-        self.lastWillMessage = lastWillMessage
+        self.willMessage = willMessage
         self.keepAliveInterval = keepAliveInterval
+        self.connectProperties = connectProperties
         self.connectionTimeoutInterval = connectionTimeoutInterval
         self.reconnectMode = reconnectMode
         self.connectRequestTimeoutInterval = connectRequestTimeoutInterval
@@ -131,10 +145,7 @@ extension MQTTConfiguration {
         public init<Data>(username: String, password: Data)
             where Data: Sequence, Data.Element == UInt8
         {
-            var buffer = ByteBufferAllocator().buffer(capacity: 0)
-            buffer.writeBytes(password)
-            
-            self.init(username: username, password: buffer)
+            self.init(username: username, password: password.byteBuffer)
         }
         
         /// Creates a `Credentials` struct.
@@ -142,10 +153,7 @@ extension MQTTConfiguration {
         ///   - username: The username for the credentials.
         ///   - password: The password for the credentials as a string.
         public init(username: String, password: String) {
-            var buffer = ByteBufferAllocator().buffer(capacity: 0)
-            buffer.writeString(password)
-            
-            self.init(username: username, password: buffer)
+            self.init(username: username, password: password.byteBuffer)
         }
         
         /// Creates a `Credentials` struct.
@@ -219,6 +227,74 @@ extension MQTTConfiguration {
                 let newDelay = min(minimumDelay * 2, maximumDelay)
                 return .retry(minimumDelay: newDelay, maximumDelay: maximumDelay)
             }
+        }
+    }
+    
+    /// For 5.0 MQTT brokers indicates when the session of the client should expire.
+    public enum SessionExpiry {
+        /// Expire when the connection is closed.
+        case atClose
+        /// Expires after a certain interval.
+        case afterInterval(TimeAmount)
+        /// Never expires.
+        case never
+    }
+    
+    /// Properties used when connecting with a 5.0 MQTT broker.
+    public struct ConnectProperties {
+        
+        /// Indicates when the session of the client should expire.
+        public var sessionExpiry: SessionExpiry
+        
+        /// The receive maximum, indicating the maximum number of QoS > 0 packets that can be received concurrently.
+        public var receiveMaximum: Int?
+        
+        /// The maximum allowed size of packets to receive.
+        public var maximumPacketSize: Int?
+        
+        /// The maximum allowed value to receive from the server for a topic alias.
+        public var topicAliasMaximum: Int
+        
+        /// Indicates whether the server should provide response information when connecting.
+        public var requestResponseInformation: Bool
+        
+        /// Indicates whether the server should provide a reason string and user properties in case of failures.
+        public var requestProblemInformation: Bool
+        
+        /// Additional user properties to send when connecting with the broker.
+        public var userProperties: [MQTTUserProperty]
+        
+        /// The authentication handler to use for enhanced authentication.
+        public var authenticationHandler: MQTTAuthenticationHandler?
+        
+        /// Creates an `ConnectProperties`.
+        /// - Parameters:
+        ///   - sessionExpiry: Indicates when the session of the client should expire.
+        ///   - receiveMaximum: The receive maximum, indicating the maximum number of QoS > 0 packets that can be received concurrently. The default value is `nil`, indicating the server should use the default value.
+        ///   - maximumPacketSize: The maximum allowed size of packets to receive. The default value is `nil`, indicating that there is no maximum.
+        ///   - topicAliasMaximum: The maximum allowed value to receive from the server for a topic alias. The default value is `0`, indicating that no topic aliases are allowed.
+        ///   - requestResponseInformation: Indicates whether the server should provide response information when connecting. The default value is `false`.
+        ///   - requestProblemInformation: Indicates whether the server should provide a reason string and user properties in case of failures. The default value is `true`.
+        ///   - userProperties: Additional user properties to send when connecting with the broker. The default value is an empty array.
+        ///   - authenticationHandler: The authentication handler to use for enhanced authentication.. The default value is `nil`, indicating that there is no enhanced authentication.
+        public init(
+            sessionExpiry: SessionExpiry = .atClose,
+            receiveMaximum: Int? = nil,
+            maximumPacketSize: Int? = nil,
+            topicAliasMaximum: Int = 0,
+            requestResponseInformation: Bool = false,
+            requestProblemInformation: Bool = true,
+            userProperties: [MQTTUserProperty] = [],
+            authenticationHandler: MQTTAuthenticationHandler? = nil
+        ) {
+            self.sessionExpiry = sessionExpiry
+            self.receiveMaximum = receiveMaximum
+            self.maximumPacketSize = maximumPacketSize
+            self.topicAliasMaximum = topicAliasMaximum
+            self.requestResponseInformation = requestResponseInformation
+            self.requestProblemInformation = requestProblemInformation
+            self.userProperties = userProperties
+            self.authenticationHandler = authenticationHandler
         }
     }
 }
