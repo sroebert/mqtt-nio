@@ -20,7 +20,9 @@ extension MQTTMessage {
         public var userProperties: [MQTTUserProperty]
         
         /// If passed when subscribing for a topic, messages from the broker will include the passed subscription identifier.
-        public var subscriptionIdentifier: Int?
+        ///
+        /// As there could be multiple overlapping subscriptions, it will be an array of identifiers.
+        public var subscriptionIdentifiers: [Int]
         
         /// Creates a `MQTTMessage.Properties`.
         /// - Parameters:
@@ -39,7 +41,7 @@ extension MQTTMessage {
                 topicAlias: topicAlias,
                 requestConfiguration: requestConfiguration,
                 userProperties: userProperties,
-                subscriptionIdentifier: nil
+                subscriptionIdentifiers: []
             )
         }
         
@@ -48,12 +50,13 @@ extension MQTTMessage {
             topicAlias: Int? = nil,
             requestConfiguration: MQTTRequestConfiguration? = nil,
             userProperties: [MQTTUserProperty] = [],
-            subscriptionIdentifier: Int?
+            subscriptionIdentifiers: [Int]
         ) {
             self.expiryInterval = expiryInterval
             self.topicAlias = topicAlias
             self.requestConfiguration = requestConfiguration
             self.userProperties = userProperties
+            self.subscriptionIdentifiers = subscriptionIdentifiers
         }
     }
 }

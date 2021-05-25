@@ -1,4 +1,4 @@
-import MQTTNIO
+@testable import MQTTNIO
 import XCTest
 
 final class PublishTests: MQTTNIOTestCase {
@@ -216,7 +216,7 @@ final class PublishTests: MQTTNIOTestCase {
                 XCTFail()
                 
             case .failure(let error):
-                XCTAssertEqual(error as? MQTTConnectionError, MQTTConnectionError.identifierRejected)
+                XCTAssertEqual((error as? MQTTConnectionError)?.serverReasonCode, .invalidClientIdentifier)
                 expectation.fulfill()
             }
         }

@@ -231,7 +231,7 @@ extension MQTTConfiguration {
     }
     
     /// For 5.0 MQTT brokers indicates when the session of the client should expire.
-    public enum SessionExpiry {
+    public enum SessionExpiry: Equatable {
         /// Expire when the connection is closed.
         case atClose
         /// Expires after a certain interval.

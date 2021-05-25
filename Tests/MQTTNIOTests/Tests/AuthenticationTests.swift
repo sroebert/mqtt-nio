@@ -1,4 +1,4 @@
-import MQTTNIO
+@testable import MQTTNIO
 import XCTest
 
 final class AuthenticationTests: MQTTNIOTestCase {
@@ -27,7 +27,7 @@ final class AuthenticationTests: MQTTNIOTestCase {
                 XCTFail()
                 
             case .failure(let error):
-                XCTAssertEqual(error as? MQTTConnectionError, MQTTConnectionError.notAuthorized)
+                XCTAssertEqual((error as? MQTTConnectionError)?.serverReasonCode, .notAuthorized)
                 expectation.fulfill()
             }
         }

@@ -1,137 +1,287 @@
 import NIO
 
-enum MQTTProperty {
-    case payloadFormatIndicator(UInt8)
-    case messageExpiryInterval(UInt32)
-    case contentType(String)
-    case responseTopic(String)
-    case correlationData(ByteBuffer)
-    case subscriptionIdentifier(MQTTVariableByteInteger)
-    case sessionExpiryInterval(UInt32)
-    case assignedClientIdentifier(String)
-    case serverKeepAlive(UInt16)
-    case authenticationMethod(String)
-    case authenticationData(ByteBuffer)
-    case requestProblemInformation(UInt8)
-    case willDelayInterval(UInt32)
-    case requestResponseInformation(UInt8)
-    case responseInformation(String)
-    case serverReference(String)
-    case reasonString(String)
-    case receiveMaximum(UInt16)
-    case topicAliasMaximum(UInt16)
-    case topicAlias(UInt16)
-    case maximumQoS(UInt8)
-    case retainAvailable(UInt8)
-    case userProperty(MQTTStringPair)
-    case maximumPacketSize(UInt32)
-    case wildcardSubscriptionAvailable(UInt8)
-    case subscriptionIdentifierAvailable(UInt8)
-    case sharedSubscriptionAvailable(UInt8)
+protocol MQTTPropertyType {
+    var identifier: Int { get }
     
-    // MARK: - Parse / Serialize
+    var serializedLength: Int { get }
+    func serialize(into data: inout ByteBuffer) throws
+}
+
+@propertyWrapper
+struct MQTTProperty<Value: Equatable, Intermediate, PropertyValue: MQTTPropertyValue>: MQTTPropertyType {
     
-    static func parse(from data: inout ByteBuffer, identifier: Identifier) throws -> Self {
-        switch identifier {
-        case .payloadFormatIndicator: return try .payloadFormatIndicator(.parsePropertyValue(from: &data))
-        case .messageExpiryInterval: return try .messageExpiryInterval(.parsePropertyValue(from: &data))
-        case .contentType: return try .contentType(.parsePropertyValue(from: &data))
-        case .responseTopic: return try .responseTopic(.parsePropertyValue(from: &data))
-        case .correlationData: return try .correlationData(.parsePropertyValue(from: &data))
-        case .subscriptionIdentifier: return try .subscriptionIdentifier(.parsePropertyValue(from: &data))
-        case .sessionExpiryInterval: return try .sessionExpiryInterval(.parsePropertyValue(from: &data))
-        case .assignedClientIdentifier: return try .assignedClientIdentifier(.parsePropertyValue(from: &data))
-        case .serverKeepAlive: return try .serverKeepAlive(.parsePropertyValue(from: &data))
-        case .authenticationMethod: return try .authenticationMethod(.parsePropertyValue(from: &data))
-        case .authenticationData: return try .authenticationData(.parsePropertyValue(from: &data))
-        case .requestProblemInformation: return try .requestProblemInformation(.parsePropertyValue(from: &data))
-        case .willDelayInterval: return try .willDelayInterval(.parsePropertyValue(from: &data))
-        case .requestResponseInformation: return try .requestResponseInformation(.parsePropertyValue(from: &data))
-        case .responseInformation: return try .responseInformation(.parsePropertyValue(from: &data))
-        case .serverReference: return try .serverReference(.parsePropertyValue(from: &data))
-        case .reasonString: return try .reasonString(.parsePropertyValue(from: &data))
-        case .receiveMaximum: return try .receiveMaximum(.parsePropertyValue(from: &data))
-        case .topicAliasMaximum: return try .topicAliasMaximum(.parsePropertyValue(from: &data))
-        case .topicAlias: return try .topicAlias(.parsePropertyValue(from: &data))
-        case .maximumQoS: return try .maximumQoS(.parsePropertyValue(from: &data))
-        case .retainAvailable: return try .retainAvailable(.parsePropertyValue(from: &data))
-        case .userProperty: return try .userProperty(.parsePropertyValue(from: &data))
-        case .maximumPacketSize: return try .maximumPacketSize(.parsePropertyValue(from: &data))
-        case .wildcardSubscriptionAvailable: return try .wildcardSubscriptionAvailable(.parsePropertyValue(from: &data))
-        case .subscriptionIdentifierAvailable: return try .subscriptionIdentifierAvailable(.parsePropertyValue(from: &data))
-        case .sharedSubscriptionAvailable: return try .sharedSubscriptionAvailable(.parsePropertyValue(from: &data))
+    // MARK: - Properties
+    
+    let identifier: Int
+    let isAllowedMultipleTimes: Bool
+    
+    private let encode: (Value) -> [PropertyValue]
+    private let decode: (PropertyValue) -> Intermediate
+    private let combine: ((Value, Intermediate) -> Value)
+    
+    // MARK: - Init
+    
+    init(
+        wrappedValue: Value,
+        _ identifier: Int,
+        isAllowedMultipleTimes: Bool = false,
+        encode: @escaping (Value) -> [PropertyValue],
+        decode: @escaping (PropertyValue) -> Intermediate,
+        combine: @escaping (Value, Intermediate) -> Value
+    ) {
+        self.wrappedValue = wrappedValue
+        self.identifier = identifier
+        self.isAllowedMultipleTimes = isAllowedMultipleTimes
+        self.encode = encode
+        self.decode = decode
+        self.combine = combine
+    }
+    
+    // MARK: - Utils
+    
+    mutating func parse(from data: inout ByteBuffer) throws {
+        let propertyValue = try PropertyValue.parsePropertyValue(from: &data)
+        let intermediate = decode(propertyValue)
+        wrappedValue = combine(wrappedValue, intermediate)
+    }
+    
+    var serializedLength: Int {
+        let propertyValues = encode(wrappedValue)
+        guard !propertyValues.isEmpty else {
+            return 0
+        }
+        
+        let identifierLength = MQTTVariableByteInteger.size(for: identifier)
+        return propertyValues.reduce(0) {
+            $0 + identifierLength + $1.propertyValueLength
         }
     }
     
-    var value: MQTTPropertyValue {
-        switch self {
-        case .payloadFormatIndicator(let value): return value
-        case .messageExpiryInterval(let value): return value
-        case .contentType(let value): return value
-        case .responseTopic(let value): return value
-        case .correlationData(let value): return value
-        case .subscriptionIdentifier(let value): return value
-        case .sessionExpiryInterval(let value): return value
-        case .assignedClientIdentifier(let value): return value
-        case .serverKeepAlive(let value): return value
-        case .authenticationMethod(let value): return value
-        case .authenticationData(let value): return value
-        case .requestProblemInformation(let value): return value
-        case .willDelayInterval(let value): return value
-        case .requestResponseInformation(let value): return value
-        case .responseInformation(let value): return value
-        case .serverReference(let value): return value
-        case .reasonString(let value): return value
-        case .receiveMaximum(let value): return value
-        case .topicAliasMaximum(let value): return value
-        case .topicAlias(let value): return value
-        case .maximumQoS(let value): return value
-        case .retainAvailable(let value): return value
-        case .userProperty(let value): return value
-        case .maximumPacketSize(let value): return value
-        case .wildcardSubscriptionAvailable(let value): return value
-        case .subscriptionIdentifierAvailable(let value): return value
-        case .sharedSubscriptionAvailable(let value): return value
+    func serialize(into data: inout ByteBuffer) throws {
+        let propertyValues = encode(wrappedValue)
+        
+        for propertyValue in propertyValues {
+            try data.writeMQTTVariableByteInteger(identifier, "Property identifier")
+            try propertyValue.serializePropertyValue(into: &data)
+        }
+    }
+    
+    // MARK: - Property Wrapper
+    
+    var wrappedValue: Value
+    
+    var projectedValue: Self {
+        get {
+            return self
+        }
+        set {
+            self = newValue
         }
     }
 }
 
-extension ByteBuffer {
-    mutating func readMQTTProperties(
-        allowed: [MQTTProperty.Identifier]
-    ) throws -> [MQTTProperty] {
-        let length = try readMQTTVariableByteInteger("Property length")
-        let offset = readerIndex
-        
-        var properties: [MQTTProperty] = []
-        while readerIndex < offset + length {
-            let identifierValue = try readMQTTVariableByteInteger("Property identifier")
-            guard let identifier = MQTTProperty.Identifier(rawValue: identifierValue) else {
-                throw MQTTProtocolError.parsingError("Unknown property identifier \(identifierValue)")
-            }
-            
-            guard allowed.contains(identifier) else {
-                throw MQTTProtocolError.parsingError("Invalid property identifier \(identifierValue)")
-            }
-            
-            let property = try MQTTProperty.parse(from: &self, identifier: identifier)
-            properties.append(property)
+extension MQTTProperty where Value == Intermediate {
+    init(
+        wrappedValue: Value,
+        _ identifier: Int,
+        isAllowedMultipleTimes: Bool = false,
+        encode: @escaping (Value) -> [PropertyValue],
+        decode: @escaping (PropertyValue) -> Intermediate
+    ) {
+        self.init(
+            wrappedValue: wrappedValue,
+            identifier,
+            isAllowedMultipleTimes: isAllowedMultipleTimes,
+            encode: encode,
+            decode: decode
+        ) { _, newValue in
+            return newValue
         }
-        
-        return properties
     }
-    
-    mutating func writeMQTTProperties(_ properties: [MQTTProperty]) throws {
-        let tuples = properties.map {
-            (identifier: $0.identifier, value: $0.value)
+}
+
+extension MQTTProperty where Value == [Intermediate] {
+    init(
+        wrappedValue: Value,
+        _ identifier: Int,
+        isAllowedMultipleTimes: Bool = false,
+        encode: @escaping (Value) -> [PropertyValue],
+        decode: @escaping (PropertyValue) -> Intermediate
+    ) {
+        self.init(
+            wrappedValue: wrappedValue,
+            identifier,
+            isAllowedMultipleTimes: isAllowedMultipleTimes,
+            encode: encode,
+            decode: decode
+        ) { array, newValue in
+            var array = array
+            array.append(newValue)
+            return array
         }
-        
-        let length = tuples.reduce(0) { $0 + $1.value.propertyValueLength }
-        try writeMQTTVariableByteInteger(length, "Property length")
-        
-        for (identifier, value) in tuples {
-            try writeMQTTVariableByteInteger(identifier.rawValue, "Property identifier")
-            try value.serializePropertyValue(into: &self)
+    }
+}
+
+extension MQTTProperty where Value == Intermediate, Value == PropertyValue {
+    init(wrappedValue: Value, _ identifier: Int) {
+        self.init(wrappedValue: wrappedValue, identifier) {
+            guard $0 != wrappedValue else {
+                return []
+            }
+            return [$0]
+        } decode: {
+            $0
+        }
+    }
+}
+
+extension MQTTProperty where Value == Intermediate, Value == PropertyValue? {
+    init(_ identifier: Int) {
+        self.init(wrappedValue: nil, identifier) {
+            guard let value = $0 else {
+                return []
+            }
+            return [value]
+        } decode: {
+            $0
+        }
+    }
+}
+
+extension MQTTProperty where Value == Int, Value == Intermediate, PropertyValue: FixedWidthInteger {
+    init(wrappedValue: PropertyValue, _ identifier: Int, format: PropertyValue.Type) {
+        self.init(wrappedValue: Int(wrappedValue), identifier) {
+            guard $0 != wrappedValue else {
+                return []
+            }
+            return [format.init($0)]
+        } decode: {
+            Int($0)
+        }
+    }
+}
+
+extension MQTTProperty where Value == Int?, Value == Intermediate, PropertyValue: FixedWidthInteger {
+    init(_ identifier: Int, format: PropertyValue.Type) {
+        self.init(wrappedValue: nil, identifier) {
+            guard let value = $0 else {
+                return []
+            }
+            return [format.init(value)]
+        } decode: {
+            Int($0)
+        }
+    }
+}
+
+extension MQTTProperty where Value == Bool, Value == Intermediate, PropertyValue == UInt8 {
+    init(wrappedValue: Bool, _ identifier: Int) {
+        self.init(wrappedValue: wrappedValue, identifier) {
+            guard $0 != wrappedValue else {
+                return []
+            }
+            return $0 ? [1] : [0]
+        } decode: {
+            $0 == 1
+        }
+    }
+}
+
+extension MQTTProperty where Value == Int, Value == Intermediate, PropertyValue == MQTTVariableByteInteger {
+    init(wrappedValue: Int, _ identifier: Int) {
+        self.init(wrappedValue: wrappedValue, identifier) {
+            guard $0 != wrappedValue else {
+                return []
+            }
+            return [MQTTVariableByteInteger(value: $0)]
+        } decode: {
+            $0.value
+        }
+    }
+}
+
+extension MQTTProperty where Value == Int?, Value == Intermediate, PropertyValue == MQTTVariableByteInteger {
+    init(_ identifier: Int) {
+        self.init(wrappedValue: nil, identifier) {
+            guard let value = $0 else {
+                return []
+            }
+            return [MQTTVariableByteInteger(value: value)]
+        } decode: {
+            $0.value
+        }
+    }
+}
+
+extension MQTTProperty where Value == TimeAmount?, Value == Intermediate, PropertyValue: FixedWidthInteger {
+    init(_ identifier: Int, format: PropertyValue.Type) {
+        self.init(wrappedValue: nil, identifier) {
+            guard let value = $0 else {
+                return []
+            }
+            return [format.init(value.seconds)]
+        } decode: {
+            .seconds(Int64($0))
+        }
+    }
+}
+
+extension MQTTProperty where Value == [MQTTUserProperty], Intermediate == MQTTUserProperty, PropertyValue == MQTTStringPair {
+    init(_ identifier: Int) {
+        self.init(wrappedValue: [], identifier, isAllowedMultipleTimes: true) {
+            $0.map { MQTTStringPair(key: $0.name, value: $0.value) }
+        } decode: {
+            MQTTUserProperty(name: $0.key, value: $0.value)
+        }
+    }
+}
+
+extension MQTTProperty where Value == [Int], Intermediate == Int, PropertyValue == MQTTVariableByteInteger {
+    init(_ identifier: Int) {
+        self.init(wrappedValue: [], identifier, isAllowedMultipleTimes: true) {
+            $0.map { MQTTVariableByteInteger(value: $0) }
+        } decode: {
+            $0.value
+        }
+    }
+}
+
+extension MQTTProperty where Value == MQTTConfiguration.SessionExpiry, Value == Intermediate, PropertyValue == UInt32 {
+    init(_ identifier: Int) {
+        self.init(wrappedValue: .atClose, identifier) {
+            switch $0 {
+            case .atClose:
+                return []
+            case .afterInterval(let timeAmount):
+                return [UInt32(timeAmount.seconds)]
+            case .never:
+                return [UInt32.max]
+            }
+        } decode: {
+            switch $0 {
+            case 0:
+                return .atClose
+            case UInt32.max:
+                return .never
+            default:
+                return .afterInterval(.seconds(Int64($0)))
+            }
+        }
+    }
+}
+
+extension MQTTProperty where Value == MQTTQoS, Value == Intermediate, PropertyValue == UInt8 {
+    init(_ identifier: Int) {
+        self.init(wrappedValue: .exactlyOnce, identifier) {
+            guard $0 != .exactlyOnce else {
+                return []
+            }
+            return [$0.rawValue]
+        } decode: {
+            guard let qos = MQTTQoS(rawValue: $0) else {
+                return .exactlyOnce
+            }
+            return qos
         }
     }
 }

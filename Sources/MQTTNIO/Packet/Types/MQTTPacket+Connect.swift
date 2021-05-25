@@ -3,17 +3,76 @@ import Logging
 
 extension MQTTPacket {
     struct Connect: MQTTPacketOutboundType {
+        
+        // MARK: - Properties
+        
         private static let protocolName = "MQTT"
         
         private let configurationWrapper: ConfigurationWrapper
+        
+        // MARK: - Init
         
         init(configuration: MQTTConfiguration) {
             configurationWrapper = ConfigurationWrapper(configuration: configuration)
         }
         
-        var configuration: MQTTConfiguration {
+        // MARK: - Utils
+        
+        private var configuration: MQTTConfiguration {
             return configurationWrapper.configuration
         }
+        
+        private var properties: MQTTProperties {
+            var properties = MQTTProperties()
+            let connectProperties = configurationWrapper.configuration.connectProperties
+            
+            properties.sessionExpiry = connectProperties.sessionExpiry
+            properties.receiveMaximum = connectProperties.receiveMaximum
+            properties.maximumPacketSize = connectProperties.maximumPacketSize
+            properties.topicAliasMaximum = connectProperties.topicAliasMaximum
+            properties.requestResponseInformation = connectProperties.requestResponseInformation
+            properties.requestProblemInformation = connectProperties.requestProblemInformation
+            properties.userProperties = connectProperties.userProperties
+            
+            if let handler = connectProperties.authenticationHandler {
+                properties.authenticationMethod = handler.method
+                
+                if let data = handler.initialData {
+                    properties.authenticationData = data.byteBuffer
+                }
+            }
+            
+            return properties
+        }
+        
+        private func willProperties(for message: MQTTWillMessage) -> MQTTProperties {
+            var properties = MQTTProperties()
+            
+            switch message.payload {
+            case .empty, .bytes:
+                properties.payloadFormatIsUTF8 = false
+                
+            case .string(_, let contentType):
+                properties.payloadFormatIsUTF8 = true
+                properties.contentType = contentType
+            }
+            
+            properties.willDelayInterval = message.properties.delayInterval
+            properties.messageExpiryInterval = message.properties.expiryInterval
+            properties.userProperties = message.properties.userProperties
+            
+            if let configuration = message.properties.requestConfiguration {
+                properties.responseTopic = configuration.responseTopic
+                
+                if let data = configuration.correlationData {
+                    properties.correlationData = data.byteBuffer
+                }
+            }
+            
+            return properties
+        }
+        
+        // MARK: - MQTTPacketOutboundType
         
         func serialize(version: MQTTProtocolVersion) throws -> MQTTPacket {
             var buffer = Allocator.shared.buffer(capacity: 0)
@@ -24,6 +83,8 @@ extension MQTTPacket {
             
             return MQTTPacket(kind: .connect, data: buffer)
         }
+        
+        // MARK: - Serialize Utils
         
         private func serializeVariableHeader(
             into buffer: inout ByteBuffer,
@@ -37,7 +98,7 @@ extension MQTTPacket {
             
             // Leave room for flags
             let flagsIndex = buffer.writerIndex
-            buffer.moveWriterIndex(forwardBy: 1)
+            buffer.writeInteger(Flags().rawValue)
             
             // Keep alive
             if configuration.keepAliveInterval <= .seconds(0) {
@@ -50,8 +111,7 @@ extension MQTTPacket {
             
             // Properties
             if version >= .version5 {
-                let properties = configuration.connectProperties.packetProperties
-                try buffer.writeMQTTProperties(properties)
+                try properties.serialize(to: &buffer)
             }
         
             return flagsIndex
@@ -73,8 +133,8 @@ extension MQTTPacket {
                 flags.insert(.containsWill)
                 
                 if version >= .version5 {
-                    let properties = willMessage.packetProperties
-                    try buffer.writeMQTTProperties(properties)
+                    let properties = willProperties(for: willMessage)
+                    try properties.serialize(to: &buffer)
                 }
                 
                 try buffer.writeMQTTString(willMessage.topic, "Topic")

@@ -11,29 +11,6 @@ public struct MQTTConnectResponse {
     
     /// Indicates whether there is a session present for the client on the broker.
     public var isSessionPresent: Bool
-    
-    /// Return code received from the broker, indicating whether the connection was accepted.
-    public var returnCode: ReturnCode
-    
-    public enum ReturnCode {
-        /// The connection was accepted.
-        case accepted
-        
-        /// The connection failed, because of using an unacceptable protocol version.
-        case unacceptableProtocolVersion
-        
-        /// The connection failed, because the provided client identifier was rejected.
-        case identifierRejected
-        
-        /// The connection failed, because the server is unavailable.
-        case serverUnavailable
-        
-        /// The connection failed, because the provided username or password is incorrect.
-        case badUsernameOrPassword
-        
-        /// The connection failed, because the user is not authorized.
-        case notAuthorized
-    }
 }
 
 /// The reason the `MQTTClient` was disconnected.

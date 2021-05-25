@@ -1,3 +1,4 @@
+import Foundation
 import NIO
 
 extension MQTTPacket {
@@ -13,10 +14,69 @@ extension MQTTPacket {
         
         private let messageWrapper: MessageWrapper
         
+        // MARK: - Init
+        
         init(message: MQTTMessage, packetId: UInt16?, isDuplicate: Bool = false) {
             messageWrapper = MessageWrapper(message: message)
             self.packetId = packetId
             self.isDuplicate = isDuplicate
+        }
+        
+        // MARK: - Utils
+        
+        @MQTTPropertiesParserBuilder
+        private static var propertiesParser: MQTTPropertiesParser {
+            \.$payloadFormatIsUTF8
+            \.$messageExpiryInterval
+            \.$topicAlias
+            \.$responseTopic
+            \.$correlationData
+            \.$userProperties
+            \.$subscriptionIdentifiers
+            \.$contentType
+        }
+        
+        private var properties: MQTTProperties {
+            var properties = MQTTProperties()
+            
+            switch message.payload {
+            case .empty, .bytes:
+                properties.payloadFormatIsUTF8 = false
+                
+            case .string(_, let contentType):
+                properties.payloadFormatIsUTF8 = true
+                properties.contentType = contentType
+            }
+            
+            properties.messageExpiryInterval = message.properties.expiryInterval
+            properties.topicAlias = message.properties.topicAlias
+            properties.userProperties = message.properties.userProperties
+            
+            if let configuration = message.properties.requestConfiguration {
+                properties.responseTopic = configuration.responseTopic
+                
+                if let data = configuration.correlationData {
+                    properties.correlationData = data.byteBuffer
+                }
+            }
+            
+            return properties
+        }
+        
+        private static func messageProperties(for properties: MQTTProperties) -> MQTTMessage.Properties {
+            return MQTTMessage.Properties(
+                expiryInterval: properties.messageExpiryInterval,
+                topicAlias: properties.topicAlias,
+                requestConfiguration: properties.responseTopic.map { topic in
+                    let correlationData = properties.correlationData.map { Data($0.readableBytesView) }
+                    return MQTTRequestConfiguration(
+                        responseTopic: topic,
+                        correlationData: correlationData
+                    )
+                },
+                userProperties: properties.userProperties,
+                subscriptionIdentifiers: properties.subscriptionIdentifiers
+            )
         }
         
         // MARK: - MQTTPacketDuplexType
@@ -39,9 +99,23 @@ extension MQTTPacket {
                 packetId = nil
             }
             
+            let properties: MQTTProperties
+            if version >= .version5 {
+                properties = try MQTTProperties.parse(from: &packet.data, using: propertiesParser)
+            } else {
+                properties = MQTTProperties()
+            }
+            
             let payload: MQTTPayload
             if packet.data.readableBytes > 0 {
-                payload = .bytes(packet.data)
+                if properties.payloadFormatIsUTF8 {
+                    guard let string = packet.data.readString(length: packet.data.readableBytes) else {
+                        throw MQTTProtocolError.parsingError("Invalid string payload")
+                    }
+                    payload = .string(string, contentType: properties.contentType)
+                } else {
+                    payload = .bytes(packet.data.slice())
+                }
             } else {
                 payload = .empty
             }
@@ -51,7 +125,8 @@ extension MQTTPacket {
                     topic: topic,
                     payload: payload,
                     qos: flags.qos,
-                    retain: flags.contains(.retain)
+                    retain: flags.contains(.retain),
+                    properties: messageProperties(for: properties)
                 ),
                 packetId: packetId,
                 isDuplicate: flags.contains(.dup)
@@ -70,6 +145,10 @@ extension MQTTPacket {
                     throw MQTTProtocolError.parsingError("Missing packet identifier")
                 }
                 buffer.writeInteger(packetId)
+            }
+            
+            if version >= .version5 {
+                try properties.serialize(to: &buffer)
             }
             
             switch message.payload {
