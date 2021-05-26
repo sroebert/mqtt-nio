@@ -3,7 +3,7 @@ import NIOSSL
 import Logging
 
 protocol MQTTErrorHandlerDelegate: AnyObject {
-    func mttErrorHandler(_ handler: MQTTErrorHandler, caughtError error: Error)
+    func mttErrorHandler(_ handler: MQTTErrorHandler, caughtError error: Error, channel: Channel)
 }
 
 final class MQTTErrorHandler: ChannelInboundHandler {
@@ -25,7 +25,7 @@ final class MQTTErrorHandler: ChannelInboundHandler {
             return
         }
         
-        delegate?.mttErrorHandler(self, caughtError: error)
+        delegate?.mttErrorHandler(self, caughtError: error, channel: context.channel)
         
         context.close(promise: nil)
     }

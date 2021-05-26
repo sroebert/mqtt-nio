@@ -2,6 +2,10 @@ import NIO
 import NIOConcurrencyHelpers
 import Logging
 
+protocol MQTTFallbackPacketHandlerDelegate: AnyObject {
+    func fallbackPacketHandler(_ handler: MQTTFallbackPacketHandler, didReceiveDisconnectWith reason: MQTTDisconnectReason.ServerReason?, channel: Channel)
+}
+
 final class MQTTFallbackPacketHandler: ChannelDuplexHandler {
     
     // MARK: - Types
@@ -14,6 +18,8 @@ final class MQTTFallbackPacketHandler: ChannelDuplexHandler {
     
     let version: MQTTProtocolVersion
     let logger: Logger
+    
+    weak var delegate: MQTTFallbackPacketHandlerDelegate?
     
     // MARK: - Init
     
@@ -38,7 +44,10 @@ final class MQTTFallbackPacketHandler: ChannelDuplexHandler {
         
         switch packet {
         case .acknowledgement(let acknowledgement):
-            respond(to: acknowledgement, context: context)
+            handle(acknowledgement, context: context)
+            
+        case .disconnect(let disconnect):
+            handle(disconnect, context: context)
             
         default:
             logUnprocessedPacket(packet)
@@ -53,9 +62,9 @@ final class MQTTFallbackPacketHandler: ChannelDuplexHandler {
         ])
     }
     
-    // MARK: - Respond
+    // MARK: - Handle
     
-    private func respond(to acknowledgement: MQTTPacket.Acknowledgement, context: ChannelHandlerContext) {
+    private func handle(_ acknowledgement: MQTTPacket.Acknowledgement, context: ChannelHandlerContext) {
         switch acknowledgement.kind {
         case .pubAck, .pubComp:
             // It can happen that we receive more than one .pubAck or .pubComp, simply ignore
@@ -73,6 +82,58 @@ final class MQTTFallbackPacketHandler: ChannelDuplexHandler {
                 reasonCode: .packetIdentifierNotFound
             )
             context.writeAndFlush(wrapOutboundOut(packet), promise: nil)
+        }
+    }
+    
+    private func handle(_ disconnect: MQTTPacket.Disconnect, context: ChannelHandlerContext) {
+        let reason: MQTTDisconnectReason.ServerReason?
+        if let code = disconnect.reasonCode.disconnectReasonCode(with: disconnect.properties) {
+            reason = MQTTDisconnectReason.ServerReason(
+                code: code,
+                message: disconnect.properties.reasonString
+            )
+        } else {
+            reason = nil
+        }
+        
+        delegate?.fallbackPacketHandler(self, didReceiveDisconnectWith: reason, channel: context.channel)
+    }
+}
+
+extension MQTTPacket.Disconnect.ReasonCode {
+    fileprivate func disconnectReasonCode(
+        with properties: MQTTProperties
+    ) -> MQTTDisconnectReason.ServerReason.Code? {
+        switch self {
+        case .normalDisconnection: return nil
+        case .disconnectWithWillMessage: return nil
+        case .unspecifiedError: return .unspecifiedError
+        case .malformedPacket: return .malformedPacket
+        case .protocolError: return .protocolError
+        case .implementationSpecificError: return .implementationSpecificError
+        case .notAuthorized: return .notAuthorized
+        case .serverBusy: return .serverBusy
+        case .serverShuttingDown: return .serverShuttingDown
+        case .keepAliveTimeout: return .keepAliveTimeout
+        case .sessionTakenOver: return .sessionTakenOver
+        case .topicFilterInvalid: return .topicFilterInvalid
+        case .topicNameInvalid: return .topicNameInvalid
+        case .receiveMaximumExceeded: return .receiveMaximumExceeded
+        case .topicAliasInvalid: return .topicAliasInvalid
+        case .packetTooLarge: return .packetTooLarge
+        case .messageRateTooHigh: return .messageRateTooHigh
+        case .quotaExceeded: return .quotaExceeded
+        case .administrativeAction: return .administrativeAction
+        case .payloadFormatInvalid: return .payloadFormatInvalid
+        case .retainNotSupported: return .retainNotSupported
+        case .qosNotSupported: return .qosNotSupported
+        case .useAnotherServer: return .useAnotherServer(properties.serverReference)
+        case .serverMoved: return .serverMoved(properties.serverReference)
+        case .sharedSubscriptionsNotSupported: return .sharedSubscriptionsNotSupported
+        case .connectionRateExceeded: return .connectionRateExceeded
+        case .maximumConnectTime: return .maximumConnectTime
+        case .subscriptionIdentifiersNotSupported: return .subscriptionIdentifiersNotSupported
+        case .wildcardSubscriptionsNotSupported: return .wildcardSubscriptionsNotSupported
         }
     }
 }

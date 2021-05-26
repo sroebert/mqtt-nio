@@ -22,6 +22,7 @@ extension MQTTPacket {
         case subAck(SubAck)
         case unsubAck(UnsubAck)
         case auth(Auth)
+        case disconnect(Disconnect)
         case unknown(MQTTPacket)
         
         init(packet: MQTTPacket, version: MQTTProtocolVersion) throws {
@@ -46,6 +47,9 @@ extension MQTTPacket {
                 
             case .auth:
                 self = try .auth(.parse(from: packet, version: version))
+                
+            case .disconnect:
+                self = try .disconnect(.parse(from: packet, version: version))
                 
             default:
                 self = .unknown(packet)

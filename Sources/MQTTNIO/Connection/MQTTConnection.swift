@@ -12,7 +12,7 @@ protocol MQTTConnectionDelegate: AnyObject {
     func mqttConnection(_ connection: MQTTConnection, caughtError error: Error)
 }
 
-final class MQTTConnection: MQTTErrorHandlerDelegate {
+final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerDelegate {
     
     // MARK: - Types
     
@@ -48,6 +48,7 @@ final class MQTTConnection: MQTTErrorHandlerDelegate {
     private var channelFuture: EventLoopFuture<Channel>!
     
     private var connectionFlags: ConnectionFlags = []
+    private var disconnectReason: MQTTDisconnectReason = .connectionClosed
     
     private var didUserInitiateClose: Bool = false
     
@@ -73,15 +74,22 @@ final class MQTTConnection: MQTTErrorHandlerDelegate {
     
     // MARK: - Close
     
-    func close() -> EventLoopFuture<Void> {
+    func close(with request: MQTTDisconnectReason.UserRequest) -> EventLoopFuture<Void> {
         return eventLoop.flatSubmit {
             self.didUserInitiateClose = true
+            
             return self.channelFuture
         }.flatMap { channel in
-            self.shutdown(channel, reason: .userInitiated)
-        }.recover { _ in
-            // We don't care about channel connection failure as we are closing
+            self.close(channel, reason: .userInitiated(request))
         }
+    }
+    
+    @discardableResult
+    private func close(_ channel: Channel, reason: MQTTDisconnectReason) -> EventLoopFuture<Void> {
+        eventLoop.assertInEventLoop()
+        
+        self.disconnectReason = reason
+        return shutdown(channel)
     }
     
     // MARK: - Connect
@@ -107,23 +115,31 @@ final class MQTTConnection: MQTTErrorHandlerDelegate {
                 ])
                 
                 // In case of error, properly shutdown and still throw the same error
-                return self.shutdown(channel, reason: .error(error)).flatMapThrowing {
+                return self.shutdown(channel).flatMapThrowing {
                     throw error
                 }
             }.map {
-                // On close, notify delegate and setup a new channel
-                if reconnectMode.shouldRetry {
-                    channel.closeFuture.whenSuccess { result in
-                        self.logger.debug("Channel closed, retrying connection")
+                // When fully connected, on close, notify delegate and optionally setup a new channel
+                channel.closeFuture.whenSuccess { result in
+                    self.shutdown(channel).whenSuccess {
+                        if reconnectMode.shouldRetry {
+                            self.logger.debug("Channel closed, retrying connection")
+                        } else {
+                            self.logger.debug("Channel closed")
+                        }
                         
                         if self.connectionFlags.contains(.notifiedDelegate) {
                             self.connectionFlags.remove(.notifiedDelegate)
-                            self.delegate?.mqttConnection(self, didDisconnectWith: .connectionClosed)
+                            
+                            self.delegate?.mqttConnection(self, didDisconnectWith: self.disconnectReason)
                         }
                         
-                        self.channelFuture = self.connect()
+                        if reconnectMode.shouldRetry {
+                            self.channelFuture = self.connect()
+                        }
                     }
                 }
+                
                 return channel
             }
         }.flatMapError { error in
@@ -248,6 +264,12 @@ final class MQTTConnection: MQTTErrorHandlerDelegate {
     private func addHandlers(to channel: Channel) -> EventLoopFuture<Channel> {
         eventLoop.assertInEventLoop()
         
+        let fallbackHandler = MQTTFallbackPacketHandler(
+            version: configuration.protocolVersion,
+            logger: logger
+        )
+        fallbackHandler.delegate = self
+        
         let errorHandler = MQTTErrorHandler(logger: logger)
         errorHandler.delegate = self
         
@@ -274,10 +296,7 @@ final class MQTTConnection: MQTTErrorHandlerDelegate {
             requestHandler,
             
             // Fallback handler
-            MQTTFallbackPacketHandler(
-                version: configuration.protocolVersion,
-                logger: logger
-            ),
+            fallbackHandler,
             
             // Error handler
             errorHandler
@@ -289,6 +308,9 @@ final class MQTTConnection: MQTTErrorHandlerDelegate {
         
         let request = MQTTConnectRequest(configuration: configuration)
         return requestHandler.perform(request).flatMap { response in
+            // Reset the disconnect reason
+            self.disconnectReason = .connectionClosed
+            
             self.connectionFlags.insert(.notifiedDelegate)
             self.delegate?.mqttConnection(self, didConnectWith: response)
             
@@ -307,18 +329,14 @@ final class MQTTConnection: MQTTErrorHandlerDelegate {
     
     // MARK: - Disconnect
     
-    private func shutdown(_ channel: Channel, reason: MQTTDisconnectReason) -> EventLoopFuture<Void> {
+    // This future never fails
+    private func shutdown(_ channel: Channel) -> EventLoopFuture<Void> {
         eventLoop.assertInEventLoop()
         
         return sendDisconnect(for: channel).flatMap {
-            // No we can close the channel
+            // Now we can close the channel
             channel.close().recover { _ in
                 // We don't really care if the close fails, just continue
-            }.always { _ in
-                if self.connectionFlags.contains(.notifiedDelegate) {
-                    self.connectionFlags.remove(.notifiedDelegate)
-                    self.delegate?.mqttConnection(self, didDisconnectWith: reason)
-                }
             }
         }
     }
@@ -344,9 +362,13 @@ final class MQTTConnection: MQTTErrorHandlerDelegate {
         
         connectionFlags.remove(.acceptedByBroker)
         return eventFuture.flatMap {
-            let request = MQTTDisconnectRequest(
-                sessionExpiry: self.configuration.connectProperties.sessionExpiry
-            )
+            let sessionExpiry = self.configuration.connectProperties.sessionExpiry
+            guard let request = MQTTDisconnectRequest(
+                reason: self.disconnectReason,
+                sessionExpiry: sessionExpiry
+            ) else {
+                return self.eventLoop.makeSucceededVoidFuture()
+            }
             
             return self.requestHandler.perform(request).recover { _ in
                 // We don't care if this fails
@@ -356,8 +378,21 @@ final class MQTTConnection: MQTTErrorHandlerDelegate {
     
     // MARK: - MQTTErrorHandlerDelegate
     
-    func mttErrorHandler(_ handler: MQTTErrorHandler, caughtError error: Error) {
+    func mttErrorHandler(_ handler: MQTTErrorHandler, caughtError error: Error, channel: Channel) {
         delegate?.mqttConnection(self, caughtError: error)
+        
+        guard let protocolError = error as? MQTTProtocolError else {
+            return
+        }
+        
+        close(channel, reason: .client(protocolError))
+    }
+    
+    // MARK: - MQTTFallbackPacketHandlerDelegate
+    
+    func fallbackPacketHandler(_ handler: MQTTFallbackPacketHandler, didReceiveDisconnectWith reason: MQTTDisconnectReason.ServerReason?, channel: Channel) {
+        
+        close(channel,reason: .server(reason))
     }
 }
 

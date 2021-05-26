@@ -175,16 +175,30 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     }
     
     /// Disconnects from the broker.
+    /// - Parameters:
+    ///   - sendWillMessage: If `true` a 5.0 MQTT broker will send the Will message after disconnection. The default value is `false`.
+    ///   - sessionExpiry: Optionally a different session expiry can be passed when disconnecting. The default value is `nil`.
+    ///   - userProperties: The user properties to send with the disconnect message to a 5.0 MQTT broker.
     /// - Returns: An `EventLoopFuture` for when the disconnection has completed.
     @discardableResult
-    public func disconnect() -> EventLoopFuture<Void> {
+    public func disconnect(
+        sendWillMessage: Bool = false,
+        sessionExpiry: MQTTConfiguration.SessionExpiry? = nil,
+        userProperties: [MQTTUserProperty] = []
+    ) -> EventLoopFuture<Void> {
         return lock.withLock {
             guard let connection = connection else {
                 return connectionEventLoop.makeSucceededFuture(())
             }
             
             self.connection = nil
-            return connection.close()
+            
+            let request = MQTTDisconnectReason.UserRequest(
+                sendWillMessage: sendWillMessage,
+                sessionExpiry: sessionExpiry,
+                userProperties: userProperties
+            )
+            return connection.close(with: request)
         }
     }
     

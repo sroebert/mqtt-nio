@@ -51,14 +51,20 @@ extension MQTTPacket {
             version: MQTTProtocolVersion
         ) throws -> Self {
             guard version >= .version5 else {
-                throw MQTTProtocolError("Received invalid disconnect packet")
+                throw MQTTProtocolError(
+                    code: .protocolError,
+                    "Received invalid disconnect packet"
+                )
             }
             
             guard let reasonCodeValue = packet.data.readInteger(as: UInt8.self) else {
                 throw MQTTProtocolError("Invalid disconnect packet structure")
             }
             
-            guard let reasonCode = ReasonCode(rawValue: reasonCodeValue) else {
+            guard
+                let reasonCode = ReasonCode(rawValue: reasonCodeValue),
+                reasonCode != .disconnectWithWillMessage
+            else {
                 throw MQTTProtocolError("Invalid disconnect reason code")
             }
             

@@ -43,7 +43,10 @@ final class MQTTConnectRequest: MQTTRequest {
         timeoutScheduled = nil
         
         guard case .connAck(let connAck) = packet else {
-            let error = MQTTProtocolError("Received invalid packet after sending Connect: \(packet)")
+            let error = MQTTProtocolError(
+                code: .protocolError,
+                "Received invalid packet after sending Connect: \(packet)"
+            )
             return .failure(error)
         }
         
@@ -141,10 +144,8 @@ extension MQTTPacket.ConnAck.ReasonCode5 {
         case .payloadFormatInvalid: return .payloadFormatInvalid
         case .retainNotSupported: return .retainNotSupported
         case .qosNotSupported: return .qosNotSupported
-        case .useAnotherServer:
-            return .useAnotherServer(properties.serverReference ?? "unknown")
-        case .serverMoved:
-            return .serverMoved(properties.serverReference ?? "unknown")
+        case .useAnotherServer: return .useAnotherServer(properties.serverReference)
+        case .serverMoved: return .serverMoved(properties.serverReference)
         case .connectionRateExceeded: return .connectionRateExceeded
         }
     }

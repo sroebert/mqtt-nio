@@ -70,10 +70,10 @@ extension MQTTConnectionError {
             case qosNotSupported
             
             /// The client should temporarily use another server.
-            case useAnotherServer(String)
+            case useAnotherServer(String?)
             
             /// The client should permanently use another server.
-            case serverMoved(String)
+            case serverMoved(String?)
             
             /// The connection rate limit has been exceeded.
             case connectionRateExceeded

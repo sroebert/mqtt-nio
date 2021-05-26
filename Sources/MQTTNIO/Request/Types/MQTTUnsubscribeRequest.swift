@@ -59,7 +59,10 @@ final class MQTTUnsubscribeRequest: MQTTRequest {
         let results = unsubAck.results ?? .init(repeating: .success, count: topics.count)
         
         guard results.count == topics.count else {
-            return .failure(MQTTProtocolError("Received an invalid number of unsubscribe results."))
+            return .failure(MQTTProtocolError(
+                code: .protocolError,
+                "Received an invalid number of unsubscribe results."
+            ))
         }
         
         context.logger.debug("Received: Unsubscribe Acknowledgement", metadata: [

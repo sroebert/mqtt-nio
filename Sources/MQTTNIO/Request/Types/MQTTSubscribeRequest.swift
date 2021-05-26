@@ -67,7 +67,10 @@ final class MQTTSubscribeRequest: MQTTRequest {
         timeoutScheduled = nil
         
         guard subAck.results.count == subscriptions.count else {
-            return .failure(MQTTProtocolError("Received an invalid number of subscription results."))
+            return .failure(MQTTProtocolError(
+                code: .protocolError,
+                "Received an invalid number of subscription results."
+            ))
         }
         
         context.logger.debug("Received: Subscribe Acknowledgement", metadata: [
