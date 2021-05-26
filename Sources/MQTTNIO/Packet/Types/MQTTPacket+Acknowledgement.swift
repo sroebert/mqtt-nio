@@ -82,7 +82,7 @@ extension MQTTPacket {
         }
         
         func serialize(version: MQTTProtocolVersion) throws -> MQTTPacket {
-            var buffer = Allocator.shared.buffer(capacity: 2)
+            var buffer = Allocator.shared.buffer(capacity: 0)
             buffer.writeInteger(data.packetId)
             
             if version > .version5 {

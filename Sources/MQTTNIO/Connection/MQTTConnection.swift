@@ -274,7 +274,7 @@ final class MQTTConnection: MQTTErrorHandlerDelegate {
             requestHandler,
             
             // Fallback handler
-            MQTTUnprocessedPacketHandler(
+            MQTTFallbackPacketHandler(
                 version: configuration.protocolVersion,
                 logger: logger
             ),
@@ -344,7 +344,11 @@ final class MQTTConnection: MQTTErrorHandlerDelegate {
         
         connectionFlags.remove(.acceptedByBroker)
         return eventFuture.flatMap {
-            self.requestHandler.perform(MQTTDisconnectRequest()).recover { _ in
+            let request = MQTTDisconnectRequest(
+                sessionExpiry: self.configuration.connectProperties.sessionExpiry
+            )
+            
+            return self.requestHandler.perform(request).recover { _ in
                 // We don't care if this fails
             }
         }

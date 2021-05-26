@@ -52,11 +52,11 @@ extension MQTTPacket {
             
             var results: [MQTTSubscriptionResult] = []
             while let reasonCodeValue = packet.data.readInteger(as: UInt8.self) {
-                guard let parsedReasonCode = ReasonCode(rawValue: reasonCodeValue) else {
+                guard let reasonCode = ReasonCode(rawValue: reasonCodeValue) else {
                     throw MQTTProtocolError("Invalid subscription acknowledgement reason code")
                 }
                 
-                results.append(parsedReasonCode.result)
+                results.append(reasonCode.result)
             }
             
             return SubAck(

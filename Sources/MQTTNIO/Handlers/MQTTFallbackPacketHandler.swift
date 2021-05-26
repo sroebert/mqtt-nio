@@ -2,7 +2,7 @@ import NIO
 import NIOConcurrencyHelpers
 import Logging
 
-final class MQTTUnprocessedPacketHandler: ChannelDuplexHandler {
+final class MQTTFallbackPacketHandler: ChannelDuplexHandler {
     
     // MARK: - Types
     
