@@ -32,7 +32,7 @@ extension MQTTPacket {
         var kind: Kind
         var packetId: UInt16
         var reasonCode: ReasonCode = .success
-        var properties: MQTTProperties = MQTTProperties()
+        var reasonString: String?
         
         // MARK: - MQTTPacketDuplexType
         
@@ -47,7 +47,7 @@ extension MQTTPacket {
             }
             
             let reasonCode: ReasonCode
-            let properties: MQTTProperties
+            let reasonString: String?
             if version >= .version5 {
                 guard let reasonCodeValue = packet.data.readInteger(as: UInt8.self) else {
                     throw MQTTProtocolError("Invalid acknowledgement packet structure")
@@ -58,17 +58,19 @@ extension MQTTPacket {
                 }
                 
                 reasonCode = parsedReasonCode
-                properties = try MQTTProperties.parse(from: &packet.data, using: propertiesParser)
+                
+                let properties = try MQTTProperties.parse(from: &packet.data, using: propertiesParser)
+                reasonString = properties.reasonString
             } else {
                 reasonCode = .success
-                properties = MQTTProperties()
+                reasonString = nil
             }
             
             return Acknowledgement(
                 kind: kind,
                 packetId: packetId,
                 reasonCode: reasonCode,
-                properties: properties
+                reasonString: reasonString
             )
         }
         
@@ -78,6 +80,9 @@ extension MQTTPacket {
             
             if version > .version5 {
                 buffer.writeInteger(reasonCode.mqttReasonCode.rawValue)
+                
+                var properties = MQTTProperties()
+                properties.reasonString = reasonString
                 try properties.serialize(to: &buffer)
             }
             

@@ -12,6 +12,8 @@ final class MQTTSubscribeRequest: MQTTRequest {
     // MARK: - Vars
     
     let subscriptions: [MQTTSubscription]
+    let subscriptionIdentifier: Int?
+    let userProperties: [MQTTUserProperty]
     let timeoutInterval: TimeAmount
     
     private var packetId: UInt16?
@@ -19,8 +21,15 @@ final class MQTTSubscribeRequest: MQTTRequest {
     
     // MARK: - Init
     
-    init(subscriptions: [MQTTSubscription], timeoutInterval: TimeAmount = .seconds(5)) {
+    init(
+        subscriptions: [MQTTSubscription],
+        subscriptionIdentifier: Int?,
+        userProperties: [MQTTUserProperty],
+        timeoutInterval: TimeAmount = .seconds(5)
+    ) {
         self.subscriptions = subscriptions
+        self.subscriptionIdentifier = subscriptionIdentifier
+        self.userProperties = userProperties
         self.timeoutInterval = timeoutInterval
     }
     
@@ -42,6 +51,8 @@ final class MQTTSubscribeRequest: MQTTRequest {
         
         context.write(MQTTPacket.Subscribe(
             subscriptions: subscriptions,
+            subscriptionIdentifier: subscriptionIdentifier,
+            userProperties: userProperties,
             packetId: packetId
         ))
         return .pending

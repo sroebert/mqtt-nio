@@ -205,7 +205,7 @@ extension MQTTPacket.Acknowledgement {
         }
         return MQTTPublishError.ServerReason(
             code: code,
-            message: properties.reasonString
+            message: reasonString
         )
     }
 }

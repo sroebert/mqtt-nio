@@ -20,6 +20,9 @@ struct MQTTProperties {
     var correlationData: ByteBuffer?
     
     @MQTTProperty(0x0B)
+    var subscriptionIdentifier: Int?
+    
+    @MQTTProperty(0x0B)
     var subscriptionIdentifiers: [Int]
     
     @MQTTProperty(0x11)
