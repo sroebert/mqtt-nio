@@ -3,29 +3,41 @@ import NIO
 extension MQTTPacket {
     struct Subscribe: MQTTPacketOutboundType {
         
-        // MARK: - Properties
+        // MARK: - Vars
         
-        var subscriptions: [MQTTSubscription]
-        var subscriptionIdentifier: Int?
-        var userProperties: [MQTTUserProperty]
+        private let data: Data
         
-        var packetId: UInt16
+        // MARK: - Init
+        
+        init(
+            subscriptions: [MQTTSubscription],
+            subscriptionIdentifier: Int?,
+            userProperties: [MQTTUserProperty],
+            packetId: UInt16
+        ) {
+            data = Data(
+                subscriptions: subscriptions,
+                subscriptionIdentifier: subscriptionIdentifier,
+                userProperties: userProperties,
+                packetId: packetId
+            )
+        }
         
         // MARK: - MQTTPacketOutboundType
         
         func serialize(version: MQTTProtocolVersion) throws -> MQTTPacket {
             var buffer = Allocator.shared.buffer(capacity: 0)
             
-            buffer.writeInteger(packetId)
+            buffer.writeInteger(data.packetId)
             
             if version >= .version5 {
                 var properties = MQTTProperties()
-                properties.subscriptionIdentifier = subscriptionIdentifier
-                properties.userProperties = userProperties
+                properties.subscriptionIdentifier = data.subscriptionIdentifier
+                properties.userProperties = data.userProperties
                 try properties.serialize(to: &buffer)
             }
             
-            for subscription in subscriptions {
+            for subscription in data.subscriptions {
                 try buffer.writeMQTTString(subscription.topic, "Topic name")
                 
                 let options = optionsValue(for: subscription, version: version)
@@ -63,6 +75,28 @@ extension MQTTPacket {
                 (subscription.options.noLocalMessages ? 0b00000100 : 0) |
                 (subscription.options.retainAsPublished ? 0b00001000 : 0) |
                 retainHandlingValue
+        }
+    }
+}
+
+extension MQTTPacket.Subscribe {
+    // Wrapper to avoid heap allocations when added to NIOAny
+    fileprivate class Data {
+        let subscriptions: [MQTTSubscription]
+        let subscriptionIdentifier: Int?
+        let userProperties: [MQTTUserProperty]
+        let packetId: UInt16
+        
+        init(
+            subscriptions: [MQTTSubscription],
+            subscriptionIdentifier: Int?,
+            userProperties: [MQTTUserProperty],
+            packetId: UInt16
+        ) {
+            self.subscriptions = subscriptions
+            self.subscriptionIdentifier = subscriptionIdentifier
+            self.userProperties = userProperties
+            self.packetId = packetId
         }
     }
 }

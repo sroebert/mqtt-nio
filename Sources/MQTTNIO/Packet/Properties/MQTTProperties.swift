@@ -2,7 +2,7 @@ import NIO
 
 struct MQTTProperties {
     
-    // MARK: - Properties
+    // MARK: - Vars
     
     @MQTTProperty(0x01)
     var payloadFormatIsUTF8 = false

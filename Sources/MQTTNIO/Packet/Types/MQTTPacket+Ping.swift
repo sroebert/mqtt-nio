@@ -14,5 +14,7 @@ extension MQTTPacket {
         ) throws -> Self {
             return MQTTPacket.PingResp()
         }
+        
+        private init() {}
     }
 }

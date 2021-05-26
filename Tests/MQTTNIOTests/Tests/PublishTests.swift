@@ -17,8 +17,8 @@ final class PublishTests: MQTTNIOTestCase {
             expectation.fulfill()
         }
         
-        let result = wait(for: client.subscribe(to: topic, qos: qos))
-        XCTAssertEqual(result, .success(qos))
+        let response = wait(for: client.subscribe(to: topic, qos: qos))
+        XCTAssertEqual(response?.result, .success(qos))
         
         wait(for: client.publish(topic: topic, payload: payload, qos: qos))
         
@@ -42,8 +42,8 @@ final class PublishTests: MQTTNIOTestCase {
             expectation.fulfill()
         }
         
-        let result = wait(for: client.subscribe(to: topic, qos: qos))
-        XCTAssertEqual(result, .success(qos))
+        let response = wait(for: client.subscribe(to: topic, qos: qos))
+        XCTAssertEqual(response?.result, .success(qos))
         
         wait(for: client.publish(topic: topic, payload: payload, qos: qos))
         
@@ -67,8 +67,8 @@ final class PublishTests: MQTTNIOTestCase {
             expectation.fulfill()
         }
         
-        let result = wait(for: client.subscribe(to: topic, qos: qos))
-        XCTAssertEqual(result, .success(qos))
+        let response = wait(for: client.subscribe(to: topic, qos: qos))
+        XCTAssertEqual(response?.result, .success(qos))
         
         wait(for: client.publish(topic: topic, payload: payload, qos: qos))
         
@@ -144,17 +144,17 @@ final class PublishTests: MQTTNIOTestCase {
         let client = plainClient
         wait(for: client.connect())
         
-        let results = wait(for: client.subscribe(to: [
+        let response = wait(for: client.subscribe(to: [
             MQTTSubscription(topic: "mqtt-nio/tests/multi-subscribe/1", qos: .atMostOnce),
             MQTTSubscription(topic: "mqtt-nio/tests/multi-subscribe/2", qos: .atLeastOnce),
             MQTTSubscription(topic: "mqtt-nio/tests/multi-subscribe/3", qos: .exactlyOnce)
         ]))
         
-        XCTAssertNotNil(results)
-        XCTAssertEqual(results!.count, 3)
-        XCTAssertEqual(results![0], .success(.atMostOnce))
-        XCTAssertEqual(results![1], .success(.atLeastOnce))
-        XCTAssertEqual(results![2], .success(.exactlyOnce))
+        XCTAssertNotNil(response)
+        XCTAssertEqual(response!.results.count, 3)
+        XCTAssertEqual(response!.results[0], .success(.atMostOnce))
+        XCTAssertEqual(response!.results[1], .success(.atLeastOnce))
+        XCTAssertEqual(response!.results[2], .success(.exactlyOnce))
         
         wait(for: client.disconnect())
     }

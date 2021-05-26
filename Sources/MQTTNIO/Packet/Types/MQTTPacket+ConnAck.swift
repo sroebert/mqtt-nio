@@ -2,9 +2,38 @@ import NIO
 
 extension MQTTPacket {
     struct ConnAck: MQTTPacketInboundType {
-        var reasonCode: ReasonCode
-        var isSessionPresent: Bool
-        var properties: MQTTProperties
+        
+        // MARK: - Vars
+        
+        var reasonCode: ReasonCode {
+            return data.reasonCode
+        }
+        
+        var isSessionPresent: Bool {
+            return data.isSessionPresent
+        }
+        
+        var properties: MQTTProperties {
+            return data.properties
+        }
+        
+        private let data: Data
+        
+        // MARK: - Init
+        
+        private init(
+            reasonCode: ReasonCode,
+            isSessionPresent: Bool,
+            properties: MQTTProperties
+        ) {
+            data = Data(
+                reasonCode: reasonCode,
+                isSessionPresent: isSessionPresent,
+                properties: properties
+            )
+        }
+        
+        // MARK: - Parse
         
         static func parse(
             from packet: inout MQTTPacket,
@@ -33,7 +62,7 @@ extension MQTTPacket {
                     throw MQTTProtocolError("Invalid ConnAck reason code")
                 }
                 reasonCode = .version5(reasonCode5)
-                properties = try MQTTProperties.parse(from: &packet.data, using: propertiesParser)
+                properties = try .parse(from: &packet.data, using: propertiesParser)
             }
             
             return ConnAck(
@@ -67,6 +96,23 @@ extension MQTTPacket {
 }
 
 extension MQTTPacket.ConnAck {
+    // Wrapper to avoid heap allocations when added to NIOAny
+    private class Data {
+        let reasonCode: ReasonCode
+        let isSessionPresent: Bool
+        let properties: MQTTProperties
+        
+        init(
+            reasonCode: ReasonCode,
+            isSessionPresent: Bool,
+            properties: MQTTProperties
+        ) {
+            self.reasonCode = reasonCode
+            self.isSessionPresent = isSessionPresent
+            self.properties = properties
+        }
+    }
+    
     enum ReasonCode {
         case version311(ReasonCode311)
         case version5(ReasonCode5)
@@ -122,7 +168,7 @@ extension MQTTPacket.ConnAck {
         case serverMoved
         case connectionRateExceeded
         
-        init?(rawValue: UInt8) {
+        fileprivate init?(rawValue: UInt8) {
             guard let reasonCode = MQTTReasonCode(rawValue: rawValue) else {
                 return nil
             }

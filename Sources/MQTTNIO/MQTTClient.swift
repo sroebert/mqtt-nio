@@ -277,14 +277,14 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     /// - Parameters:
     ///   - subscriptions: An array of `MQTTSubscription`s indicating what to subscribe to.
     ///   - identifier: Optional identifier which will be send to broker and will be set on messages received for this subscription. This only works with 5.0 MQTT brokers.
-    ///   - userProperties: Additional user properties to send with the subscription. This only works with 5.0 MQTT brokers.
+    ///   - userProperties: Additional user properties to send when subscribing. This only works with 5.0 MQTT brokers.
     /// - Returns: An `EventLoopFuture` with an array of `MQTTSubscriptionResult`s indicating the results for each `MQTTSubscription`.
     @discardableResult
     public func subscribe(
         to subscriptions: [MQTTSubscription],
         identifier: Int? = nil,
         userProperties: [MQTTUserProperty] = []
-    ) -> EventLoopFuture<[MQTTSubscriptionResult]> {
+    ) -> EventLoopFuture<MQTTSubscribeResponse> {
         let timeoutInterval = configuration.subscriptionTimeoutInterval
         let request = MQTTSubscribeRequest(
             subscriptions: subscriptions,
@@ -301,7 +301,7 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     ///   - qos: The QoS level with which to subscribe. The default value is `.atMostOnce`.
     ///   - options: Additional subscription options for a 5.0 MQTT broker.
     ///   - identifier: Optional identifier which will be send to broker and will be set on messages received for this subscription. This only works with 5.0 MQTT brokers.
-    ///   - userProperties: Additional user properties to send with the subscription. This only works with 5.0 MQTT brokers.
+    ///   - userProperties: Additional user properties to send when subscribing. This only works with 5.0 MQTT brokers.
     /// - Returns: An `EventLoopFuture` with the `MQTTSubscriptionResult` indicating the result of the subscription.
     @discardableResult
     public func subscribe(
@@ -310,12 +310,18 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
         options: MQTTSubscription.Options = .init(),
         identifier: Int? = nil,
         userProperties: [MQTTUserProperty] = []
-    ) -> EventLoopFuture<MQTTSubscriptionResult> {
+    ) -> EventLoopFuture<MQTTSingleSubscribeResponse> {
         return subscribe(
             to: [.init(topic: topic, qos: qos, options: options)],
             identifier: identifier,
             userProperties: userProperties
-        ).map { $0[0] }
+        ).map {
+            MQTTSingleSubscribeResponse(
+                result: $0.results[0],
+                userProperties: $0.userProperties,
+                reasonString: $0.reasonString
+            )
+        }
     }
     
     /// Subscribes to one or more topics with a given QoS level.
@@ -324,7 +330,7 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     ///   - qos: The QoS level with which to subscribe. The default value is `.atMostOnce`.
     ///   - options: Additional subscription options for a 5.0 MQTT broker.
     ///   - identifier: Optional identifier which will be send to broker and will be set on messages received for this subscription. This only works with 5.0 MQTT brokers.
-    ///   - userProperties: Additional user properties to send with the subscription. This only works with 5.0 MQTT brokers.
+    ///   - userProperties: Additional user properties to send when subscribing. This only works with 5.0 MQTT brokers.
     /// - Returns: An `EventLoopFuture` with the `MQTTSubscriptionResult` indicating the result of the subscription.
     @discardableResult
     public func subscribe(
@@ -333,33 +339,53 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
         options: MQTTSubscription.Options = .init(),
         identifier: Int? = nil,
         userProperties: [MQTTUserProperty] = []
-    ) -> EventLoopFuture<MQTTSubscriptionResult> {
+    ) -> EventLoopFuture<MQTTSubscribeResponse> {
         return subscribe(
             to: topics.map { .init(topic: $0, qos: qos, options: options) },
             identifier: identifier,
             userProperties: userProperties
-        ).map { $0[0] }
+        )
     }
     
     /// Unsubscribe from one or more topics.
-    /// - Parameter topics: The topics to unsubscribe from.
+    /// - Parameters:
+    ///   - topics: The topics to unsubscribe from.
+    ///   - userProperties: Additional user properties to send when subscribing. This only works with 5.0 MQTT brokers.
     /// - Returns: An `EventLoopFuture` for when the unsubscribing has completed.
     @discardableResult
-    func unsubscribe(from topics: [String]) -> EventLoopFuture<Void> {
+    func unsubscribe(
+        from topics: [String],
+        userProperties: [MQTTUserProperty] = []
+    ) -> EventLoopFuture<MQTTUnsubscribeResponse> {
         let timeoutInterval = configuration.subscriptionTimeoutInterval
         let request = MQTTUnsubscribeRequest(
             topics: topics,
+            userProperties: userProperties,
             timeoutInterval: timeoutInterval
         )
         return requestHandler.perform(request)
     }
     
     /// Unsubscribe from a topic.
-    /// - Parameter topic: The topic to unsubscribe from.
+    /// - Parameters:
+    ///   - topic: The topic to unsubscribe from.
+    ///   - userProperties: Additional user properties to send when subscribing. This only works with 5.0 MQTT brokers.
     /// - Returns: An `EventLoopFuture` for when the unsubscribing has completed.
     @discardableResult
-    public func unsubscribe(from topic: String) -> EventLoopFuture<Void> {
-        return unsubscribe(from: [topic])
+    public func unsubscribe(
+        from topic: String,
+        userProperties: [MQTTUserProperty] = []
+    ) -> EventLoopFuture<MQTTSingleUnsubscribeResponse> {
+        return unsubscribe(
+            from: [topic],
+            userProperties: userProperties
+        ).map {
+            MQTTSingleUnsubscribeResponse(
+                result: $0.results[0],
+                userProperties: $0.userProperties,
+                reasonString: $0.reasonString
+            )
+        }
     }
     
     // MARK: - Listeners

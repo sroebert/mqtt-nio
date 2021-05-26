@@ -4,27 +4,25 @@ import Logging
 extension MQTTPacket {
     struct Connect: MQTTPacketOutboundType {
         
-        // MARK: - Properties
+        // MARK: - Vars
         
         private static let protocolName = "MQTT"
         
-        private let configurationWrapper: ConfigurationWrapper
+        private let data: Data
         
         // MARK: - Init
         
         init(configuration: MQTTConfiguration) {
-            configurationWrapper = ConfigurationWrapper(configuration: configuration)
+            data = Data(
+                configuration: configuration
+            )
         }
         
         // MARK: - Utils
         
-        private var configuration: MQTTConfiguration {
-            return configurationWrapper.configuration
-        }
-        
         private var properties: MQTTProperties {
             var properties = MQTTProperties()
-            let connectProperties = configurationWrapper.configuration.connectProperties
+            let connectProperties = data.configuration.connectProperties
             
             properties.sessionExpiry = connectProperties.sessionExpiry
             properties.receiveMaximum = connectProperties.receiveMaximum
@@ -101,12 +99,12 @@ extension MQTTPacket {
             buffer.writeInteger(Flags().rawValue)
             
             // Keep alive
-            if configuration.keepAliveInterval <= .seconds(0) {
+            if data.configuration.keepAliveInterval <= .seconds(0) {
                 buffer.writeInteger(UInt16(0))
-            } else if configuration.keepAliveInterval >= .seconds(Int64(UInt16.max)) {
+            } else if data.configuration.keepAliveInterval >= .seconds(Int64(UInt16.max)) {
                 buffer.writeInteger(UInt16.max)
             } else {
-                buffer.writeInteger(UInt16(configuration.keepAliveInterval.seconds))
+                buffer.writeInteger(UInt16(data.configuration.keepAliveInterval.seconds))
             }
             
             // Properties
@@ -123,13 +121,13 @@ extension MQTTPacket {
         ) throws -> Flags {
             var flags: Flags = []
             
-            if configuration.clean {
+            if data.configuration.clean {
                 flags.insert(.clean)
             }
             
-            try buffer.writeMQTTString(configuration.clientId, "Client Identifier")
+            try buffer.writeMQTTString(data.configuration.clientId, "Client Identifier")
             
-            if let willMessage = configuration.willMessage {
+            if let willMessage = data.configuration.willMessage {
                 flags.insert(.containsWill)
                 
                 if version >= .version5 {
@@ -165,7 +163,7 @@ extension MQTTPacket {
                 }
             }
             
-            if let credentials = configuration.credentials {
+            if let credentials = data.configuration.credentials {
                 flags.insert(.containsUsername)
                 try buffer.writeMQTTString(credentials.username, "Username")
                 
@@ -182,7 +180,7 @@ extension MQTTPacket {
 
 extension MQTTPacket.Connect {
     // Wrapper to avoid heap allocations when added to NIOAny
-    fileprivate class ConfigurationWrapper {
+    private class Data {
         let configuration: MQTTConfiguration
         
         init(configuration: MQTTConfiguration) {
@@ -190,7 +188,7 @@ extension MQTTPacket.Connect {
         }
     }
     
-    fileprivate struct Flags: OptionSet {
+    private struct Flags: OptionSet {
         let rawValue: UInt8
         
         static let clean = Flags(rawValue: 1 << 1)

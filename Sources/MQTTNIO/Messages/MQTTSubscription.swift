@@ -64,12 +64,68 @@ extension MQTTSubscription {
     }
 }
 
-/// The result returned from the broker when subscribing, indicating the result.
+/// The response returned from the broker when subscribing to a single topic.
+public struct MQTTSingleSubscribeResponse {
+    /// The result for the subscription.
+    public var result: MQTTSubscriptionResult
+    
+    /// User properties send from the broker with this response.
+    public var userProperties: [MQTTUserProperty]
+    
+    /// Optional reason string representing the reason associated with this response.
+    public var reasonString: String?
+}
+
+/// The response returned from the broker when subscribing.
+public struct MQTTSubscribeResponse {
+    /// The results for each topic the client tried to subscribe to.
+    public var results: [MQTTSubscriptionResult]
+    
+    /// User properties send from the broker with this response.
+    public var userProperties: [MQTTUserProperty]
+    
+    /// Optional reason string representing the reason associated with this response.
+    public var reasonString: String?
+}
+
+/// The result returned from the broker for each topic when subscribing, indicating the result.
 ///
 /// For each `MQTTSubscription` trying to subscribe to, an `MQTTSubscriptionResult` will be returned from the broker.
 public enum MQTTSubscriptionResult: Equatable {
-    /// Succesfully subscribed, with the given QoS level.
+    /// Succesfully subscribed, with the given QoS level and optional user properties.
     case success(MQTTQoS)
-    /// Failed to subscribe.
-    case failure
+    /// Failed to subscribe with a given reason.
+    case failure(ServerErrorReason)
+}
+
+extension MQTTSubscriptionResult {
+    /// The reason returned from the server, indicating why the subscription failed.
+    public enum ServerErrorReason {
+        /// The server does not wish to reveal the reason for the failure, or none of the other reason codes apply.
+        case unspecifiedError
+        
+        /// The data that was send is valid but is not accepted by the server.
+        case implementationSpecificError
+        
+        /// The user is not authorized to perform this operation.
+        case notAuthorized
+        
+        /// The subscription topic is not accepted.
+        case topicFilterInvalid
+        
+        /// The packet identifier send was already in use.
+        case packetIdentifierInUse
+        
+        /// An implementation or administrative imposed limit has been exceeded.
+        case quotaExceeded
+        
+        /// The server does not support shared subscriptions for this client.
+        case sharedSubscriptionsNotSupported
+        
+        /// The server does not support subscription identifiers.
+        case subscriptionIdentifiersNotSupported
+        
+        /// The Server does not support wildcard subscriptions.
+        case wildcardSubscriptionsNotSupported
+    }
 }

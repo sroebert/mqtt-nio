@@ -18,7 +18,7 @@ final class MQTTDisconnectRequest: MQTTRequest {
         return .success(())
     }
     
-    func disconnected(context: MQTTRequestContext) -> MQTTRequestResult<()> {
+    func disconnected(context: MQTTRequestContext) -> MQTTRequestResult<Void> {
         return .success(())
     }
 }

@@ -4,17 +4,25 @@ import NIO
 extension MQTTPacket {
     struct Publish: MQTTPacketDuplexType {
         
-        // MARK: - Properties
+        // MARK: - Vars
         
         var message: MQTTMessage {
-            return messageWrapper.message
+            return data.message
         }
-        var packetId: UInt16?
-        var isDuplicate: Bool
         
-        var topicAlias: Int?
+        var packetId: UInt16? {
+            return data.packetId
+        }
         
-        private let messageWrapper: MessageWrapper
+        var isDuplicate: Bool {
+            return data.isDuplicate
+        }
+        
+        var topicAlias: Int? {
+            return data.topicAlias
+        }
+        
+        private let data: Data
         
         // MARK: - Init
         
@@ -24,65 +32,11 @@ extension MQTTPacket {
             isDuplicate: Bool = false,
             topicAlias: Int? = nil
         ) {
-            messageWrapper = MessageWrapper(message: message)
-            self.packetId = packetId
-            self.isDuplicate = isDuplicate
-            self.topicAlias = topicAlias
-        }
-        
-        // MARK: - Utils
-        
-        @MQTTPropertiesParserBuilder
-        private static var propertiesParser: MQTTPropertiesParser {
-            \.$payloadFormatIsUTF8
-            \.$messageExpiryInterval
-            \.$topicAlias
-            \.$responseTopic
-            \.$correlationData
-            \.$userProperties
-            \.$subscriptionIdentifiers
-            \.$contentType
-        }
-        
-        private var properties: MQTTProperties {
-            var properties = MQTTProperties()
-            
-            switch message.payload {
-            case .empty, .bytes:
-                properties.payloadFormatIsUTF8 = false
-                
-            case .string(_, let contentType):
-                properties.payloadFormatIsUTF8 = true
-                properties.contentType = contentType
-            }
-            
-            properties.messageExpiryInterval = message.properties.expiryInterval
-            properties.topicAlias = topicAlias
-            properties.userProperties = message.properties.userProperties
-            
-            if let configuration = message.properties.requestConfiguration {
-                properties.responseTopic = configuration.responseTopic
-                
-                if let data = configuration.correlationData {
-                    properties.correlationData = data.byteBuffer
-                }
-            }
-            
-            return properties
-        }
-        
-        private static func messageProperties(for properties: MQTTProperties) -> MQTTMessage.Properties {
-            return MQTTMessage.Properties(
-                expiryInterval: properties.messageExpiryInterval,
-                requestConfiguration: properties.responseTopic.map { topic in
-                    let correlationData = properties.correlationData.map { Data($0.readableBytesView) }
-                    return MQTTRequestConfiguration(
-                        responseTopic: topic,
-                        correlationData: correlationData
-                    )
-                },
-                userProperties: properties.userProperties,
-                subscriptionIdentifiers: properties.subscriptionIdentifiers
+            data = Data(
+                message: message,
+                packetId: packetId,
+                isDuplicate: isDuplicate,
+                topicAlias: topicAlias
             )
         }
         
@@ -197,20 +151,87 @@ extension MQTTPacket {
             
             return flags
         }
+        
+        @MQTTPropertiesParserBuilder
+        private static var propertiesParser: MQTTPropertiesParser {
+            \.$payloadFormatIsUTF8
+            \.$messageExpiryInterval
+            \.$topicAlias
+            \.$responseTopic
+            \.$correlationData
+            \.$userProperties
+            \.$subscriptionIdentifiers
+            \.$contentType
+        }
+        
+        private var properties: MQTTProperties {
+            var properties = MQTTProperties()
+            
+            switch message.payload {
+            case .empty, .bytes:
+                properties.payloadFormatIsUTF8 = false
+                
+            case .string(_, let contentType):
+                properties.payloadFormatIsUTF8 = true
+                properties.contentType = contentType
+            }
+            
+            properties.messageExpiryInterval = message.properties.expiryInterval
+            properties.topicAlias = topicAlias
+            properties.userProperties = message.properties.userProperties
+            
+            if let configuration = message.properties.requestConfiguration {
+                properties.responseTopic = configuration.responseTopic
+                
+                if let data = configuration.correlationData {
+                    properties.correlationData = data.byteBuffer
+                }
+            }
+            
+            return properties
+        }
+        
+        private static func messageProperties(for properties: MQTTProperties) -> MQTTMessage.Properties {
+            return MQTTMessage.Properties(
+                expiryInterval: properties.messageExpiryInterval,
+                requestConfiguration: properties.responseTopic.map { topic in
+                    let correlationData = properties.correlationData.map {
+                        Foundation.Data($0.readableBytesView)
+                    }
+                    return MQTTRequestConfiguration(
+                        responseTopic: topic,
+                        correlationData: correlationData
+                    )
+                },
+                userProperties: properties.userProperties,
+                subscriptionIdentifiers: properties.subscriptionIdentifiers
+            )
+        }
     }
 }
 
 extension MQTTPacket.Publish {
     // Wrapper to avoid heap allocations when added to NIOAny
-    fileprivate class MessageWrapper {
+    fileprivate class Data {
         let message: MQTTMessage
+        let packetId: UInt16?
+        let isDuplicate: Bool
+        let topicAlias: Int?
         
-        init(message: MQTTMessage) {
+        init(
+            message: MQTTMessage,
+            packetId: UInt16?,
+            isDuplicate: Bool,
+            topicAlias: Int?
+        ) {
             self.message = message
+            self.packetId = packetId
+            self.isDuplicate = isDuplicate
+            self.topicAlias = topicAlias
         }
     }
     
-    struct Flags: OptionSet {
+    private struct Flags: OptionSet {
         let rawValue: UInt8
 
         static let retain   = Flags(rawValue: 1 << 0)

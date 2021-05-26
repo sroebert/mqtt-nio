@@ -35,7 +35,7 @@ final class MQTTSubscribeRequest: MQTTRequest {
     
     // MARK: - MQTTRequest
     
-    func start(context: MQTTRequestContext) -> MQTTRequestResult<[MQTTSubscriptionResult]> {
+    func start(context: MQTTRequestContext) -> MQTTRequestResult<MQTTSubscribeResponse> {
         timeoutScheduled = context.scheduleEvent(Error.timeout, in: .seconds(5))
         
         let packetId = context.getNextPacketId()
@@ -58,7 +58,7 @@ final class MQTTSubscribeRequest: MQTTRequest {
         return .pending
     }
     
-    func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> MQTTRequestResult<[MQTTSubscriptionResult]>? {
+    func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> MQTTRequestResult<MQTTSubscribeResponse>? {
         guard case .subAck(let subAck) = packet, subAck.packetId == packetId else {
             return nil
         }
@@ -79,25 +79,31 @@ final class MQTTSubscribeRequest: MQTTRequest {
                         "accepted": .stringConvertible(true),
                         "qos": .stringConvertible(qos.rawValue)
                     ]
-                case .failure:
+                case .failure(let reason):
                     return [
-                        "accepted": .stringConvertible(false)
+                        "accepted": .stringConvertible(false),
+                        "reason": .string("\(reason)")
                     ]
                 }
             })
         ])
         
-        return .success(subAck.results)
+        let response = MQTTSubscribeResponse(
+            results: subAck.results,
+            userProperties: subAck.properties.userProperties,
+            reasonString: subAck.properties.reasonString
+        )
+        return .success(response)
     }
     
-    func disconnected(context: MQTTRequestContext) -> MQTTRequestResult<Array<MQTTSubscriptionResult>> {
+    func disconnected(context: MQTTRequestContext) -> MQTTRequestResult<MQTTSubscribeResponse> {
         timeoutScheduled?.cancel()
         timeoutScheduled = nil
         
         return .failure(MQTTConnectionError.connectionClosed)
     }
     
-    func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult<[MQTTSubscriptionResult]> {
+    func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult<MQTTSubscribeResponse> {
         guard case Error.timeout = event else {
             return .pending
         }

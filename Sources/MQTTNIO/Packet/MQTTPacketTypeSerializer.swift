@@ -3,7 +3,7 @@ import Logging
 
 final class MQTTPacketTypeSerializer: ChannelOutboundHandler {
     
-    // MARK: - Properties
+    // MARK: - Vars
     
     let version: MQTTProtocolVersion
     let logger: Logger

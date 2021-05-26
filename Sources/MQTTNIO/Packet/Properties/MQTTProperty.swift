@@ -10,7 +10,7 @@ protocol MQTTPropertyType {
 @propertyWrapper
 struct MQTTProperty<Value: Equatable, Intermediate, PropertyValue: MQTTPropertyValue>: MQTTPropertyType {
     
-    // MARK: - Properties
+    // MARK: - Vars
     
     let identifier: Int
     let isAllowedMultipleTimes: Bool

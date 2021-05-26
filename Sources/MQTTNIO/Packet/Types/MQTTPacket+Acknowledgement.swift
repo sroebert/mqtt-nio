@@ -3,36 +3,43 @@ import NIO
 extension MQTTPacket {
     struct Acknowledgement: MQTTPacketDuplexType {
         
-        // MARK: - Kind
+        // MARK: - Vars
         
-        enum Kind: UInt16, CustomStringConvertible {
-            case pubAck
-            case pubRec
-            case pubRel
-            case pubComp
-            
-            var description: String {
-                switch self {
-                case .pubAck:
-                    return "Publish Acknowledgement"
-                case .pubRec:
-                    return "Publish Received"
-                case .pubRel:
-                    return "Publish Release"
-                case .pubComp:
-                    return "Publish Complete"
-                }
-            }
+        var kind: Kind {
+            return data.kind
         }
         
-        // MARK: - Properties
+        var packetId: UInt16 {
+            return data.packetId
+        }
+        
+        var reasonCode: ReasonCode {
+            return data.reasonCode
+        }
+        
+        var reasonString: String? {
+            return data.reasonString
+        }
         
         private static let relFixedHeaderData: UInt8 = 0b0010
         
-        var kind: Kind
-        var packetId: UInt16
-        var reasonCode: ReasonCode = .success
-        var reasonString: String?
+        private let data: Data
+        
+        // MARK: - Lifecycle
+        
+        init(
+            kind: Kind,
+            packetId: UInt16,
+            reasonCode: ReasonCode = .success,
+            reasonString: String? = nil
+        ) {
+            data = Data(
+                kind: kind,
+                packetId: packetId,
+                reasonCode: reasonCode,
+                reasonString: reasonString
+            )
+        }
         
         // MARK: - MQTTPacketDuplexType
         
@@ -76,20 +83,20 @@ extension MQTTPacket {
         
         func serialize(version: MQTTProtocolVersion) throws -> MQTTPacket {
             var buffer = Allocator.shared.buffer(capacity: 2)
-            buffer.writeInteger(packetId)
+            buffer.writeInteger(data.packetId)
             
             if version > .version5 {
-                buffer.writeInteger(reasonCode.mqttReasonCode.rawValue)
+                buffer.writeInteger(data.reasonCode.mqttReasonCode.rawValue)
                 
                 var properties = MQTTProperties()
-                properties.reasonString = reasonString
+                properties.reasonString = data.reasonString
                 try properties.serialize(to: &buffer)
             }
             
             let packetKind: MQTTPacket.Kind
             var fixedHeaderData: UInt8 = 0
             
-            switch kind {
+            switch data.kind {
             case .pubAck:
                 packetKind = .pubAck
                 
@@ -144,6 +151,46 @@ extension MQTTPacket {
 }
 
 extension MQTTPacket.Acknowledgement {
+    // Wrapper to avoid heap allocations when added to NIOAny
+    private class Data {
+        let kind: Kind
+        let packetId: UInt16
+        let reasonCode: ReasonCode
+        let reasonString: String?
+        
+        init(
+            kind: Kind,
+            packetId: UInt16,
+            reasonCode: ReasonCode,
+            reasonString: String?
+        ) {
+            self.kind = kind
+            self.packetId = packetId
+            self.reasonCode = reasonCode
+            self.reasonString = reasonString
+        }
+    }
+    
+    enum Kind: UInt16, CustomStringConvertible {
+        case pubAck
+        case pubRec
+        case pubRel
+        case pubComp
+        
+        var description: String {
+            switch self {
+            case .pubAck:
+                return "Publish Acknowledgement"
+            case .pubRec:
+                return "Publish Received"
+            case .pubRel:
+                return "Publish Release"
+            case .pubComp:
+                return "Publish Complete"
+            }
+        }
+    }
+    
     enum ReasonCode {
         case success
         case noMatchingSubscribers
@@ -156,7 +203,7 @@ extension MQTTPacket.Acknowledgement {
         case quotaExceeded
         case payloadFormatInvalid
         
-        init?(rawValue: UInt8, kind: Kind) {
+        fileprivate init?(rawValue: UInt8, kind: Kind) {
             guard let reasonCode = MQTTReasonCode(rawValue: rawValue) else {
                 return nil
             }
@@ -189,7 +236,7 @@ extension MQTTPacket.Acknowledgement {
             }
         }
         
-        var mqttReasonCode: MQTTReasonCode {
+        fileprivate var mqttReasonCode: MQTTReasonCode {
             switch self {
             case .success: return .success
             case .noMatchingSubscribers: return .noMatchingSubscribers
