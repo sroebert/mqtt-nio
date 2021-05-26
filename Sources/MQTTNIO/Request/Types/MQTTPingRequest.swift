@@ -31,9 +31,9 @@ final class MQTTPingRequest: MQTTRequest {
         return .pending
     }
     
-    func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> MQTTRequestResult<Void> {
+    func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> MQTTRequestResult<Void>? {
         guard case .pingResp = packet else {
-            return .pending
+            return nil
         }
         
         context.logger.debug("Received: Ping Response")

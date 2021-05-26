@@ -216,7 +216,7 @@ final class PublishTests: MQTTNIOTestCase {
                 XCTFail()
                 
             case .failure(let error):
-                XCTAssertEqual((error as? MQTTConnectionError)?.serverReasonCode, .invalidClientIdentifier)
+                XCTAssertEqual((error as? MQTTConnectionError)?.serverReasonCode, .clientIdentifierNotValid)
                 expectation.fulfill()
             }
         }

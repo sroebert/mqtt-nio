@@ -5,11 +5,24 @@ extension MQTTPacket {
         
         // MARK: - Kind
         
-        enum Kind: UInt16 {
+        enum Kind: UInt16, CustomStringConvertible {
             case pubAck
             case pubRec
             case pubRel
             case pubComp
+            
+            var description: String {
+                switch self {
+                case .pubAck:
+                    return "Publish Acknowledgement"
+                case .pubRec:
+                    return "Publish Received"
+                case .pubRel:
+                    return "Publish Release"
+                case .pubComp:
+                    return "Publish Complete"
+                }
+            }
         }
         
         // MARK: - Properties
@@ -18,6 +31,8 @@ extension MQTTPacket {
         
         var kind: Kind
         var packetId: UInt16
+        var reasonCode: ReasonCode = .success
+        var properties: MQTTProperties = MQTTProperties()
         
         // MARK: - MQTTPacketDuplexType
         
@@ -28,14 +43,43 @@ extension MQTTPacket {
             let kind = try parseKind(from: packet)
             
             guard let packetId = packet.data.readInteger(as: UInt16.self) else {
-                throw MQTTProtocolError.parsingError("Missing packet identifier")
+                throw MQTTProtocolError("Missing packet identifier")
             }
-            return Acknowledgement(kind: kind, packetId: packetId)
+            
+            let reasonCode: ReasonCode
+            let properties: MQTTProperties
+            if version >= .version5 {
+                guard let reasonCodeValue = packet.data.readInteger(as: UInt8.self) else {
+                    throw MQTTProtocolError("Invalid acknowledgement packet structure")
+                }
+                
+                guard let parsedReasonCode = ReasonCode(rawValue: reasonCodeValue, kind: kind) else {
+                    throw MQTTProtocolError("Invalid acknowledgement reason code")
+                }
+                
+                reasonCode = parsedReasonCode
+                properties = try MQTTProperties.parse(from: &packet.data, using: propertiesParser)
+            } else {
+                reasonCode = .success
+                properties = MQTTProperties()
+            }
+            
+            return Acknowledgement(
+                kind: kind,
+                packetId: packetId,
+                reasonCode: reasonCode,
+                properties: properties
+            )
         }
         
         func serialize(version: MQTTProtocolVersion) throws -> MQTTPacket {
             var buffer = Allocator.shared.buffer(capacity: 2)
             buffer.writeInteger(packetId)
+            
+            if version > .version5 {
+                buffer.writeInteger(reasonCode.mqttReasonCode.rawValue)
+                try properties.serialize(to: &buffer)
+            }
             
             let packetKind: MQTTPacket.Kind
             var fixedHeaderData: UInt8 = 0
@@ -74,7 +118,7 @@ extension MQTTPacket {
                 
             case .pubRel:
                 guard packet.fixedHeaderData == Self.relFixedHeaderData else {
-                    throw MQTTProtocolError.parsingError("Invalid PubRel fixed header data")
+                    throw MQTTProtocolError("Invalid PubRel fixed header data")
                 }
                 return .pubRel
                 
@@ -82,7 +126,76 @@ extension MQTTPacket {
                 return .pubComp
                 
             default:
-                throw MQTTProtocolError.parsingError("Invalid packet type '\(packet.kind.value)'")
+                throw MQTTProtocolError("Invalid packet type '\(packet.kind.value)'")
+            }
+        }
+        
+        @MQTTPropertiesParserBuilder
+        private static var propertiesParser: MQTTPropertiesParser {
+            \.$reasonString
+            \.$userProperties
+        }
+    }
+}
+
+extension MQTTPacket.Acknowledgement {
+    enum ReasonCode {
+        case success
+        case noMatchingSubscribers
+        case unspecifiedError
+        case implementationSpecificError
+        case notAuthorized
+        case topicNameInvalid
+        case packetIdentifierInUse
+        case packetIdentifierNotFound
+        case quotaExceeded
+        case payloadFormatInvalid
+        
+        init?(rawValue: UInt8, kind: Kind) {
+            guard let reasonCode = MQTTReasonCode(rawValue: rawValue) else {
+                return nil
+            }
+            
+            switch kind {
+            case .pubAck, .pubRec:
+                switch reasonCode {
+                case .success: self = .success
+                case .noMatchingSubscribers: self = .noMatchingSubscribers
+                case .unspecifiedError: self = .unspecifiedError
+                case .implementationSpecificError: self = .implementationSpecificError
+                case .notAuthorized: self = .notAuthorized
+                case .topicNameInvalid: self = .topicNameInvalid
+                case .packetIdentifierInUse: self = .packetIdentifierInUse
+                case .quotaExceeded: self = .quotaExceeded
+                case .payloadFormatInvalid: self = .payloadFormatInvalid
+                    
+                default:
+                    return nil
+                }
+                
+            case .pubRel, .pubComp:
+                switch reasonCode {
+                case .success: self = .success
+                case .packetIdentifierNotFound: self = .packetIdentifierNotFound
+                    
+                default:
+                    return nil
+                }
+            }
+        }
+        
+        var mqttReasonCode: MQTTReasonCode {
+            switch self {
+            case .success: return .success
+            case .noMatchingSubscribers: return .noMatchingSubscribers
+            case .unspecifiedError: return .unspecifiedError
+            case .implementationSpecificError: return .implementationSpecificError
+            case .notAuthorized: return .notAuthorized
+            case .topicNameInvalid: return .topicNameInvalid
+            case .packetIdentifierInUse: return .packetIdentifierInUse
+            case .packetIdentifierNotFound: return .packetIdentifierNotFound
+            case .quotaExceeded: return .quotaExceeded
+            case .payloadFormatInvalid: return .payloadFormatInvalid
             }
         }
     }

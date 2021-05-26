@@ -53,7 +53,7 @@ public typealias MQTTErrorListener = (_ client: MQTTClient, _ error: Error, _ co
 public typealias MQTTMessageListener = (_ client: MQTTClient, _ message: MQTTMessage, _ context: MQTTListenerContext) -> Void
 
 /// Extension to make `CallbackList.Entry` conform to `MQTTListenerContext`.
-extension CallbackList.Entry : MQTTListenerContext {
+extension CallbackList.Entry: MQTTListenerContext {
     func stopListening() {
         remove()
     }

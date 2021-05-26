@@ -18,7 +18,7 @@ protocol MQTTRequest {
     var canPerformInInactiveState: Bool { get }
     
     func start(context: MQTTRequestContext) -> MQTTRequestResult<Value>
-    func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> MQTTRequestResult<Value>
+    func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> MQTTRequestResult<Value>?
     
     func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult<Value>
     
@@ -31,8 +31,8 @@ extension MQTTRequest {
         return false
     }
     
-    func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> MQTTRequestResult<Value> {
-        return .pending
+    func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> MQTTRequestResult<Value>? {
+        return nil
     }
     
     func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult<Value> {

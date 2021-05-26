@@ -10,16 +10,24 @@ extension MQTTPacket {
             return messageWrapper.message
         }
         var packetId: UInt16?
-        var isDuplicate: Bool = false
+        var isDuplicate: Bool
+        
+        var topicAlias: Int?
         
         private let messageWrapper: MessageWrapper
         
         // MARK: - Init
         
-        init(message: MQTTMessage, packetId: UInt16?, isDuplicate: Bool = false) {
+        init(
+            message: MQTTMessage,
+            packetId: UInt16?,
+            isDuplicate: Bool = false,
+            topicAlias: Int? = nil
+        ) {
             messageWrapper = MessageWrapper(message: message)
             self.packetId = packetId
             self.isDuplicate = isDuplicate
+            self.topicAlias = topicAlias
         }
         
         // MARK: - Utils
@@ -49,7 +57,7 @@ extension MQTTPacket {
             }
             
             properties.messageExpiryInterval = message.properties.expiryInterval
-            properties.topicAlias = message.properties.topicAlias
+            properties.topicAlias = topicAlias
             properties.userProperties = message.properties.userProperties
             
             if let configuration = message.properties.requestConfiguration {
@@ -66,7 +74,6 @@ extension MQTTPacket {
         private static func messageProperties(for properties: MQTTProperties) -> MQTTMessage.Properties {
             return MQTTMessage.Properties(
                 expiryInterval: properties.messageExpiryInterval,
-                topicAlias: properties.topicAlias,
                 requestConfiguration: properties.responseTopic.map { topic in
                     let correlationData = properties.correlationData.map { Data($0.readableBytesView) }
                     return MQTTRequestConfiguration(
@@ -93,7 +100,7 @@ extension MQTTPacket {
             if flags.qos != .atMostOnce {
                 packetId = packet.data.readInteger(as: UInt16.self)
                 guard packetId != nil else {
-                    throw MQTTProtocolError.parsingError("Missing packet identifier")
+                    throw MQTTProtocolError("Missing packet identifier")
                 }
             } else {
                 packetId = nil
@@ -110,7 +117,7 @@ extension MQTTPacket {
             if packet.data.readableBytes > 0 {
                 if properties.payloadFormatIsUTF8 {
                     guard let string = packet.data.readString(length: packet.data.readableBytes) else {
-                        throw MQTTProtocolError.parsingError("Invalid string payload")
+                        throw MQTTProtocolError("Invalid string payload")
                     }
                     payload = .string(string, contentType: properties.contentType)
                 } else {
@@ -129,7 +136,8 @@ extension MQTTPacket {
                     properties: messageProperties(for: properties)
                 ),
                 packetId: packetId,
-                isDuplicate: flags.contains(.dup)
+                isDuplicate: flags.contains(.dup),
+                topicAlias: properties.topicAlias
             )
         }
         
@@ -142,7 +150,7 @@ extension MQTTPacket {
             
             if flags.qos != .atMostOnce {
                 guard let packetId = packetId else {
-                    throw MQTTProtocolError.parsingError("Missing packet identifier")
+                    throw MQTTProtocolError("Missing packet identifier")
                 }
                 buffer.writeInteger(packetId)
             }

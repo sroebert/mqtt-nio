@@ -15,7 +15,7 @@ extension MQTTPacket {
             version: MQTTProtocolVersion
         ) throws -> Self {
             guard let packetId = packet.data.readInteger(as: UInt16.self) else {
-                throw MQTTProtocolError.parsingError("Missing packet identifier")
+                throw MQTTProtocolError("Missing packet identifier")
             }
             
             var results: [MQTTSubscriptionResult] = []
@@ -30,7 +30,7 @@ extension MQTTPacket {
                 case 0x80:
                     results.append(.failure)
                 default:
-                    throw MQTTProtocolError.parsingError("Invalid Subscribe result code")
+                    throw MQTTProtocolError("Invalid Subscribe result code")
                 }
             }
             

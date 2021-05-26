@@ -273,6 +273,12 @@ final class MQTTConnection: MQTTErrorHandlerDelegate {
             // Outgoing request handlers
             requestHandler,
             
+            // Fallback handler
+            MQTTUnprocessedPacketHandler(
+                version: configuration.protocolVersion,
+                logger: logger
+            ),
+            
             // Error handler
             errorHandler
         ]).map { channel }

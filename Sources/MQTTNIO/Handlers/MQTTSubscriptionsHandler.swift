@@ -38,7 +38,17 @@ final class MQTTSubscriptionsHandler: ChannelDuplexHandler {
             handlePublish(publish, context: context)
             
         case .acknowledgement(let acknowledgement) where acknowledgement.kind == .pubRel:
-            handleAcknowledgement(packetId: acknowledgement.packetId, context: context)
+            guard let message = inflightMessages[acknowledgement.packetId] else {
+                // No message found for the packet id, forward down the chain
+                context.fireChannelRead(data)
+                return
+            }
+            
+            handleAcknowledgement(
+                for: message,
+                packetId: acknowledgement.packetId,
+                context: context
+            )
             
         default:
             context.fireChannelRead(data)
@@ -87,6 +97,7 @@ final class MQTTSubscriptionsHandler: ChannelDuplexHandler {
         case .atLeastOnce:
             guard let packetId = publish.packetId else {
                 // Should never happen, as this case is already handled
+                // in the parsing of `MQTTPacket.Publish`
                 return
             }
             
@@ -101,6 +112,7 @@ final class MQTTSubscriptionsHandler: ChannelDuplexHandler {
         case .exactlyOnce:
             guard let packetId = publish.packetId else {
                 // Should never happen, as this case is already handled
+                // in the parsing of `MQTTPacket.Publish`
                 return
             }
             
@@ -117,7 +129,11 @@ final class MQTTSubscriptionsHandler: ChannelDuplexHandler {
         }
     }
     
-    private func handleAcknowledgement(packetId: UInt16, context: ChannelHandlerContext) {
+    private func handleAcknowledgement(
+        for message: MQTTMessage,
+        packetId: UInt16,
+        context: ChannelHandlerContext
+    ) {
         logger.debug("Received: Publish Release", metadata: [
             "packetId": .stringConvertible(packetId),
         ])
@@ -128,13 +144,6 @@ final class MQTTSubscriptionsHandler: ChannelDuplexHandler {
         
         let packet = MQTTPacket.Acknowledgement(kind: .pubComp, packetId: packetId)
         context.writeAndFlush(wrapOutboundOut(packet), promise: nil)
-        
-        guard let message = inflightMessages[packetId] else {
-            logger.debug("Received 'Publish Release' for unknown packet identifier", metadata: [
-                "packetId": .stringConvertible(packetId),
-            ])
-            return
-        }
                 
         inflightMessages.removeValue(forKey: packetId)
         emit(message)

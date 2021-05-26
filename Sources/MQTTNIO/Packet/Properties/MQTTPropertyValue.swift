@@ -10,7 +10,7 @@ protocol MQTTPropertyValue {
 extension FixedWidthInteger {
     static func parsePropertyValue(from data: inout ByteBuffer) throws -> Self {
         guard let value = data.readInteger(as: Self.self) else {
-            throw MQTTProtocolError.parsingError("Invalid Byte property value")
+            throw MQTTProtocolError("Invalid Byte property value")
         }
         return value
     }

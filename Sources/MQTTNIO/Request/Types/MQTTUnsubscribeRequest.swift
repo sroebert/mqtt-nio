@@ -44,9 +44,9 @@ final class MQTTUnsubscribeRequest: MQTTRequest {
         return .pending
     }
     
-    func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> MQTTRequestResult<Void> {
+    func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> MQTTRequestResult<Void>? {
         guard case .unsubAck(let unsubAck) = packet, unsubAck.packetId == packetId else {
-            return .pending
+            return nil
         }
         
         context.logger.debug("Received: Unsubscribe Acknowledgement", metadata: [

@@ -47,16 +47,16 @@ final class MQTTSubscribeRequest: MQTTRequest {
         return .pending
     }
     
-    func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> MQTTRequestResult<[MQTTSubscriptionResult]> {
+    func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> MQTTRequestResult<[MQTTSubscriptionResult]>? {
         guard case .subAck(let subAck) = packet, subAck.packetId == packetId else {
-            return .pending
+            return nil
         }
         
         timeoutScheduled?.cancel()
         timeoutScheduled = nil
         
         guard subAck.results.count == subscriptions.count else {
-            return .failure(MQTTProtocolError.parsingError("Received an invalid number of subscription results."))
+            return .failure(MQTTProtocolError("Received an invalid number of subscription results."))
         }
         
         context.logger.debug("Received: Subscribe Acknowledgement", metadata: [

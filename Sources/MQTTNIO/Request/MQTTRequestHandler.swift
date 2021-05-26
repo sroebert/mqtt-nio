@@ -7,7 +7,7 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
     // MARK: - Types
     
     typealias InboundIn = MQTTPacket.Inbound
-    typealias OutboundIn = Never
+    typealias OutboundIn = MQTTPacket.Outbound
     typealias OutboundOut = MQTTPacket.Outbound
     
     struct DeinitError: Error {}
@@ -84,8 +84,29 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         let packet = unwrapInboundIn(data)
         
-        forEachEntry(with: context) { entry, requestContext in
-            entry.process(context: requestContext, packet: packet)
+        var didProcess = false
+        withRequestContext(in: context) { requestContext in
+            for (index, entry) in entriesInflight.enumerated() {
+                let result = entry.process(context: requestContext, packet: packet)
+                switch result {
+                case .unprocessed:
+                    continue
+                    
+                case .processed(completed: let completed):
+                    if completed {
+                        entriesInflight.remove(at: index)
+                    }
+                    
+                    didProcess = true
+                    break
+                }
+            }
+            
+            startQueuedEntries(context: requestContext)
+        }
+        
+        if !didProcess {
+            context.fireChannelRead(data)
         }
     }
     
@@ -231,6 +252,11 @@ extension MQTTRequestHandler {
 }
 
 extension MQTTRequestHandler {
+    private enum ProcessResult {
+        case unprocessed
+        case processed(completed: Bool)
+    }
+    
     private class AnyEntry {
         func fail(with error: Error) {
             fatalError("Should be implemented in subclass")
@@ -244,7 +270,7 @@ extension MQTTRequestHandler {
             fatalError("Should be implemented in subclass")
         }
         
-        func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> Bool {
+        func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> ProcessResult {
             fatalError("Should be implemented in subclass")
         }
         
@@ -294,8 +320,13 @@ extension MQTTRequestHandler {
             return handle(request.start(context: context))
         }
         
-        override func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> Bool {
-            handle(request.process(context: context, packet: packet))
+        override func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> ProcessResult {
+            guard let result = request.process(context: context, packet: packet) else {
+                return .unprocessed
+            }
+            
+            let completed = handle(result)
+            return .processed(completed: completed)
         }
         
         override func handleEvent(context: MQTTRequestContext, event: Any) -> Bool {

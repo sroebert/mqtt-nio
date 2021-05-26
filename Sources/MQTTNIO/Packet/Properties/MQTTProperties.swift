@@ -105,11 +105,11 @@ struct MQTTProperties {
         while data.readerIndex < offset + length {
             let identifier = try data.readMQTTVariableByteInteger("Property identifier")
             guard let entry = mapping[identifier] else {
-                throw MQTTProtocolError.parsingError("Unknown or invalid property '\(identifier)'")
+                throw MQTTProtocolError("Unknown or invalid property '\(identifier)'")
             }
             
             guard entry.isAllowedMultipleTimes(properties) || !identifiers.contains(identifier) else {
-                throw MQTTProtocolError.parsingError("Invalid duplicate property '\(identifier)'")
+                throw MQTTProtocolError("Invalid duplicate property '\(identifier)'")
             }
             
             identifiers.insert(identifier)

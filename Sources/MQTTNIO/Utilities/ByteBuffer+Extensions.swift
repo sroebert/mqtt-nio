@@ -8,11 +8,11 @@ enum Allocator {
 extension ByteBuffer {
     mutating func readMQTTString(_ errorVariableName: String) throws -> String {
         guard let length = readInteger(as: UInt16.self) else {
-            throw MQTTProtocolError.parsingError("Missing data for '\(errorVariableName)'")
+            throw MQTTProtocolError("Missing data for '\(errorVariableName)'")
         }
         
         guard let string = readString(length: Int(length)) else {
-            throw MQTTProtocolError.parsingError("Missing data for '\(errorVariableName)'")
+            throw MQTTProtocolError("Missing data for '\(errorVariableName)'")
         }
         
         return string
@@ -35,7 +35,7 @@ extension ByteBuffer {
         var lastByte: UInt8
         repeat {
             guard counter < 4 else {
-                throw MQTTProtocolError.parsingError("Invalid variably byte integer received for '\(errorVariableName)'.")
+                throw MQTTProtocolError("Invalid variably byte integer received for '\(errorVariableName)'.")
             }
             
             guard let byte = readInteger(as: UInt8.self) else {
@@ -55,7 +55,7 @@ extension ByteBuffer {
     
     mutating func readMQTTVariableByteInteger(_ errorVariableName: String) throws -> Int {
         guard let value = try peekMQTTVariableByteInteger(errorVariableName) else {
-            throw MQTTProtocolError.parsingError("Invalid variably byte integer received for '\(errorVariableName)'.")
+            throw MQTTProtocolError("Invalid variably byte integer received for '\(errorVariableName)'.")
         }
         return value
     }
@@ -66,7 +66,7 @@ extension ByteBuffer {
         
         repeat {
             guard counter < 4 else {
-                throw MQTTProtocolError.parsingError("'\(errorVariableName)' too large.")
+                throw MQTTProtocolError("'\(errorVariableName)' too large.")
             }
             
             var byte = UInt8(value % 128)
@@ -84,11 +84,11 @@ extension ByteBuffer {
     mutating func readMQTTDataWithLength(_ errorVariableName: String) throws -> ByteBuffer {
         
         guard let length = readInteger(as: UInt16.self) else {
-            throw MQTTProtocolError.parsingError("Invalid binary data received for '\(errorVariableName)")
+            throw MQTTProtocolError("Invalid binary data received for '\(errorVariableName)")
         }
         
         guard let data = readBytes(length: Int(length)) else {
-            throw MQTTProtocolError.parsingError("Too little binary data received for '\(errorVariableName)")
+            throw MQTTProtocolError("Too little binary data received for '\(errorVariableName)")
         }
         
         return Allocator.shared.buffer(bytes: data)

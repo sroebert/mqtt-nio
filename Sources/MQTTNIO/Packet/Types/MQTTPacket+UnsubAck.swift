@@ -14,7 +14,7 @@ extension MQTTPacket {
             version: MQTTProtocolVersion
         ) throws -> Self {
             guard let packetId = packet.data.readInteger(as: UInt16.self) else {
-                throw MQTTProtocolError.parsingError("Missing packet identifier")
+                throw MQTTProtocolError("Missing packet identifier")
             }
             return UnsubAck(packetId: packetId)
         }

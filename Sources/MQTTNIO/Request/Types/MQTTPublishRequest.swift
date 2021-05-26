@@ -12,7 +12,7 @@ final class MQTTPublishRequest: MQTTRequest {
     // MARK: - Vars
     
     let message: MQTTMessage
-    let retryInterval: TimeAmount
+    let retryInterval: TimeAmount?
     
     private var acknowledgedPub: Bool = false
     private var packetId: UInt16?
@@ -21,7 +21,7 @@ final class MQTTPublishRequest: MQTTRequest {
     
     // MARK: - Init
     
-    init(message: MQTTMessage, retryInterval: TimeAmount = .seconds(5)) {
+    init(message: MQTTMessage, retryInterval: TimeAmount?) {
         self.message = message
         self.retryInterval = retryInterval
     }
@@ -53,20 +53,22 @@ final class MQTTPublishRequest: MQTTRequest {
         return result
     }
     
-    func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> MQTTRequestResult<Void> {
+    func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> MQTTRequestResult<Void>? {
         guard case .acknowledgement(let acknowledgement) = packet, acknowledgement.packetId == packetId else {
-            return .pending
+            return nil
         }
         
         let packetId = acknowledgement.packetId
         
         switch message.qos {
         case .atMostOnce:
-            return .success
+            // Should never happen, as the request already finished at the start.
+            return nil
             
         case .atLeastOnce:
             guard acknowledgement.kind == .pubAck else {
-                return .pending
+                // We received an unknown acknowledgement, ignore
+                return nil
             }
             
             context.logger.debug("Received: Publish Acknowledgement", metadata: [
@@ -74,16 +76,22 @@ final class MQTTPublishRequest: MQTTRequest {
             ])
             
             cancelRetry()
-            return .success
+            return result(for: acknowledgement, context: context)
             
         case .exactlyOnce:
             if acknowledgement.kind == .pubRec {
                 acknowledgedPub = true
                 cancelRetry()
                 
+                // If the server returned a failure reason, fail the request.
+                if case .failure(let error) = result(for: acknowledgement, context: context) {
+                    return .failure(error)
+                }
+                
                 context.logger.debug("Received: Publish Received", metadata: [
                     "packetId": .stringConvertible(acknowledgement.packetId),
                 ])
+                
                 context.logger.debug("Sending: Publish Release", metadata: [
                     "packetId": .stringConvertible(acknowledgement.packetId),
                 ])
@@ -96,7 +104,8 @@ final class MQTTPublishRequest: MQTTRequest {
             }
             
             guard acknowledgedPub && acknowledgement.kind == .pubComp else {
-                return .pending
+                // We received an unknown acknowledgement, ignore
+                return nil
             }
             
             context.logger.debug("Received: Publish Complete", metadata: [
@@ -104,7 +113,7 @@ final class MQTTPublishRequest: MQTTRequest {
             ])
             
             cancelRetry()
-            return .success
+            return result(for: acknowledgement, context: context)
         }
     }
     
@@ -134,7 +143,10 @@ final class MQTTPublishRequest: MQTTRequest {
     private func scheduleRetry(context: MQTTRequestContext) {
         cancelRetry()
         
-        guard retryInterval.nanoseconds > 0 else {
+        guard
+            let retryInterval = retryInterval,
+            retryInterval.nanoseconds > 0
+        else {
             return
         }
         
@@ -166,6 +178,51 @@ final class MQTTPublishRequest: MQTTRequest {
             
         default:
             break
+        }
+    }
+    
+    private func result(
+        for acknowledgement: MQTTPacket.Acknowledgement,
+        context: MQTTRequestContext
+    ) -> MQTTRequestResult<Void> {
+        if let errorReason = acknowledgement.serverErrorReason {
+            context.logger.notice("Received: \(acknowledgement.kind) (Rejected)", metadata: [
+                "packetId": .stringConvertible(acknowledgement.packetId),
+                "reasonCode": "\(acknowledgement.reasonCode)"
+            ])
+            
+            return .failure(MQTTPublishError.server(errorReason))
+        }
+        
+        return .success
+    }
+}
+
+extension MQTTPacket.Acknowledgement {
+    fileprivate var serverErrorReason: MQTTPublishError.ServerReason? {
+        guard let code = reasonCode.serverErrorReasonCode else {
+            return nil
+        }
+        return MQTTPublishError.ServerReason(
+            code: code,
+            message: properties.reasonString
+        )
+    }
+}
+
+extension MQTTPacket.Acknowledgement.ReasonCode {
+    fileprivate var serverErrorReasonCode: MQTTPublishError.ServerReason.Code? {
+        switch self {
+        case .success: return nil
+        case .noMatchingSubscribers: return nil
+        case .unspecifiedError: return .unspecifiedError
+        case .implementationSpecificError: return .implementationSpecificError
+        case .notAuthorized: return .notAuthorized
+        case .topicNameInvalid: return .topicNameInvalid
+        case .packetIdentifierInUse: return .packetIdentifierInUse
+        case .packetIdentifierNotFound: return nil
+        case .quotaExceeded: return .quotaExceeded
+        case .payloadFormatInvalid: return .payloadFormatInvalid
         }
     }
 }

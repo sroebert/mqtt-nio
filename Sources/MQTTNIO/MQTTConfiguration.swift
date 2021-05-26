@@ -46,8 +46,8 @@ public struct MQTTConfiguration {
     /// The time to wait for the server to respond to a connect message from the client.
     public var connectRequestTimeoutInterval: TimeAmount
     
-    /// The time to wait before an unacknowledged publish message is retried.
-    public var publishRetryInterval: TimeAmount
+    /// The time to wait before an unacknowledged publish message is retried. If `nil` a publish is only retried on reconnection.
+    public var publishRetryInterval: TimeAmount?
     
     /// The time to wait for an acknowledgement for subscribing or unsubscribing.
     public var subscriptionTimeoutInterval: TimeAmount

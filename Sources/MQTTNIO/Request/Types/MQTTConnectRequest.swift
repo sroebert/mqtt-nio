@@ -38,21 +38,21 @@ final class MQTTConnectRequest: MQTTRequest {
         return .pending
     }
     
-    func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> MQTTRequestResult<MQTTConnectResponse> {
+    func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> MQTTRequestResult<MQTTConnectResponse>? {
         timeoutScheduled?.cancel()
         timeoutScheduled = nil
         
         guard case .connAck(let connAck) = packet else {
-            let error = MQTTProtocolError.parsingError("Received invalid packet after sending Connect: \(packet)")
+            let error = MQTTProtocolError("Received invalid packet after sending Connect: \(packet)")
             return .failure(error)
         }
         
-        if let reason = connAck.serverErrorReason {
+        if let errorReason = connAck.serverErrorReason {
             context.logger.notice("Received: Connect Acknowledgement (Rejected)", metadata: [
-                "returnCode": "\(connAck.returnCode)"
+                "reasonCode": "\(connAck.reasonCode)"
             ])
             
-            return .failure(MQTTConnectionError.server(reason))
+            return .failure(MQTTConnectionError.server(errorReason))
         }
         
         context.logger.debug("Received: Connect Acknowledgement (Accepted)")
@@ -78,7 +78,7 @@ final class MQTTConnectRequest: MQTTRequest {
 
 extension MQTTPacket.ConnAck {
     fileprivate var serverErrorReason: MQTTConnectionError.ServerReason? {
-        guard let code = returnCode.serverErrorReasonCode(
+        guard let code = reasonCode.serverErrorReasonCode(
             with: properties
         ) else {
             return nil
@@ -90,7 +90,7 @@ extension MQTTPacket.ConnAck {
     }
 }
 
-extension MQTTPacket.ConnAck.ReturnCode {
+extension MQTTPacket.ConnAck.ReasonCode {
     fileprivate func serverErrorReasonCode(
         with properties: MQTTProperties
     ) -> MQTTConnectionError.ServerReason.Code? {
@@ -104,12 +104,12 @@ extension MQTTPacket.ConnAck.ReturnCode {
     }
 }
 
-extension MQTTPacket.ConnAck.ReturnCode311 {
+extension MQTTPacket.ConnAck.ReasonCode311 {
     fileprivate var serverErrorReasonCode: MQTTConnectionError.ServerReason.Code? {
         switch self {
         case .accepted: return nil
         case .unacceptableProtocolVersion: return .unsupportedProtocolVersion
-        case .identifierRejected: return .invalidClientIdentifier
+        case .identifierRejected: return .clientIdentifierNotValid
         case .serverUnavailable: return .serverUnavailable
         case .badUsernameOrPassword: return .badUsernameOrPassword
         case .notAuthorized: return .notAuthorized
@@ -117,7 +117,7 @@ extension MQTTPacket.ConnAck.ReturnCode311 {
     }
 }
     
-extension MQTTPacket.ConnAck.ReturnCode5 {
+extension MQTTPacket.ConnAck.ReasonCode5 {
     fileprivate func serverErrorReasonCode(
         with properties: MQTTProperties
     ) -> MQTTConnectionError.ServerReason.Code? {
@@ -128,24 +128,24 @@ extension MQTTPacket.ConnAck.ReturnCode5 {
         case .protocolError: return .protocolError
         case .implementationSpecificError: return .implementationSpecificError
         case .unsupportedProtocolVersion: return .unsupportedProtocolVersion
-        case .clientIdentifierNotValid: return .invalidClientIdentifier
+        case .clientIdentifierNotValid: return .clientIdentifierNotValid
         case .badUsernameOrPassword: return .badUsernameOrPassword
         case .notAuthorized: return .notAuthorized
         case .serverUnavailable: return .serverUnavailable
         case .serverBusy: return .serverBusy
         case .banned: return .banned
         case .badAuthenticationMethod: return .badAuthenticationMethod
-        case .topicNameInvalid: return .invalidWillTopic
+        case .topicNameInvalid: return .topicNameInvalid
         case .packetTooLarge: return .packetTooLarge
-        case .quotaExceeded: return .exceededQuota
-        case .payloadFormatInvalid: return .invalidWillPayloadFormat
-        case .retainNotSupported: return .willRetainNotSupported
-        case .qosNotSupported: return .willQoSNotSupported
+        case .quotaExceeded: return .quotaExceeded
+        case .payloadFormatInvalid: return .payloadFormatInvalid
+        case .retainNotSupported: return .retainNotSupported
+        case .qosNotSupported: return .qosNotSupported
         case .useAnotherServer:
             return .useAnotherServer(properties.serverReference ?? "unknown")
         case .serverMoved:
             return .serverMoved(properties.serverReference ?? "unknown")
-        case .connectionRateExceeded: return .exceededConnectionRate
+        case .connectionRateExceeded: return .connectionRateExceeded
         }
     }
 }
