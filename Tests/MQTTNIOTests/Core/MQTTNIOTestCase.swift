@@ -12,7 +12,7 @@ class MQTTNIOTestCase: XCTestCase {
     
     override func setUp() {
         XCTAssertTrue(isLoggingConfigured)
-        self.group = MultiThreadedEventLoopGroup(numberOfThreads: 2)
+        self.group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
     }
     
     override func tearDown() {
@@ -88,7 +88,7 @@ class MQTTNIOTestCase: XCTestCase {
 let isLoggingConfigured: Bool = {
     LoggingSystem.bootstrap { label in
         var handler = StreamLogHandler.standardOutput(label: label)
-        handler.logLevel = .error
+        handler.logLevel = .debug
         return handler
     }
     return true

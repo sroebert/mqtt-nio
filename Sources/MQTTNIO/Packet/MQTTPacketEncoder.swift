@@ -20,7 +20,7 @@ final class MQTTPacketEncoder: MessageToByteEncoder {
         out.writeInteger(packet.kind.value | packet.fixedHeaderData)
         
         // write size
-        try packet.data.writeMQTTVariableByteInteger(packet.data.readableBytes, "Packet size")
+        try out.writeMQTTVariableByteInteger(packet.data.readableBytes, "Packet size")
         
         // serialize the packet data
         out.writeBuffer(&packet.data)

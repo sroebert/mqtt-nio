@@ -38,16 +38,6 @@ struct MQTTPacket {
     }
     
     private var storage: Storage
-
-    init<Data>(kind: Kind, fixedHeaderData: UInt8 = 0, bytes: Data)
-        where Data: Sequence, Data.Element == UInt8
-    {
-        self.init(
-            kind: kind,
-            fixedHeaderData: fixedHeaderData,
-            data: bytes.byteBuffer
-        )
-    }
     
     init(headerByte: UInt8, data: ByteBuffer) {
         self.init(

@@ -104,64 +104,62 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
             return eventLoop.makeFailedFuture(ConnectError.userDidInitiateClose)
         }
         
-        return connectToBroker().flatMap { channel in
-            self.logger.debug("Connected to broker", metadata: [
-                "target": "\(self.configuration.target)"
-            ])
-            
-            return self.requestConnectionWithBroker(for: channel).flatMapError { error in
-                self.logger.debug("Failed Connect request, shutting down channel", metadata: [
-                    "error": "\(error)"
+        // First connect to broker
+        return connectToBroker()
+            .map { channel -> Channel in
+                self.logger.debug("Connected to broker", metadata: [
+                    "target": "\(self.configuration.target)"
                 ])
-                
-                // In case of error, properly shutdown and still throw the same error
-                return self.shutdown(channel).flatMapThrowing {
-                    throw error
-                }
-            }.map {
-                // When fully connected, on close, notify delegate and optionally setup a new channel
-                channel.closeFuture.whenSuccess { result in
-                    self.shutdown(channel).whenSuccess {
-                        if reconnectMode.shouldRetry {
-                            self.logger.debug("Channel closed, retrying connection")
-                        } else {
-                            self.logger.debug("Channel closed")
-                        }
-                        
-                        if self.connectionFlags.contains(.notifiedDelegate) {
-                            self.connectionFlags.remove(.notifiedDelegate)
-                            
-                            self.delegate?.mqttConnection(self, didDisconnectWith: self.disconnectReason)
-                        }
-                        
-                        if reconnectMode.shouldRetry {
-                            self.channelFuture = self.connect()
-                        }
+                return channel
+            }
+            .flatMap { channel -> EventLoopFuture<Channel> in
+                // Send Connect packet to broker
+                self.requestConnectionWithBroker(for: channel).flatMapError { error in
+                    self.logger.debug("Failed Connect request, shutting down channel", metadata: [
+                        "error": "\(error)"
+                    ])
+                    
+                    // In case of error, properly shutdown and still throw the same error
+                    return self.shutdown(channel).flatMapThrowing {
+                        throw error
                     }
+                }
+            }.map { channel -> Channel in
+                // Setup handler for when channel is closed (for any reason)
+                channel.closeFuture.flatMap {
+                    // Property shutdown first
+                    self.shutdown(channel)
+                }.whenSuccess { result in
+                    // Try to reconnect if necessary
+                    guard reconnectMode.shouldRetry && !self.didUserInitiateClose else {
+                        return
+                    }
+                    
+                    self.logger.debug("Retrying connection")
+                    self.channelFuture = self.connect()
                 }
                 
                 return channel
+            }.flatMapError { error in
+                self.delegate?.mqttConnection(self, caughtError: error)
+                
+                self.logger.debug("Failed to connect to broker", metadata: [
+                    "error": "\(error)"
+                ])
+                
+                guard case .retry(let delay, _) = reconnectMode else {
+                    return self.eventLoop.makeFailedFuture(error)
+                }
+                
+                self.logger.debug("Scheduling retry to connect to broker", metadata: [
+                    "delay": "\(delay.nanoseconds / 1_000_000_000)"
+                ])
+                
+                // Reconnect after delay
+                return self.eventLoop.scheduleTask(in: delay) {
+                    self.connect(reconnectMode: reconnectMode.next)
+                }.futureResult.flatMap { $0 }
             }
-        }.flatMapError { error in
-            self.delegate?.mqttConnection(self, caughtError: error)
-            
-            self.logger.debug("Failed to connect to broker", metadata: [
-                "error": "\(error)"
-            ])
-            
-            guard case .retry(let delay, _) = reconnectMode else {
-                return self.eventLoop.makeFailedFuture(error)
-            }
-            
-            self.logger.debug("Scheduling retry to connect to broker", metadata: [
-                "delay": "\(delay.nanoseconds / 1_000_000_000)"
-            ])
-            
-            // Reconnect after delay
-            return self.eventLoop.scheduleTask(in: delay) {
-                self.connect(reconnectMode: reconnectMode.next)
-            }.futureResult.flatMap { $0 }
-        }
     }
     
     private func connectToBroker() -> EventLoopFuture<Channel> {
@@ -303,7 +301,7 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
         ]).map { channel }
     }
     
-    private func requestConnectionWithBroker(for channel: Channel) -> EventLoopFuture<Void> {
+    private func requestConnectionWithBroker(for channel: Channel) -> EventLoopFuture<Channel> {
         eventLoop.assertInEventLoop()
         
         let request = MQTTConnectRequest(configuration: configuration)
@@ -324,6 +322,8 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
             
             self.connectionFlags.insert(.triggeredDidConnect)
             return channel.triggerUserOutboundEvent(MQTTConnectionEvent.didConnect(isSessionPresent: response.isSessionPresent))
+        }.map {
+            channel
         }
     }
     
@@ -338,6 +338,20 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
             channel.close().recover { _ in
                 // We don't really care if the close fails, just continue
             }
+        }.map {
+            self.notifyClosed()
+        }
+    }
+    
+    private func notifyClosed() {
+        eventLoop.assertInEventLoop()
+        
+        logger.debug("Channel closed")
+        
+        if connectionFlags.contains(.notifiedDelegate) {
+            connectionFlags.remove(.notifiedDelegate)
+            
+            delegate?.mqttConnection(self, didDisconnectWith: self.disconnectReason)
         }
     }
     
