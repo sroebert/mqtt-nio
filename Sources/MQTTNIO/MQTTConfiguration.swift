@@ -252,9 +252,6 @@ extension MQTTConfiguration {
         /// The maximum allowed size of packets to receive.
         public var maximumPacketSize: Int?
         
-        /// The maximum allowed value to receive from the server for a topic alias.
-        public var topicAliasMaximum: Int
-        
         /// Indicates whether the server should provide response information when connecting.
         public var requestResponseInformation: Bool
         
@@ -272,7 +269,6 @@ extension MQTTConfiguration {
         ///   - sessionExpiry: Indicates when the session of the client should expire.
         ///   - receiveMaximum: The receive maximum, indicating the maximum number of QoS > 0 packets that can be received concurrently. The default value is `nil`, indicating the server should use the default value.
         ///   - maximumPacketSize: The maximum allowed size of packets to receive. The default value is `nil`, indicating that there is no maximum.
-        ///   - topicAliasMaximum: The maximum allowed value to receive from the server for a topic alias. The default value is `0`, indicating that no topic aliases are allowed.
         ///   - requestResponseInformation: Indicates whether the server should provide response information when connecting. The default value is `false`.
         ///   - requestProblemInformation: Indicates whether the server should provide a reason string and user properties in case of failures. The default value is `true`.
         ///   - userProperties: Additional user properties to send when connecting with the broker. The default value is an empty array.
@@ -281,7 +277,6 @@ extension MQTTConfiguration {
             sessionExpiry: SessionExpiry = .atClose,
             receiveMaximum: Int? = nil,
             maximumPacketSize: Int? = nil,
-            topicAliasMaximum: Int = 0,
             requestResponseInformation: Bool = false,
             requestProblemInformation: Bool = true,
             userProperties: [MQTTUserProperty] = [],
@@ -290,7 +285,6 @@ extension MQTTConfiguration {
             self.sessionExpiry = sessionExpiry
             self.receiveMaximum = receiveMaximum
             self.maximumPacketSize = maximumPacketSize
-            self.topicAliasMaximum = topicAliasMaximum
             self.requestResponseInformation = requestResponseInformation
             self.requestProblemInformation = requestProblemInformation
             self.userProperties = userProperties

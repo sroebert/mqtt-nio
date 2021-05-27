@@ -27,7 +27,6 @@ extension MQTTPacket {
             properties.sessionExpiry = connectProperties.sessionExpiry
             properties.receiveMaximum = connectProperties.receiveMaximum
             properties.maximumPacketSize = connectProperties.maximumPacketSize
-            properties.topicAliasMaximum = connectProperties.topicAliasMaximum
             properties.requestResponseInformation = connectProperties.requestResponseInformation
             properties.requestProblemInformation = connectProperties.requestProblemInformation
             properties.userProperties = connectProperties.userProperties
