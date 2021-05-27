@@ -104,7 +104,10 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
         callbackEventLoop = eventLoopGroup.next()
         
         requestHandler = MQTTRequestHandler(logger: logger, eventLoop: connectionEventLoop)
-        subscriptionsHandler = MQTTSubscriptionsHandler(logger: logger)
+        subscriptionsHandler = MQTTSubscriptionsHandler(
+            acknowledgementHandler: configuration.acknowledgementHandler,
+            logger: logger
+        )
         
         connectListeners = CallbackList(eventLoop: callbackEventLoop)
         disconnectListeners = CallbackList(eventLoop: callbackEventLoop)

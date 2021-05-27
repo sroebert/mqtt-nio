@@ -76,11 +76,18 @@ final class MQTTFallbackPacketHandler: ChannelDuplexHandler {
                 "packetId": .stringConvertible(acknowledgement.packetId),
             ])
             
-            let packet = MQTTPacket.Acknowledgement(
-                kind: acknowledgement.kind == .pubRec ? .pubRel : .pubComp,
-                packetId: acknowledgement.packetId,
-                reasonCode: .packetIdentifierNotFound
-            )
+            let packet: MQTTPacket.Acknowledgement
+            if acknowledgement.kind == .pubRec {
+                packet = .pubRel(
+                    packetId: acknowledgement.packetId,
+                    notFound: true
+                )
+            } else {
+                packet = .pubComp(
+                    packetId: acknowledgement.packetId,
+                    notFound: true
+                )
+            }
             context.writeAndFlush(wrapOutboundOut(packet), promise: nil)
         }
     }

@@ -11,7 +11,7 @@ extension MQTTPublishError {
     /// The reason returned from the server, indicating why the publish failed.
     public struct ServerReason: Equatable {
         
-        public enum Code: Equatable {
+        public enum Code {
             /// The server does not wish to reveal the reason for the failure, or none of the other reason codes apply.
             case unspecifiedError
             

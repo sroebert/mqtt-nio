@@ -31,11 +31,14 @@ public struct MQTTConfiguration {
     /// The optional `MQTTMessage` the broker should send under certain conditions if the client would disconnect.
     public var willMessage: MQTTWillMessage?
     
-    /// The time interval in which a message must be send to the broker to keep the connection alive.
-    public var keepAliveInterval: TimeAmount
-    
     /// The connection properties to send when connecting with a 5.0 MQTT broker.
     public var connectProperties: ConnectProperties
+    
+    /// Optional acknowledgement handler which will be called for QoS 1 and 2 messages received from a 5.0 broker.
+    public var acknowledgementHandler: MQTTAcknowledgementHandler?
+    
+    /// The time interval in which a message must be send to the broker to keep the connection alive.
+    public var keepAliveInterval: TimeAmount
     
     /// The interval after which connection with the broker will fail.
     public var connectionTimeoutInterval: TimeAmount
@@ -62,8 +65,9 @@ public struct MQTTConfiguration {
     ///   - clean: Boolean, indicating whether the session for the client should be cleaned by the broker. The default value is `true`.
     ///   - credentials: The credentials used to connect to the broker. The default value is `nil`.
     ///   - willMessage: The optional `MQTTMessage` the broker should send under certain conditions if the client would disconnect. The default value is `nil`.
-    ///   - keepAliveInterval: The time interval in which a message must be send to the broker to keep the connection alive. The default value is `60` seconds.
     ///   - connectProperties: The connection properties to send when connecting with a 5.0 MQTT broker.
+    ///   - acknowledgementHandler: Optional acknowledgement handler which will be called for QoS 1 and 2 messages received from a 5.0 broker. The default value is `nil`.
+    ///   - keepAliveInterval: The time interval in which a message must be send to the broker to keep the connection alive. The default value is `60` seconds.
     ///   - connectionTimeoutInterval: The interval after which connection with the broker will fail. The default value is `30` seconds.
     ///   - reconnectMode: The mode for reconnection that will be used if the client is disconnected from the server. The default value is `retry` with a minimum of `1` second and maximum of `120` seconds.
     ///   - connectRequestTimeoutInterval: The time to wait for the server to respond to a connect message from the client. The default value is `5` seconds.
@@ -78,8 +82,9 @@ public struct MQTTConfiguration {
         clean: Bool = true,
         credentials: Credentials? = nil,
         willMessage: MQTTWillMessage? = nil,
-        keepAliveInterval: TimeAmount = .seconds(60),
         connectProperties: ConnectProperties = ConnectProperties(),
+        acknowledgementHandler: MQTTAcknowledgementHandler? = nil,
+        keepAliveInterval: TimeAmount = .seconds(60),
         connectionTimeoutInterval: TimeAmount = .seconds(30),
         reconnectMode: ReconnectMode = .retry(minimumDelay: .seconds(1), maximumDelay: .seconds(120)),
         connectRequestTimeoutInterval: TimeAmount = .seconds(5),
@@ -94,8 +99,9 @@ public struct MQTTConfiguration {
         self.clean = clean
         self.credentials = credentials
         self.willMessage = willMessage
-        self.keepAliveInterval = keepAliveInterval
         self.connectProperties = connectProperties
+        self.acknowledgementHandler = acknowledgementHandler
+        self.keepAliveInterval = keepAliveInterval
         self.connectionTimeoutInterval = connectionTimeoutInterval
         self.reconnectMode = reconnectMode
         self.connectRequestTimeoutInterval = connectRequestTimeoutInterval

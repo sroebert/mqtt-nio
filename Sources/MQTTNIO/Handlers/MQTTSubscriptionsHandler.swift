@@ -17,16 +17,21 @@ final class MQTTSubscriptionsHandler: ChannelDuplexHandler {
     
     // MARK: - Vars
     
+    let acknowledgementHandler: MQTTAcknowledgementHandler?
     let logger: Logger
-    private(set) var inflightMessages: [UInt16: MQTTMessage]
     
     weak var delegate: MQTTSubscriptionsHandlerDelegate?
     
+    private var inflightMessages: [UInt16: MQTTMessage] = [:]
+    
     // MARK: - Init
     
-    init(logger: Logger, inflightMessages: [UInt16: MQTTMessage] = [:]) {
+    init(
+        acknowledgementHandler: MQTTAcknowledgementHandler?,
+        logger: Logger
+    ) {
+        self.acknowledgementHandler = acknowledgementHandler
         self.logger = logger
-        self.inflightMessages = inflightMessages
     }
     
     // MARK: - ChannelDuplexHandler
@@ -101,11 +106,18 @@ final class MQTTSubscriptionsHandler: ChannelDuplexHandler {
                 return
             }
             
+            
+            let response = acknowledgementHandler?(publish.message)
+            let packet = MQTTPacket.Acknowledgement.pubAck(
+                packetId: packetId,
+                response: response
+            )
+            
             logger.debug("Sending: Publish Acknowledgement", metadata: [
                 "packetId": .stringConvertible(packetId),
+                "reasonCode": .string("\(packet.reasonCode)")
             ])
             
-            let packet = MQTTPacket.Acknowledgement(kind: .pubAck, packetId: packetId)
             context.writeAndFlush(wrapOutboundOut(packet), promise: nil)
             emit(publish.message)
             
@@ -116,11 +128,17 @@ final class MQTTSubscriptionsHandler: ChannelDuplexHandler {
                 return
             }
             
+            let response = acknowledgementHandler?(publish.message)
+            let packet = MQTTPacket.Acknowledgement.pubRec(
+                packetId: packetId,
+                response: response
+            )
+            
             logger.debug("Sending: Publish Received", metadata: [
                 "packetId": .stringConvertible(packetId),
+                "reasonCode": .string("\(packet.reasonCode)")
             ])
             
-            let packet = MQTTPacket.Acknowledgement(kind: .pubRec, packetId: packetId)
             context.writeAndFlush(wrapOutboundOut(packet), promise: nil)
             
             if inflightMessages[packetId] == nil {
@@ -142,7 +160,7 @@ final class MQTTSubscriptionsHandler: ChannelDuplexHandler {
             "packetId": .stringConvertible(packetId),
         ])
         
-        let packet = MQTTPacket.Acknowledgement(kind: .pubComp, packetId: packetId)
+        let packet = MQTTPacket.Acknowledgement.pubComp(packetId: packetId)
         context.writeAndFlush(wrapOutboundOut(packet), promise: nil)
                 
         inflightMessages.removeValue(forKey: packetId)

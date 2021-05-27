@@ -21,23 +21,77 @@ extension MQTTPacket {
             return data.reasonString
         }
         
+        var userProperties: [MQTTUserProperty] {
+            return data.userProperties
+        }
+        
         private static let relFixedHeaderData: UInt8 = 0b0010
         
         private let data: Data
         
         // MARK: - Lifecycle
         
-        init(
+        private init(
             kind: Kind,
             packetId: UInt16,
             reasonCode: ReasonCode = .success,
-            reasonString: String? = nil
+            reasonString: String? = nil,
+            userProperties: [MQTTUserProperty] = []
         ) {
             data = Data(
                 kind: kind,
                 packetId: packetId,
                 reasonCode: reasonCode,
-                reasonString: reasonString
+                reasonString: reasonString,
+                userProperties: userProperties
+            )
+        }
+        
+        static func pubAck(
+            packetId: UInt16,
+            response: MQTTAcknowledgementResponse?
+        ) -> Self {
+            return self.init(
+                kind: .pubAck,
+                packetId: packetId,
+                reasonCode: .init(response?.error?.code),
+                reasonString: response?.error?.message,
+                userProperties: response?.userProperties ?? []
+            )
+        }
+        
+        static func pubRel(
+            packetId: UInt16,
+            notFound: Bool = false
+        ) -> Self {
+            return self.init(
+                kind: .pubRel,
+                packetId: packetId,
+                reasonCode: notFound ? .packetIdentifierNotFound : .success
+            )
+        }
+        
+        static func pubRec(
+            packetId: UInt16,
+            response: MQTTAcknowledgementResponse?
+        ) -> Self {
+            return self.init(
+                kind: .pubRec,
+                packetId: packetId,
+                reasonCode: .init(response?.error?.code),
+                reasonString: response?.error?.message,
+                userProperties: response?.userProperties ?? []
+            )
+        }
+        
+        static func pubComp(
+            packetId: UInt16,
+            notFound: Bool = false
+        ) -> Self {
+            return self.init(
+                kind: .pubComp,
+                packetId: packetId,
+                reasonCode: notFound ? .packetIdentifierNotFound : .success
             )
         }
         
@@ -55,6 +109,7 @@ extension MQTTPacket {
             
             let reasonCode: ReasonCode
             let reasonString: String?
+            let userProperties: [MQTTUserProperty]
             if version >= .version5, packet.data.readableBytes >= 1 {
                 guard let reasonCodeValue = packet.data.readInteger(as: UInt8.self) else {
                     throw MQTTProtocolError("Invalid acknowledgement packet structure")
@@ -69,19 +124,23 @@ extension MQTTPacket {
                 if packet.data.readableBytes > 0 {
                     let properties = try MQTTProperties.parse(from: &packet.data, using: propertiesParser)
                     reasonString = properties.reasonString
+                    userProperties = properties.userProperties
                 } else {
                     reasonString = nil
+                    userProperties = []
                 }
             } else {
                 reasonCode = .success
                 reasonString = nil
+                userProperties = []
             }
             
             return Acknowledgement(
                 kind: kind,
                 packetId: packetId,
                 reasonCode: reasonCode,
-                reasonString: reasonString
+                reasonString: reasonString,
+                userProperties: userProperties
             )
         }
         
@@ -165,17 +224,20 @@ extension MQTTPacket.Acknowledgement {
         let packetId: UInt16
         let reasonCode: ReasonCode
         let reasonString: String?
+        let userProperties: [MQTTUserProperty]
         
         init(
             kind: Kind,
             packetId: UInt16,
             reasonCode: ReasonCode,
-            reasonString: String?
+            reasonString: String?,
+            userProperties: [MQTTUserProperty]
         ) {
             self.kind = kind
             self.packetId = packetId
             self.reasonCode = reasonCode
             self.reasonString = reasonString
+            self.userProperties = userProperties
         }
     }
     
@@ -210,6 +272,21 @@ extension MQTTPacket.Acknowledgement {
         case packetIdentifierNotFound
         case quotaExceeded
         case payloadFormatInvalid
+        
+        fileprivate init(_ code: MQTTAcknowledgementResponse.Error.Code?) {
+            guard let code = code else {
+                self = .success
+                return
+            }
+            
+            switch code {
+            case .unspecifiedError: self = .unspecifiedError
+                case .implementationSpecificError: self = .implementationSpecificError
+            case .notAuthorized: self = .notAuthorized
+                case .topicNameInvalid: self = .topicNameInvalid
+            case .quotaExceeded: self = .quotaExceeded
+            }
+        }
         
         fileprivate init?(rawValue: UInt8, kind: Kind) {
             guard let reasonCode = MQTTReasonCode(rawValue: rawValue) else {

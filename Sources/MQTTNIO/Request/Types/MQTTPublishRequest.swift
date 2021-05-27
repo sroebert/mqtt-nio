@@ -96,7 +96,7 @@ final class MQTTPublishRequest: MQTTRequest {
                     "packetId": .stringConvertible(acknowledgement.packetId),
                 ])
                 
-                let pubRel = MQTTPacket.Acknowledgement(kind: .pubRel, packetId: packetId)
+                let pubRel = MQTTPacket.Acknowledgement.pubRel(packetId: packetId)
                 context.write(pubRel)
                 scheduleRetry(context: context)
                 
@@ -173,7 +173,7 @@ final class MQTTPublishRequest: MQTTRequest {
             context.write(publish)
             
         case (.exactlyOnce, true):
-            let pubRel = MQTTPacket.Acknowledgement(kind: .pubRel, packetId: packetId)
+            let pubRel = MQTTPacket.Acknowledgement.pubRel(packetId: packetId)
             context.write(pubRel)
             
         default:
