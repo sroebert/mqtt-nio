@@ -130,13 +130,10 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
                     // Property shutdown first
                     self.shutdown(channel)
                 }.whenSuccess { result in
-                    // Try to reconnect if necessary
-                    guard reconnectMode.shouldRetry && !self.didUserInitiateClose else {
-                        return
+                    // Schedule reconnect if needed
+                    if let channelFuture = self.scheduleReconnect(reconnectMode: reconnectMode) {
+                        self.channelFuture = channelFuture
                     }
-                    
-                    self.logger.debug("Retrying connection")
-                    self.channelFuture = self.connect()
                 }
                 
                 return channel
@@ -147,18 +144,12 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
                     "error": "\(error)"
                 ])
                 
-                guard case .retry(let delay, _) = reconnectMode else {
+                // If possible, try to reconnect
+                guard let reconnectFuture = self.scheduleReconnect(reconnectMode: reconnectMode) else {
                     return self.eventLoop.makeFailedFuture(error)
                 }
                 
-                self.logger.debug("Scheduling retry to connect to broker", metadata: [
-                    "delay": "\(delay.nanoseconds / 1_000_000_000)"
-                ])
-                
-                // Reconnect after delay
-                return self.eventLoop.scheduleTask(in: delay) {
-                    self.connect(reconnectMode: reconnectMode.next)
-                }.futureResult.flatMap { $0 }
+                return reconnectFuture
             }
     }
     
@@ -388,6 +379,28 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
                 // We don't care if this fails
             }
         }
+    }
+    
+    // MARK: - Reconnect
+    
+    private func scheduleReconnect(reconnectMode: MQTTConfiguration.ReconnectMode) -> EventLoopFuture<Channel>? {
+        eventLoop.assertInEventLoop()
+        
+        guard
+            !didUserInitiateClose,
+            case .retry(let delay, _) = reconnectMode
+        else {
+            return nil
+        }
+        
+        logger.debug("Scheduling retry to connect to broker", metadata: [
+            "delay": "\(delay.nanoseconds / 1_000_000_000)"
+        ])
+        
+        // Reconnect after delay
+        return eventLoop.scheduleTask(in: delay) {
+            self.connect(reconnectMode: reconnectMode.next)
+        }.futureResult.flatMap { $0 }
     }
     
     // MARK: - MQTTErrorHandlerDelegate
