@@ -118,6 +118,7 @@ final class PublishTests: MQTTNIOTestCase {
     func testKeepSession() {
         let client = plainClient
         client.configuration.clean = false
+        client.configuration.connectProperties.sessionExpiry = .afterInterval(.seconds(60))
         
         let topic = "mqtt-nio/tests/keep-session"
         let payload = "Hello World!"
@@ -206,6 +207,8 @@ final class PublishTests: MQTTNIOTestCase {
     func testInvalidClient() {
         let client = plainClient
         client.configuration.clean = false
+        client.configuration.connectProperties.sessionExpiry = .afterInterval(.seconds(60))
+        
         client.configuration.clientId = ""
         client.configuration.reconnectMode = .none
         
@@ -216,7 +219,8 @@ final class PublishTests: MQTTNIOTestCase {
                 XCTFail()
                 
             case .failure(let error):
-                XCTAssertEqual((error as? MQTTConnectionError)?.serverReasonCode, .clientIdentifierNotValid)
+                let reasonCode = (error as? MQTTConnectionError)?.serverReasonCode
+                XCTAssertTrue(reasonCode == .clientIdentifierNotValid || reasonCode == .unspecifiedError)
                 expectation.fulfill()
             }
         }
