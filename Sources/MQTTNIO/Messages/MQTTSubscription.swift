@@ -1,7 +1,7 @@
 /// This  struct represents a subscription that can be made with an MQTT broker.
 public struct MQTTSubscription {
-    /// The topic to which the client wants to subscribe.
-    public var topic: String
+    /// The topic filter to which the client wants to subscribe.
+    public var topicFilter: String
     
     /// The QoS level with which the user wants to subscribe.
     public var qos: MQTTQoS
@@ -11,14 +11,14 @@ public struct MQTTSubscription {
     
     /// Creates an `MQTTSubscription`.
     /// - Parameters:
-    ///   - topic: The topic for the subscription.
+    ///   - topicFilter: The topic filter for the subscription.
     ///   - qos: The QoS level with which to subscribe.
     public init(
-        topic: String,
+        topicFilter: String,
         qos: MQTTQoS = .atMostOnce,
         options: Options = Options()
     ) {
-        self.topic = topic
+        self.topicFilter = topicFilter
         self.qos = qos
         self.options = options
     }

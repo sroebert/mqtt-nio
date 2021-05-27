@@ -10,12 +10,12 @@ extension MQTTPacket {
         // MARK: - Init
         
         init(
-            topics: [String],
+            topicFilters: [String],
             userProperties: [MQTTUserProperty],
             packetId: UInt16
         ) {
             data = Data(
-                topics: topics,
+                topicFilters: topicFilters,
                 userProperties: userProperties,
                 packetId: packetId
             )
@@ -34,8 +34,8 @@ extension MQTTPacket {
                 try properties.serialize(to: &buffer)
             }
             
-            for topic in data.topics {
-                try buffer.writeMQTTString(topic, "Topic name")
+            for topicFilter in data.topicFilters {
+                try buffer.writeMQTTString(topicFilter, "Topic filter")
             }
             
             return MQTTPacket(
@@ -50,16 +50,16 @@ extension MQTTPacket {
 extension MQTTPacket.Unsubscribe {
     // Wrapper to avoid heap allocations when added to NIOAny
     fileprivate class Data {
-        let topics: [String]
+        let topicFilters: [String]
         let userProperties: [MQTTUserProperty]
         let packetId: UInt16
         
         init(
-            topics: [String],
+            topicFilters: [String],
             userProperties: [MQTTUserProperty],
             packetId: UInt16
         ) {
-            self.topics = topics
+            self.topicFilters = topicFilters
             self.userProperties = userProperties
             self.packetId = packetId
         }

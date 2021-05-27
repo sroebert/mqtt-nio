@@ -146,9 +146,9 @@ final class PublishTests: MQTTNIOTestCase {
         wait(for: client.connect())
         
         let response = wait(for: client.subscribe(to: [
-            MQTTSubscription(topic: "mqtt-nio/tests/multi-subscribe/1", qos: .atMostOnce),
-            MQTTSubscription(topic: "mqtt-nio/tests/multi-subscribe/2", qos: .atLeastOnce),
-            MQTTSubscription(topic: "mqtt-nio/tests/multi-subscribe/3", qos: .exactlyOnce)
+            MQTTSubscription(topicFilter: "mqtt-nio/tests/multi-subscribe/1", qos: .atMostOnce),
+            MQTTSubscription(topicFilter: "mqtt-nio/tests/multi-subscribe/2", qos: .atLeastOnce),
+            MQTTSubscription(topicFilter: "mqtt-nio/tests/multi-subscribe/3", qos: .exactlyOnce)
         ]))
         
         XCTAssertNotNil(response)

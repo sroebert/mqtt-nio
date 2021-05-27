@@ -311,7 +311,7 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     
     /// Subscribes to a topic with a given QoS.
     /// - Parameters:
-    ///   - topic: The topic to subscribe to.
+    ///   - topicFilter: The topic filter to subscribe to.
     ///   - qos: The QoS level with which to subscribe. The default value is `.atMostOnce`.
     ///   - options: Additional subscription options for a 5.0 MQTT broker.
     ///   - identifier: Optional identifier which will be send to broker and will be set on messages received for this subscription. This only works with 5.0 MQTT brokers.
@@ -319,14 +319,14 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     /// - Returns: An `EventLoopFuture` with the `MQTTSubscriptionResult` indicating the result of the subscription.
     @discardableResult
     public func subscribe(
-        to topic: String,
+        to topicFilter: String,
         qos: MQTTQoS = .atMostOnce,
         options: MQTTSubscription.Options = .init(),
         identifier: Int? = nil,
         userProperties: [MQTTUserProperty] = []
     ) -> EventLoopFuture<MQTTSingleSubscribeResponse> {
         return subscribe(
-            to: [.init(topic: topic, qos: qos, options: options)],
+            to: [.init(topicFilter: topicFilter, qos: qos, options: options)],
             identifier: identifier,
             userProperties: userProperties
         ).map {
@@ -340,7 +340,7 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     
     /// Subscribes to one or more topics with a given QoS level.
     /// - Parameters:
-    ///   - topics: The topics to subscribe to.
+    ///   - topicFilters: The topic filters to subscribe to.
     ///   - qos: The QoS level with which to subscribe. The default value is `.atMostOnce`.
     ///   - options: Additional subscription options for a 5.0 MQTT broker.
     ///   - identifier: Optional identifier which will be send to broker and will be set on messages received for this subscription. This only works with 5.0 MQTT brokers.
@@ -348,14 +348,14 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     /// - Returns: An `EventLoopFuture` with the `MQTTSubscriptionResult` indicating the result of the subscription.
     @discardableResult
     public func subscribe(
-        to topics: [String],
+        to topicFilters: [String],
         qos: MQTTQoS = .atMostOnce,
         options: MQTTSubscription.Options = .init(),
         identifier: Int? = nil,
         userProperties: [MQTTUserProperty] = []
     ) -> EventLoopFuture<MQTTSubscribeResponse> {
         return subscribe(
-            to: topics.map { .init(topic: $0, qos: qos, options: options) },
+            to: topicFilters.map { .init(topicFilter: $0, qos: qos, options: options) },
             identifier: identifier,
             userProperties: userProperties
         )
@@ -363,17 +363,17 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     
     /// Unsubscribe from one or more topics.
     /// - Parameters:
-    ///   - topics: The topics to unsubscribe from.
+    ///   - topicFilters: The topic filters to unsubscribe from.
     ///   - userProperties: Additional user properties to send when subscribing. This only works with 5.0 MQTT brokers.
     /// - Returns: An `EventLoopFuture` for when the unsubscribing has completed.
     @discardableResult
     func unsubscribe(
-        from topics: [String],
+        from topicFilters: [String],
         userProperties: [MQTTUserProperty] = []
     ) -> EventLoopFuture<MQTTUnsubscribeResponse> {
         let timeoutInterval = configuration.subscriptionTimeoutInterval
         let request = MQTTUnsubscribeRequest(
-            topics: topics,
+            topicFilters: topicFilters,
             userProperties: userProperties,
             timeoutInterval: timeoutInterval
         )
@@ -382,16 +382,16 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     
     /// Unsubscribe from a topic.
     /// - Parameters:
-    ///   - topic: The topic to unsubscribe from.
+    ///   - topicFilter: The topic filter to unsubscribe from.
     ///   - userProperties: Additional user properties to send when subscribing. This only works with 5.0 MQTT brokers.
     /// - Returns: An `EventLoopFuture` for when the unsubscribing has completed.
     @discardableResult
     public func unsubscribe(
-        from topic: String,
+        from topicFilter: String,
         userProperties: [MQTTUserProperty] = []
     ) -> EventLoopFuture<MQTTSingleUnsubscribeResponse> {
         return unsubscribe(
-            from: [topic],
+            from: [topicFilter],
             userProperties: userProperties
         ).map {
             MQTTSingleUnsubscribeResponse(

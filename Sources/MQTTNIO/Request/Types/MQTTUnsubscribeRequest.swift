@@ -11,7 +11,7 @@ final class MQTTUnsubscribeRequest: MQTTRequest {
     
     // MARK: - Vars
     
-    let topics: [String]
+    let topicFilters: [String]
     let userProperties: [MQTTUserProperty]
     let timeoutInterval: TimeAmount
     
@@ -21,11 +21,11 @@ final class MQTTUnsubscribeRequest: MQTTRequest {
     // MARK: - Init
     
     init(
-        topics: [String],
+        topicFilters: [String],
         userProperties: [MQTTUserProperty],
         timeoutInterval: TimeAmount = .seconds(5)
     ) {
-        self.topics = topics
+        self.topicFilters = topicFilters
         self.userProperties = userProperties
         self.timeoutInterval = timeoutInterval
     }
@@ -40,11 +40,11 @@ final class MQTTUnsubscribeRequest: MQTTRequest {
         
         context.logger.debug("Sending: Unsubscribe", metadata: [
             "packetId": .stringConvertible(packetId),
-            "topics": .array(topics.map { .string($0) })
+            "topicFilters": .array(topicFilters.map { .string($0) })
         ])
         
         context.write(MQTTPacket.Unsubscribe(
-            topics: topics,
+            topicFilters: topicFilters,
             userProperties: userProperties,
             packetId: packetId
         ))
@@ -56,9 +56,9 @@ final class MQTTUnsubscribeRequest: MQTTRequest {
             return nil
         }
         
-        let results = unsubAck.results ?? .init(repeating: .success, count: topics.count)
+        let results = unsubAck.results ?? .init(repeating: .success, count: topicFilters.count)
         
-        guard results.count == topics.count else {
+        guard results.count == topicFilters.count else {
             return .failure(MQTTProtocolError(
                 code: .protocolError,
                 "Received an invalid number of unsubscribe results."

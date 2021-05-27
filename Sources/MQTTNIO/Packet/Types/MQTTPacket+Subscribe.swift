@@ -38,7 +38,7 @@ extension MQTTPacket {
             }
             
             for subscription in data.subscriptions {
-                try buffer.writeMQTTString(subscription.topic, "Topic name")
+                try buffer.writeMQTTString(subscription.topicFilter, "Topic filter")
                 
                 let options = optionsValue(for: subscription, version: version)
                 buffer.writeInteger(options)

@@ -44,7 +44,7 @@ final class MQTTSubscribeRequest: MQTTRequest {
         context.logger.debug("Sending: Subscribe", metadata: [
             "packetId": .stringConvertible(packetId),
             "subscriptions": .array(subscriptions.map { [
-                "topic": .string($0.topic),
+                "topicFilter": .string($0.topicFilter),
                 "qos": .stringConvertible($0.qos.rawValue)
             ] })
         ])

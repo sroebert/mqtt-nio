@@ -1,6 +1,6 @@
 # MQTTNIO
 
-Non-blocking, event-driven Swift client for MQTT ([3.1.1](http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html)) build on [SwiftNIO](https://github.com/apple/swift-nio).
+Non-blocking, event-driven Swift client for MQTT ([5.0](https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html) and [3.1.1](http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html)) build on [SwiftNIO](https://github.com/apple/swift-nio).
 
 ![test](https://github.com/sroebert/mqtt-nio/workflows/test/badge.svg)
 
