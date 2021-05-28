@@ -40,6 +40,9 @@ public struct MQTTConfiguration {
     /// The time interval in which a message must be send to the broker to keep the connection alive.
     public var keepAliveInterval: TimeAmount
     
+    /// When `true` keep alive ping messages are rescheduled when sending other packets. 
+    public var reschedulePings: Bool
+    
     /// The interval after which connection with the broker will fail.
     public var connectionTimeoutInterval: TimeAmount
     
@@ -68,6 +71,7 @@ public struct MQTTConfiguration {
     ///   - connectProperties: The connection properties to send when connecting with a 5.0 MQTT broker.
     ///   - acknowledgementHandler: Optional acknowledgement handler which will be called for QoS 1 and 2 messages received from a 5.0 broker. The default value is `nil`.
     ///   - keepAliveInterval: The time interval in which a message must be send to the broker to keep the connection alive. The default value is `60` seconds.
+    ///   - reschedulePings: When `true` keep alive ping messages are rescheduled when sending other packets. The default value is `true`.
     ///   - connectionTimeoutInterval: The interval after which connection with the broker will fail. The default value is `30` seconds.
     ///   - reconnectMode: The mode for reconnection that will be used if the client is disconnected from the server. The default value is `retry` with a minimum of `1` second and maximum of `120` seconds.
     ///   - connectRequestTimeoutInterval: The time to wait for the server to respond to a connect message from the client. The default value is `5` seconds.
@@ -85,6 +89,7 @@ public struct MQTTConfiguration {
         connectProperties: ConnectProperties = ConnectProperties(),
         acknowledgementHandler: MQTTAcknowledgementHandler? = nil,
         keepAliveInterval: TimeAmount = .seconds(60),
+        reschedulePings: Bool = true,
         connectionTimeoutInterval: TimeAmount = .seconds(30),
         reconnectMode: ReconnectMode = .retry(minimumDelay: .seconds(1), maximumDelay: .seconds(120)),
         connectRequestTimeoutInterval: TimeAmount = .seconds(5),
@@ -102,6 +107,7 @@ public struct MQTTConfiguration {
         self.connectProperties = connectProperties
         self.acknowledgementHandler = acknowledgementHandler
         self.keepAliveInterval = keepAliveInterval
+        self.reschedulePings = reschedulePings
         self.connectionTimeoutInterval = connectionTimeoutInterval
         self.reconnectMode = reconnectMode
         self.connectRequestTimeoutInterval = connectRequestTimeoutInterval

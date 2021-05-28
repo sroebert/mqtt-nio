@@ -11,16 +11,20 @@ final class MQTTKeepAliveHandler: ChannelOutboundHandler {
     
     // MARK: - Vars
     
-    let logger: Logger
-    let interval: TimeAmount
+    var interval: TimeAmount
     let reschedulePings: Bool
+    let logger: Logger
     
     private weak var channel: Channel?
     private var scheduledPing: Scheduled<Void>?
     
     // MARK: - Init
     
-    init(logger: Logger, interval: TimeAmount, reschedulePings: Bool = true) {
+    init(
+        interval: TimeAmount,
+        reschedulePings: Bool,
+        logger: Logger
+    ) {
         self.logger = logger
         self.interval = interval
         self.reschedulePings = reschedulePings
@@ -29,7 +33,6 @@ final class MQTTKeepAliveHandler: ChannelOutboundHandler {
     // MARK: - ChannelDuplexHandler
     
     func triggerUserOutboundEvent(context: ChannelHandlerContext, event: Any, promise: EventLoopPromise<Void>?) {
-        
         switch event {
         case MQTTConnectionEvent.didConnect:
             schedulePingRequest(in: context.eventLoop)

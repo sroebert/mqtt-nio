@@ -41,6 +41,7 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
     
     private let requestHandler: MQTTRequestHandler
     private let subscriptionsHandler: MQTTSubscriptionsHandler
+    private let keepAliveHandler: MQTTKeepAliveHandler
     
     weak var delegate: MQTTConnectionDelegate?
     
@@ -67,6 +68,11 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
         
         self.requestHandler = requestHandler
         self.subscriptionsHandler = subscriptionsHandler
+        keepAliveHandler = MQTTKeepAliveHandler(
+            interval: configuration.keepAliveInterval,
+            reschedulePings: configuration.reschedulePings,
+            logger: logger
+        )
         
         channelFuture = connect()
         firstConnectFuture = channelFuture.map { _ in }
@@ -278,7 +284,7 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
             ),
             
             // Continuous handlers
-            MQTTKeepAliveHandler(logger: logger, interval: configuration.keepAliveInterval),
+            keepAliveHandler,
             subscriptionsHandler,
             
             // Outgoing request handlers
@@ -328,6 +334,8 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
             requestHandler.maxInflightEntries = MQTTRequestHandler.defaultMaxInflightEntries
         }
         
+        keepAliveHandler.interval = connAck.properties.serverKeepAlive ?? configuration.keepAliveInterval
+        
         let brokerConfiguration = MQTTBrokerConfiguration(
             maximumQoS: connAck.properties.maximumQoS,
             isRetainAvailable: connAck.properties.retainAvailable,
@@ -345,6 +353,7 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
             assignedClientIdentifier: connAck.properties.assignedClientIdentifier ??
                 configuration.clientId,
             userProperties: connAck.properties.userProperties,
+            responseInformation: connAck.properties.responseInformation,
             brokerConfiguration: brokerConfiguration
         )
     }
