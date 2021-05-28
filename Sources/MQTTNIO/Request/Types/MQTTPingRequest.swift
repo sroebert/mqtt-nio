@@ -5,7 +5,7 @@ final class MQTTPingRequest: MQTTRequest {
     
     // MARK: - Types
     
-    enum Error: Swift.Error {
+    private enum Event {
         case timeout
     }
     
@@ -25,7 +25,7 @@ final class MQTTPingRequest: MQTTRequest {
     func start(context: MQTTRequestContext) -> MQTTRequestResult<Void> {
         context.logger.debug("Sending: Ping Request")
         
-        timeoutScheduled = context.scheduleEvent(Error.timeout, in: timeoutInterval)
+        timeoutScheduled = context.scheduleEvent(Event.timeout, in: timeoutInterval)
         
         context.write(MQTTPacket.PingReq())
         return .pending
@@ -52,11 +52,11 @@ final class MQTTPingRequest: MQTTRequest {
     }
     
     func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult<Void> {
-        guard case Error.timeout = event else {
+        guard case Event.timeout = event else {
             return .pending
         }
         
         context.logger.notice("Did not receive 'Ping Response' in time")
-        return .failure(Error.timeout)
+        return .failure(MQTTConnectionError.timeoutWaitingForAcknowledgement)
     }
 }

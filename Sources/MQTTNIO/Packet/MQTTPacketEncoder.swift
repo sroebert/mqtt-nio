@@ -27,6 +27,12 @@ final class MQTTPacketEncoder: MessageToByteEncoder {
         
         logger.trace("Encoded: \(packet.kind)")
     }
+    
+    static func size(forPacketWithDataSize dataSize: Int) -> Int {
+        return MemoryLayout<MQTTPacket.Kind.IntegerLiteralType>.size +
+            ByteBuffer.sizeForMQTTVariableByteInteger(dataSize) +
+            dataSize
+    }
 }
 
 protocol ByteBufferSerializable {

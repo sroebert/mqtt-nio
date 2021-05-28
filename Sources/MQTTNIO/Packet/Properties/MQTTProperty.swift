@@ -51,7 +51,7 @@ struct MQTTProperty<Value: Equatable, Intermediate, PropertyValue: MQTTPropertyV
             return 0
         }
         
-        let identifierLength = MQTTVariableByteInteger.size(for: identifier)
+        let identifierLength = ByteBuffer.sizeForMQTTVariableByteInteger(identifier)
         return propertyValues.reduce(0) {
             $0 + identifierLength + $1.propertyValueLength
         }
@@ -246,10 +246,13 @@ extension MQTTProperty where Value == [Int], Intermediate == Int, PropertyValue 
     }
 }
 
-extension MQTTProperty where Value == MQTTConfiguration.SessionExpiry, Value == Intermediate, PropertyValue == UInt32 {
+extension MQTTProperty where Value == MQTTConfiguration.SessionExpiry?, Value == Intermediate, PropertyValue == UInt32 {
     init(_ identifier: Int) {
-        self.init(wrappedValue: .atClose, identifier) {
-            switch $0 {
+        self.init(wrappedValue: nil, identifier) {
+            guard let value = $0 else {
+                return []
+            }
+            switch value {
             case .atClose:
                 return []
             case .afterInterval(let timeAmount):
@@ -271,8 +274,8 @@ extension MQTTProperty where Value == MQTTConfiguration.SessionExpiry, Value == 
 }
 
 extension MQTTProperty where Value == MQTTQoS, Value == Intermediate, PropertyValue == UInt8 {
-    init(_ identifier: Int) {
-        self.init(wrappedValue: .exactlyOnce, identifier) {
+    init(wrappedValue: MQTTQoS, _ identifier: Int) {
+        self.init(wrappedValue: wrappedValue, identifier) {
             guard $0 != .exactlyOnce else {
                 return []
             }

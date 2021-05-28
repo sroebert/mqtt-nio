@@ -296,9 +296,12 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
         eventLoop.assertInEventLoop()
         
         let request = MQTTConnectRequest(configuration: configuration)
-        return requestHandler.perform(request).flatMap { response in
+        return requestHandler.perform(request).flatMap { connAck in
             // Reset the disconnect reason
             self.disconnectReason = .connectionClosed
+            
+            // Process connAck
+            let response = self.process(connAck)
             
             self.connectionFlags.insert(.notifiedDelegate)
             self.delegate?.mqttConnection(self, didConnectWith: response)
@@ -316,6 +319,34 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
         }.map {
             channel
         }
+    }
+    
+    private func process(_ connAck: MQTTPacket.ConnAck) -> MQTTConnectResponse {
+        if let receiveMaximum = connAck.properties.receiveMaximum {
+            requestHandler.maxInflightEntries = min(MQTTRequestHandler.defaultMaxInflightEntries, receiveMaximum)
+        } else {
+            requestHandler.maxInflightEntries = MQTTRequestHandler.defaultMaxInflightEntries
+        }
+        
+        let brokerConfiguration = MQTTBrokerConfiguration(
+            maximumQoS: connAck.properties.maximumQoS,
+            isRetainAvailable: connAck.properties.retainAvailable,
+            maximumPacketSize: connAck.properties.maximumPacketSize,
+            isWildcardSubscriptionAvailable: connAck.properties.wildcardSubscriptionAvailable,
+            isSubscriptionIdentifierAvailable: connAck.properties.subscriptionIdentifierAvailable,
+            isSharedSubscriptionAvailable: connAck.properties.sharedSubscriptionAvailable
+        )
+        requestHandler.brokerConfiguration = brokerConfiguration
+        
+        return MQTTConnectResponse(
+            isSessionPresent: connAck.isSessionPresent,
+            sessionExpiry: connAck.properties.sessionExpiry ??
+                configuration.connectProperties.sessionExpiry,
+            assignedClientIdentifier: connAck.properties.assignedClientIdentifier ??
+                configuration.clientId,
+            userProperties: connAck.properties.userProperties,
+            brokerConfiguration: brokerConfiguration
+        )
     }
     
     // MARK: - Disconnect
@@ -367,11 +398,7 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
         
         connectionFlags.remove(.acceptedByBroker)
         return eventFuture.flatMap {
-            let sessionExpiry = self.configuration.connectProperties.sessionExpiry
-            guard let request = MQTTDisconnectRequest(
-                reason: self.disconnectReason,
-                sessionExpiry: sessionExpiry
-            ) else {
+            guard let request = MQTTDisconnectRequest(reason: self.disconnectReason) else {
                 return self.eventLoop.makeSucceededVoidFuture()
             }
             

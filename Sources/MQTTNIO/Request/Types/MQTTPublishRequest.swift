@@ -21,7 +21,10 @@ final class MQTTPublishRequest: MQTTRequest {
     
     // MARK: - Init
     
-    init(message: MQTTMessage, retryInterval: TimeAmount?) {
+    init(
+        message: MQTTMessage,
+        retryInterval: TimeAmount?
+    ) {
         self.message = message
         self.retryInterval = retryInterval
     }
@@ -29,6 +32,11 @@ final class MQTTPublishRequest: MQTTRequest {
     // MARK: - MQTTRequest
     
     func start(context: MQTTRequestContext) -> MQTTRequestResult<Void> {
+        let packet = MQTTPacket.Publish(message: message, packetId: packetId)
+        if let error = error(for: packet, context: context) {
+            return .failure(error)
+        }
+        
         let result: MQTTRequestResult<Void>
         switch message.qos {
         case .atMostOnce:
@@ -49,7 +57,7 @@ final class MQTTPublishRequest: MQTTRequest {
             "retain": .stringConvertible(message.retain)
         ])
         
-        context.write(MQTTPacket.Publish(message: message, packetId: packetId))
+        context.write(packet)
         return result
     }
     
@@ -139,6 +147,28 @@ final class MQTTPublishRequest: MQTTRequest {
     }
     
     // MARK: - Utils
+    
+    private func error(for packet: MQTTPacket.Publish, context: MQTTRequestContext) -> Error? {
+        guard packet.message.qos <= context.brokerConfiguration.maximumQoS else {
+            return MQTTPublishError.exceedsMaximumQoS
+        }
+        
+        guard context.brokerConfiguration.isRetainAvailable || !packet.message.retain else {
+            return MQTTPublishError.retainNotSupported
+        }
+        
+        if let maximumPacketSize = context.brokerConfiguration.maximumPacketSize {
+            let size = packet.size(version: context.version)
+            guard size <= maximumPacketSize else {
+                return MQTTProtocolError(
+                    code: .packetTooLarge,
+                    "The size of the packet exceeds the maximum packet size of the broker."
+                )
+            }
+        }
+        
+        return nil
+    }
     
     private func scheduleRetry(context: MQTTRequestContext) {
         cancelRetry()

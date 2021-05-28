@@ -94,6 +94,7 @@ public struct MQTTSubscribeResponse {
 public enum MQTTSubscriptionResult: Equatable {
     /// Succesfully subscribed, with the given QoS level and optional user properties.
     case success(MQTTQoS)
+    
     /// Failed to subscribe with a given reason.
     case failure(ServerErrorReason)
 }

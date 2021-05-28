@@ -20,7 +20,7 @@ extension MQTTPacket {
         init(
             reasonCode: ReasonCode,
             reasonString: String? = nil,
-            sessionExpiry: MQTTConfiguration.SessionExpiry,
+            sessionExpiry: MQTTConfiguration.SessionExpiry?,
             userProperties: [MQTTUserProperty]
         ) {
             var properties = MQTTProperties()

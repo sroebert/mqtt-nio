@@ -70,7 +70,7 @@ extension MQTTVariableByteInteger: MQTTPropertyValue {
     }
     
     var propertyValueLength: Int {
-        return Self.size(for: value)
+        return ByteBuffer.sizeForMQTTVariableByteInteger(value)
     }
 }
 

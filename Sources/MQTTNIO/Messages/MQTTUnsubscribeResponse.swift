@@ -28,6 +28,7 @@ public struct MQTTUnsubscribeResponse {
 public enum MQTTUnsubscribeResult: Equatable {
     /// Succesfully unsubscribed.
     case success
+    
     /// Failed to unsubscribe with a given reason.
     case failure(ServerErrorReason)
 }

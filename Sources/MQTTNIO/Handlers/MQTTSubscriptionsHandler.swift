@@ -17,7 +17,7 @@ final class MQTTSubscriptionsHandler: ChannelDuplexHandler {
     
     // MARK: - Vars
     
-    let acknowledgementHandler: MQTTAcknowledgementHandler?
+    var acknowledgementHandler: MQTTAcknowledgementHandler?
     let logger: Logger
     
     weak var delegate: MQTTSubscriptionsHandlerDelegate?

@@ -14,12 +14,17 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
     
     // MARK: - Vars
     
-    let logger: Logger
+    static let defaultMaxInflightEntries = 20
+    
+    var version: MQTTProtocolVersion
+    var brokerConfiguration = MQTTBrokerConfiguration()
+    
     let eventLoop: EventLoop
+    let logger: Logger
+    var maxInflightEntries = MQTTRequestHandler.defaultMaxInflightEntries
     
     private let lock = Lock()
 
-    private var maxInflightEntries = 20
     private var entriesInflight: [AnyEntry] = []
     private var entriesQueue: [AnyEntry] = []
     
@@ -31,9 +36,14 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
     
     // MARK: - Init
 
-    public init(logger: Logger, eventLoop: EventLoop) {
-        self.logger = logger
+    public init(
+        eventLoop: EventLoop,
+        version: MQTTProtocolVersion,
+        logger: Logger
+    ) {
         self.eventLoop = eventLoop
+        self.version = version
+        self.logger = logger
     }
     
     // MARK: - Queue
@@ -217,6 +227,14 @@ extension MQTTRequestHandler {
         init(handler: MQTTRequestHandler, context: ChannelHandlerContext) {
             self.handler = handler
             self.context = context
+        }
+        
+        var version: MQTTProtocolVersion {
+            return handler.version
+        }
+        
+        var brokerConfiguration: MQTTBrokerConfiguration {
+            return handler.brokerConfiguration
         }
         
         var logger: Logger {

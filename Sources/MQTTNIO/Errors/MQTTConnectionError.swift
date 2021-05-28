@@ -3,7 +3,7 @@ public enum MQTTConnectionError: Error, Equatable {
     /// The connection was closed while trying to connect.
     case connectionClosed
     
-    /// The broker took to long to respond to the connect packet.
+    /// The broker took to long to respond to a packet.
     case timeoutWaitingForAcknowledgement
     
     /// The broker send a reason for connection failure.

@@ -5,7 +5,7 @@ final class MQTTConnectRequest: MQTTRequest {
     
     // MARK: - Types
     
-    enum Error: Swift.Error {
+    private enum Event {
         case timeout
     }
     
@@ -26,8 +26,8 @@ final class MQTTConnectRequest: MQTTRequest {
         return true
     }
     
-    func start(context: MQTTRequestContext) -> MQTTRequestResult<MQTTConnectResponse> {
-        timeoutScheduled = context.scheduleEvent(Error.timeout, in: configuration.connectRequestTimeoutInterval)
+    func start(context: MQTTRequestContext) -> MQTTRequestResult<MQTTPacket.ConnAck> {
+        timeoutScheduled = context.scheduleEvent(Event.timeout, in: configuration.connectRequestTimeoutInterval)
         
         context.logger.debug("Sending: Connect", metadata: [
             "clientId": .string(configuration.clientId),
@@ -38,7 +38,7 @@ final class MQTTConnectRequest: MQTTRequest {
         return .pending
     }
     
-    func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> MQTTRequestResult<MQTTConnectResponse>? {
+    func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> MQTTRequestResult<MQTTPacket.ConnAck>? {
         timeoutScheduled?.cancel()
         timeoutScheduled = nil
         
@@ -59,18 +59,16 @@ final class MQTTConnectRequest: MQTTRequest {
         }
         
         context.logger.debug("Received: Connect Acknowledgement (Accepted)")
-        return .success(MQTTConnectResponse(
-            isSessionPresent: connAck.isSessionPresent
-        ))
+        return .success(connAck)
     }
     
-    func disconnected(context: MQTTRequestContext) -> MQTTRequestResult<MQTTConnectResponse> {
+    func disconnected(context: MQTTRequestContext) -> MQTTRequestResult<MQTTPacket.ConnAck> {
         context.logger.notice("Disconnected while waiting for 'Connect Acknowledgement'")
         return .failure(MQTTConnectionError.connectionClosed)
     }
     
-    func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult<MQTTConnectResponse> {
-        guard case Error.timeout = event else {
+    func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult<MQTTPacket.ConnAck> {
+        guard case Event.timeout = event else {
             return .pending
         }
         

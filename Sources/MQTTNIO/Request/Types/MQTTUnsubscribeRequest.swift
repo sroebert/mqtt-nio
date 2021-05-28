@@ -5,7 +5,7 @@ final class MQTTUnsubscribeRequest: MQTTRequest {
     
     // MARK: - Types
     
-    enum Error: Swift.Error {
+    private enum Event {
         case timeout
     }
     
@@ -33,21 +33,27 @@ final class MQTTUnsubscribeRequest: MQTTRequest {
     // MARK: - MQTTRequest
     
     func start(context: MQTTRequestContext) -> MQTTRequestResult<MQTTUnsubscribeResponse> {
-        timeoutScheduled = context.scheduleEvent(Error.timeout, in: .seconds(5))
-        
         let packetId = context.getNextPacketId()
         self.packetId = packetId
+        
+        let packet = MQTTPacket.Unsubscribe(
+            topicFilters: topicFilters,
+            userProperties: userProperties,
+            packetId: packetId
+        )
+        
+        if let error = error(for: packet, context: context) {
+            return .failure(error)
+        }
+        
+        timeoutScheduled = context.scheduleEvent(Event.timeout, in: timeoutInterval)
         
         context.logger.debug("Sending: Unsubscribe", metadata: [
             "packetId": .stringConvertible(packetId),
             "topicFilters": .array(topicFilters.map { .string($0) })
         ])
         
-        context.write(MQTTPacket.Unsubscribe(
-            topicFilters: topicFilters,
-            userProperties: userProperties,
-            packetId: packetId
-        ))
+        context.write(packet)
         return .pending
     }
     
@@ -101,11 +107,27 @@ final class MQTTUnsubscribeRequest: MQTTRequest {
     }
     
     func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult<MQTTUnsubscribeResponse> {
-        guard case Error.timeout = event else {
+        guard case Event.timeout = event else {
             return .pending
         }
         
         context.logger.notice("Did not receive 'Unsubscribe Acknowledgement' in time")
         return .failure(MQTTConnectionError.timeoutWaitingForAcknowledgement)
+    }
+    
+    // MARK: - Utils
+    
+    private func error(for packet: MQTTPacket.Unsubscribe, context: MQTTRequestContext) -> Error? {
+        if let maximumPacketSize = context.brokerConfiguration.maximumPacketSize {
+            let size = packet.size(version: context.version)
+            guard size <= maximumPacketSize else {
+                return MQTTProtocolError(
+                    code: .packetTooLarge,
+                    "The size of the packet exceeds the maximum packet size of the broker."
+                )
+            }
+        }
+        
+        return nil
     }
 }

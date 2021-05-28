@@ -24,7 +24,10 @@ extension MQTTPacket {
             var properties = MQTTProperties()
             let connectProperties = data.configuration.connectProperties
             
-            properties.sessionExpiry = connectProperties.sessionExpiry
+            if connectProperties.sessionExpiry != .atClose {
+                properties.sessionExpiry = connectProperties.sessionExpiry
+            }
+            
             properties.receiveMaximum = connectProperties.receiveMaximum
             properties.maximumPacketSize = connectProperties.maximumPacketSize
             properties.requestResponseInformation = connectProperties.requestResponseInformation

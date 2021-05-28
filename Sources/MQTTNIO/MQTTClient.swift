@@ -103,7 +103,11 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
         connectionEventLoop = eventLoopGroup.next()
         callbackEventLoop = eventLoopGroup.next()
         
-        requestHandler = MQTTRequestHandler(logger: logger, eventLoop: connectionEventLoop)
+        requestHandler = MQTTRequestHandler(
+            eventLoop: connectionEventLoop,
+            version: configuration.protocolVersion,
+            logger: logger
+        )
         subscriptionsHandler = MQTTSubscriptionsHandler(
             acknowledgementHandler: configuration.acknowledgementHandler,
             logger: logger
@@ -162,6 +166,10 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
             guard connection == nil else {
                 return connectionEventLoop.makeSucceededFuture(())
             }
+            
+            // Update handler properties to match configuration
+            requestHandler.version = configuration.protocolVersion
+            subscriptionsHandler.acknowledgementHandler = configuration.acknowledgementHandler
             
             let connection = MQTTConnection(
                 eventLoop: connectionEventLoop,

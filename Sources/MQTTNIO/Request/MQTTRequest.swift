@@ -2,6 +2,9 @@ import NIO
 import Logging
 
 protocol MQTTRequestContext {
+    var version: MQTTProtocolVersion { get }
+    var brokerConfiguration: MQTTBrokerConfiguration { get }
+    
     var logger: Logger { get }
     
     func write(_ outbound: MQTTPacket.Outbound)

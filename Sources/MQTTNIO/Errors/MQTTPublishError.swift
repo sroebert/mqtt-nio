@@ -1,7 +1,13 @@
-/// Errors that can occur while publishing a message to the broker.
+/// Errors that can occur when publishing a message to the broker.
 public enum MQTTPublishError: Error, Equatable {
     /// The client reconnected to the broker and the session was cleared. Because of this, the publish was cancelled.
     case sessionCleared
+    
+    /// The message has a QoS value not supported by the broker.
+    case exceedsMaximumQoS
+    
+    /// The message has retain set, which is not supported on the broker.
+    case retainNotSupported
     
     /// The broker send a reason for publish failure.
     case server(ServerReason)

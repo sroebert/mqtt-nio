@@ -26,7 +26,7 @@ struct MQTTProperties {
     var subscriptionIdentifiers: [Int]
     
     @MQTTProperty(0x11)
-    var sessionExpiry: MQTTConfiguration.SessionExpiry
+    var sessionExpiry: MQTTConfiguration.SessionExpiry?
     
     @MQTTProperty(0x12)
     var assignedClientIdentifier: String?
@@ -68,7 +68,7 @@ struct MQTTProperties {
     var topicAlias: Int?
     
     @MQTTProperty(0x24)
-    var maximumQoS: MQTTQoS
+    var maximumQoS: MQTTQoS = .exactlyOnce
     
     @MQTTProperty(0x25)
     var retainAvailable = true
@@ -146,6 +146,27 @@ struct MQTTProperties {
         try propertiesToSerialize.forEach {
             try $0.serialize(into: &buffer)
         }
+    }
+    
+    func size() -> Int {
+        var propertiesLength: Int = 0
+        
+        let mirror = Mirror(reflecting: self)
+        for child in mirror.children {
+            guard let property = child.value as? MQTTPropertyType else {
+                continue
+            }
+            
+            let propertyLength = property.serializedLength
+            guard propertyLength > 0 else {
+                continue
+            }
+            
+            propertiesLength += propertyLength
+        }
+        
+        return ByteBuffer.sizeForMQTTVariableByteInteger(propertiesLength) +
+            propertiesLength
     }
 }
 

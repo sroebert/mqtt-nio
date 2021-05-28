@@ -7,12 +7,12 @@ final class MQTTDisconnectRequest: MQTTRequest {
     
     let reasonCode: MQTTPacket.Disconnect.ReasonCode
     let reasonString: String?
-    let sessionExpiry: MQTTConfiguration.SessionExpiry
+    let sessionExpiry: MQTTConfiguration.SessionExpiry?
     let userProperties: [MQTTUserProperty]
     
     // MARK: - Init
     
-    init?(reason: MQTTDisconnectReason, sessionExpiry: MQTTConfiguration.SessionExpiry) {
+    init?(reason: MQTTDisconnectReason) {
         switch reason {
         case .connectionClosed, .server:
             // In this case no disconnect message has to be send to the server
@@ -21,13 +21,13 @@ final class MQTTDisconnectRequest: MQTTRequest {
         case .userInitiated(let userRequest):
             self.reasonCode = userRequest.sendWillMessage ? .disconnectWithWillMessage : .normalDisconnection
             self.reasonString = nil
-            self.sessionExpiry = userRequest.sessionExpiry ?? sessionExpiry
+            self.sessionExpiry = userRequest.sessionExpiry
             self.userProperties = userRequest.userProperties
             
         case .client(let protocolError):
             self.reasonCode = protocolError.code.disconnectReasonCode
             self.reasonString = protocolError.message
-            self.sessionExpiry = sessionExpiry
+            self.sessionExpiry = nil
             self.userProperties = []
         }
     }

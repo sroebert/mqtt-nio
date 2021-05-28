@@ -44,6 +44,26 @@ extension MQTTPacket {
                 data: buffer
             )
         }
+        
+        // MARK: - Utils
+        
+        func size(version: MQTTProtocolVersion) -> Int {
+            var dataSize = 0
+            
+            dataSize += MemoryLayout<UInt16>.size
+            
+            if version >= .version5 {
+                var properties = MQTTProperties()
+                properties.userProperties = data.userProperties
+                dataSize += properties.size()
+            }
+            
+            for topicFilter in data.topicFilters {
+                dataSize += ByteBuffer.sizeForMQTTString(topicFilter)
+            }
+            
+            return dataSize
+        }
     }
 }
 

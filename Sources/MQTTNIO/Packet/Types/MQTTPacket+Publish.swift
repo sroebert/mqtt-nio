@@ -129,6 +129,33 @@ extension MQTTPacket {
         
         // MARK: - Utils
         
+        func size(version: MQTTProtocolVersion) -> Int {
+            var dataSize = 0
+            
+            dataSize += ByteBuffer.sizeForMQTTString(message.topic)
+            
+            if message.qos != .atMostOnce {
+                dataSize += MemoryLayout<UInt16>.size
+            }
+            
+            if version >= .version5 {
+                dataSize += properties.size()
+            }
+            
+            switch message.payload {
+            case .empty:
+                break
+            
+            case .bytes(let bytes):
+                dataSize += bytes.readableBytes
+                
+            case .string(let string, _):
+                dataSize += string.utf8.count
+            }
+            
+            return MQTTPacketEncoder.size(forPacketWithDataSize: dataSize)
+        }
+        
         private func generateFlags() -> Flags {
             var flags: Flags = []
             

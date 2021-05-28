@@ -1,3 +1,4 @@
+import Foundation
 import NIO
 import Logging
 
@@ -5,7 +6,7 @@ final class MQTTSubscribeRequest: MQTTRequest {
     
     // MARK: - Types
     
-    enum Error: Swift.Error {
+    private enum Event {
         case timeout
     }
     
@@ -36,10 +37,21 @@ final class MQTTSubscribeRequest: MQTTRequest {
     // MARK: - MQTTRequest
     
     func start(context: MQTTRequestContext) -> MQTTRequestResult<MQTTSubscribeResponse> {
-        timeoutScheduled = context.scheduleEvent(Error.timeout, in: .seconds(5))
-        
         let packetId = context.getNextPacketId()
         self.packetId = packetId
+        
+        let packet = MQTTPacket.Subscribe(
+            subscriptions: subscriptions,
+            subscriptionIdentifier: subscriptionIdentifier,
+            userProperties: userProperties,
+            packetId: packetId
+        )
+        
+        if let error = requestError(context: context) ?? error(for: packet, context: context) {
+            return .failure(error)
+        }
+        
+        timeoutScheduled = context.scheduleEvent(Event.timeout, in: timeoutInterval)
         
         context.logger.debug("Sending: Subscribe", metadata: [
             "packetId": .stringConvertible(packetId),
@@ -49,12 +61,7 @@ final class MQTTSubscribeRequest: MQTTRequest {
             ] })
         ])
         
-        context.write(MQTTPacket.Subscribe(
-            subscriptions: subscriptions,
-            subscriptionIdentifier: subscriptionIdentifier,
-            userProperties: userProperties,
-            packetId: packetId
-        ))
+        context.write(packet)
         return .pending
     }
     
@@ -107,11 +114,55 @@ final class MQTTSubscribeRequest: MQTTRequest {
     }
     
     func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult<MQTTSubscribeResponse> {
-        guard case Error.timeout = event else {
+        guard case Event.timeout = event else {
             return .pending
         }
         
         context.logger.notice("Did not receive 'Subscription Acknowledgement' in time")
         return .failure(MQTTConnectionError.timeoutWaitingForAcknowledgement)
+    }
+    
+    // MARK: - Utils
+    
+    private func requestError(context: MQTTRequestContext) -> Error? {
+        if !context.brokerConfiguration.isSubscriptionIdentifierAvailable && subscriptionIdentifier != nil {
+            return MQTTSubscribeError.subscriptionIdentifiersNotSupported
+        }
+        
+        if !context.brokerConfiguration.isWildcardSubscriptionAvailable {
+            for subscription in subscriptions {
+                let topics = subscription.topicFilter.split(separator: "/", omittingEmptySubsequences: false)
+                if topics.contains(where: { $0 == "#" || $0 == "+" }) {
+                    return MQTTSubscribeError.subscriptionWildcardsNotSupported
+                }
+            }
+        }
+        
+        if !context.brokerConfiguration.isSharedSubscriptionAvailable {
+            let regex = try! NSRegularExpression(pattern: #"^\$share\/[^#+\/]+\/."#)
+            for subscription in subscriptions {
+                let topicFilter = subscription.topicFilter
+                let range = NSRange(topicFilter.startIndex..<topicFilter.endIndex, in: topicFilter)
+                if regex.firstMatch(in: topicFilter, options: [], range: range) != nil {
+                    return MQTTSubscribeError.sharedSubscriptionsNotSupported
+                }
+            }
+        }
+        
+        return nil
+    }
+    
+    private func error(for packet: MQTTPacket.Subscribe, context: MQTTRequestContext) -> Error? {
+        if let maximumPacketSize = context.brokerConfiguration.maximumPacketSize {
+            let size = packet.size(version: context.version)
+            guard size <= maximumPacketSize else {
+                return MQTTProtocolError(
+                    code: .packetTooLarge,
+                    "The size of the packet exceeds the maximum packet size of the broker."
+                )
+            }
+        }
+        
+        return nil
     }
 }

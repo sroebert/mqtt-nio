@@ -6,6 +6,10 @@ enum Allocator {
 }
 
 extension ByteBuffer {
+    static func sizeForMQTTString(_ string: String) -> Int {
+        return MemoryLayout<UInt16>.size + string.utf8.count
+    }
+    
     mutating func readMQTTString(_ errorVariableName: String) throws -> String {
         guard let length = readInteger(as: UInt16.self) else {
             throw MQTTProtocolError("Missing data for '\(errorVariableName)'")
@@ -25,6 +29,18 @@ extension ByteBuffer {
         
         writeInteger(UInt16(string.utf8.count))
         writeString(string)
+    }
+    
+    static func sizeForMQTTVariableByteInteger(_ value: Int) -> Int {
+        var value = value
+        var length = 0
+        
+        repeat {
+            value /= 128
+            length += 1
+        } while value > 0 && length <= 4
+        
+        return length
     }
     
     mutating func peekMQTTVariableByteInteger(_ errorVariableName: String) throws -> Int? {

@@ -53,6 +53,26 @@ extension MQTTPacket {
         
         // MARK: - Utils
         
+        func size(version: MQTTProtocolVersion) -> Int {
+            var dataSize = 0
+            
+            dataSize += MemoryLayout<UInt16>.size
+            
+            if version >= .version5 {
+                var properties = MQTTProperties()
+                properties.subscriptionIdentifier = data.subscriptionIdentifier
+                properties.userProperties = data.userProperties
+                dataSize += properties.size()
+            }
+            
+            for subscription in data.subscriptions {
+                dataSize += ByteBuffer.sizeForMQTTString(subscription.topicFilter)
+                dataSize += MemoryLayout<UInt8>.size
+            }
+            
+            return dataSize
+        }
+        
         private func optionsValue(
             for subscription: MQTTSubscription,
             version: MQTTProtocolVersion
