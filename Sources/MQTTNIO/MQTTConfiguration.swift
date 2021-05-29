@@ -40,7 +40,7 @@ public struct MQTTConfiguration {
     /// The time interval in which a message must be send to the broker to keep the connection alive.
     public var keepAliveInterval: TimeAmount
     
-    /// When `true` keep alive ping messages are rescheduled when sending other packets. 
+    /// When `true` keep alive ping messages are rescheduled when sending other packets.
     public var reschedulePings: Bool
     
     /// The interval after which connection with the broker will fail.
@@ -57,6 +57,11 @@ public struct MQTTConfiguration {
     
     /// The time to wait for an acknowledgement for subscribing or unsubscribing.
     public var subscriptionTimeoutInterval: TimeAmount
+    
+    /// A closure that will provide a authentication handler to use for enhanced authentication.
+    ///
+    /// An `MQTTAuthenticationProcess` will be passed to the closure to indicate which authentication process the handler will be used for.
+    public var authenticationHandlerProvider: (_ process: MQTTAuthenticationProcess) -> MQTTAuthenticationHandler?
     
     /// Creates an `MQTTConfiguration`.
     /// - Parameters:
@@ -77,6 +82,7 @@ public struct MQTTConfiguration {
     ///   - connectRequestTimeoutInterval: The time to wait for the server to respond to a connect message from the client. The default value is `5` seconds.
     ///   - publishRetryInterval: The time to wait before an unacknowledged publish message is retried. The default value is `5` seconds.
     ///   - subscriptionTimeoutInterval: The time to wait for an acknowledgement for subscribing or unsubscribing. The default value is `5` seconds.
+    ///   - authenticationHandlerProvider: A closure that will provide a authentication handler to use for enhanced authentication. The default value will return `nil` for the handler.
     public init(
         target: Target,
         tls: TLSConfiguration? = nil,
@@ -94,7 +100,8 @@ public struct MQTTConfiguration {
         reconnectMode: ReconnectMode = .retry(minimumDelay: .seconds(1), maximumDelay: .seconds(120)),
         connectRequestTimeoutInterval: TimeAmount = .seconds(5),
         publishRetryInterval: TimeAmount = .seconds(5),
-        subscriptionTimeoutInterval: TimeAmount = .seconds(5)
+        subscriptionTimeoutInterval: TimeAmount = .seconds(5),
+        authenticationHandlerProvider: @escaping (MQTTAuthenticationProcess) -> MQTTAuthenticationHandler? = { _ in nil }
     ) {
         self.target = target
         self.tls = tls
@@ -113,6 +120,7 @@ public struct MQTTConfiguration {
         self.connectRequestTimeoutInterval = connectRequestTimeoutInterval
         self.publishRetryInterval = publishRetryInterval
         self.subscriptionTimeoutInterval = subscriptionTimeoutInterval
+        self.authenticationHandlerProvider = authenticationHandlerProvider
     }
 }
 
@@ -273,9 +281,6 @@ extension MQTTConfiguration {
         /// Additional user properties to send when connecting with the broker.
         public var userProperties: [MQTTUserProperty]
         
-        /// The authentication handler to use for enhanced authentication.
-        public var authenticationHandler: MQTTAuthenticationHandler?
-        
         /// Creates an `ConnectProperties`.
         /// - Parameters:
         ///   - sessionExpiry: Indicates when the session of the client should expire.
@@ -284,15 +289,13 @@ extension MQTTConfiguration {
         ///   - requestResponseInformation: Indicates whether the server should provide response information when connecting. The default value is `false`.
         ///   - requestProblemInformation: Indicates whether the server should provide a reason string and user properties in case of failures. The default value is `true`.
         ///   - userProperties: Additional user properties to send when connecting with the broker. The default value is an empty array.
-        ///   - authenticationHandler: The authentication handler to use for enhanced authentication.. The default value is `nil`, indicating that there is no enhanced authentication.
         public init(
             sessionExpiry: SessionExpiry = .atClose,
             receiveMaximum: Int? = nil,
             maximumPacketSize: Int? = nil,
             requestResponseInformation: Bool = false,
             requestProblemInformation: Bool = true,
-            userProperties: [MQTTUserProperty] = [],
-            authenticationHandler: MQTTAuthenticationHandler? = nil
+            userProperties: [MQTTUserProperty] = []
         ) {
             self.sessionExpiry = sessionExpiry
             self.receiveMaximum = receiveMaximum
@@ -300,7 +303,6 @@ extension MQTTConfiguration {
             self.requestResponseInformation = requestResponseInformation
             self.requestProblemInformation = requestProblemInformation
             self.userProperties = userProperties
-            self.authenticationHandler = authenticationHandler
         }
     }
 }

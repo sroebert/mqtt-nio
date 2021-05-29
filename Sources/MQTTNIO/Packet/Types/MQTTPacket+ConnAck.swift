@@ -39,6 +39,10 @@ extension MQTTPacket {
             from packet: inout MQTTPacket,
             version: MQTTProtocolVersion
         ) throws -> Self {
+            guard packet.fixedHeaderData == 0 else {
+                throw MQTTProtocolError("Invalid ConnAck fixed header data")
+            }
+            
             guard
                 let acknowledgeFlags = packet.data.readInteger(as: UInt8.self),
                 let reasonCodeValue = packet.data.readInteger(as: UInt8.self)

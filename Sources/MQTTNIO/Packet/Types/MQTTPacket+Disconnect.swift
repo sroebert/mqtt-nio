@@ -57,6 +57,10 @@ extension MQTTPacket {
                 )
             }
             
+            guard packet.fixedHeaderData == 0 else {
+                throw MQTTProtocolError("Invalid Disconnect fixed header data")
+            }
+            
             guard let reasonCodeValue = packet.data.readInteger(as: UInt8.self) else {
                 throw MQTTProtocolError("Invalid disconnect packet structure")
             }

@@ -39,6 +39,10 @@ extension MQTTPacket {
             from packet: inout MQTTPacket,
             version: MQTTProtocolVersion
         ) throws -> Self {
+            guard packet.fixedHeaderData == 0 else {
+                throw MQTTProtocolError("Invalid UnsubAck fixed header data")
+            }
+            
             guard let packetId = packet.data.readInteger(as: UInt16.self) else {
                 throw MQTTProtocolError("Missing packet identifier")
             }

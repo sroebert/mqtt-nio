@@ -110,11 +110,7 @@ extension MQTTPacket {
             let reasonCode: ReasonCode
             let reasonString: String?
             let userProperties: [MQTTUserProperty]
-            if version >= .version5, packet.data.readableBytes >= 1 {
-                guard let reasonCodeValue = packet.data.readInteger(as: UInt8.self) else {
-                    throw MQTTProtocolError("Invalid acknowledgement packet structure")
-                }
-                
+            if version >= .version5, let reasonCodeValue = packet.data.readInteger(as: UInt8.self) {
                 guard let parsedReasonCode = ReasonCode(rawValue: reasonCodeValue, kind: kind) else {
                     throw MQTTProtocolError("Invalid acknowledgement reason code")
                 }
@@ -190,9 +186,15 @@ extension MQTTPacket {
         private static func parseKind(from packet: MQTTPacket) throws -> Kind {
             switch packet.kind {
             case .pubAck:
+                guard packet.fixedHeaderData == 0 else {
+                    throw MQTTProtocolError("Invalid PubAck fixed header data")
+                }
                 return .pubAck
                 
             case .pubRec:
+                guard packet.fixedHeaderData == 0 else {
+                    throw MQTTProtocolError("Invalid PubRec fixed header data")
+                }
                 return .pubRec
                 
             case .pubRel:
@@ -202,6 +204,9 @@ extension MQTTPacket {
                 return .pubRel
                 
             case .pubComp:
+                guard packet.fixedHeaderData == 0 else {
+                    throw MQTTProtocolError("Invalid PubComp fixed header data")
+                }
                 return .pubComp
                 
             default:

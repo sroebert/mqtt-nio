@@ -1,3 +1,4 @@
+import Foundation
 import NIO
 import Logging
 
@@ -12,7 +13,11 @@ final class MQTTConnectRequest: MQTTRequest {
     // MARK: - Vars
     
     let configuration: MQTTConfiguration
+    
     private var timeoutScheduled: Scheduled<Void>?
+    
+    private var authenticationHandler: MQTTAuthenticationHandler?
+    private var authenticationMethod: String?
     
     // MARK: - Init
     
@@ -34,7 +39,15 @@ final class MQTTConnectRequest: MQTTRequest {
             "clean": .stringConvertible(configuration.clean),
         ])
         
-        context.write(MQTTPacket.Connect(configuration: configuration))
+        authenticationHandler = configuration.authenticationHandlerProvider(.connect)
+        authenticationMethod = authenticationHandler?.authenticationMethod
+        let authenticationData = authenticationHandler?.initialAuthenticationData
+        
+        context.write(MQTTPacket.Connect(
+            configuration: configuration,
+            authenticationMethod: authenticationMethod,
+            authenticationData: authenticationData?.byteBuffer
+        ))
         return .pending
     }
     
@@ -42,24 +55,19 @@ final class MQTTConnectRequest: MQTTRequest {
         timeoutScheduled?.cancel()
         timeoutScheduled = nil
         
-        guard case .connAck(let connAck) = packet else {
-            let error = MQTTProtocolError(
-                code: .protocolError,
-                "Received invalid packet after sending Connect: \(packet)"
-            )
-            return .failure(error)
-        }
-        
-        if let errorReason = connAck.serverErrorReason {
-            context.logger.notice("Received: Connect Acknowledgement (Rejected)", metadata: [
-                "reasonCode": "\(connAck.reasonCode)"
-            ])
+        switch packet {
+        case .connAck(let connAck):
+            return handle(connAck, context: context)
             
-            return .failure(MQTTConnectionError.server(errorReason))
+        case .auth(let auth):
+            return handle(auth, context: context)
+            
+        default:
+            return .failure(MQTTProtocolError(
+                code: .protocolError,
+                "Received invalid packet in the Connect process: \(packet)"
+            ))
         }
-        
-        context.logger.debug("Received: Connect Acknowledgement (Accepted)")
-        return .success(connAck)
     }
     
     func disconnected(context: MQTTRequestContext) -> MQTTRequestResult<MQTTPacket.ConnAck> {
@@ -74,6 +82,58 @@ final class MQTTConnectRequest: MQTTRequest {
         
         context.logger.notice("Did not receive 'Connect Acknowledgement' in time")
         return .failure(MQTTConnectionError.timeoutWaitingForAcknowledgement)
+    }
+    
+    // MARK: - Utils
+    
+    private func handle(
+        _ connAck: MQTTPacket.ConnAck,
+        context: MQTTRequestContext
+    ) -> MQTTRequestResult<MQTTPacket.ConnAck> {
+        if let errorReason = connAck.serverErrorReason {
+            context.logger.notice("Received: Connect Acknowledgement (Rejected)", metadata: [
+                "reasonCode": "\(connAck.reasonCode)"
+            ])
+            return .failure(MQTTConnectionError.server(errorReason))
+        }
+        
+        context.logger.debug("Received: Connect Acknowledgement (Accepted)")
+        return .success(connAck)
+    }
+    
+    private func handle(
+        _ auth: MQTTPacket.Auth,
+        context: MQTTRequestContext
+    ) -> MQTTRequestResult<MQTTPacket.ConnAck> {
+        guard let handler = authenticationHandler else {
+            return .failure(MQTTProtocolError(
+                code: .protocolError,
+                "Received unexpected auth packet in the Connect process"
+            ))
+        }
+        
+        guard auth.authenticationMethod == authenticationMethod else {
+            return .failure(MQTTProtocolError(
+                code: .protocolError,
+                "Invalid authentication method received from the broker: \(auth.authenticationMethod ?? "nil")"
+            ))
+        }
+        
+        let data = auth.authenticationData.map { Data($0.readableBytesView) }
+        let responseData: Data?
+        do {
+            responseData = try handler.processAuthenticationData(data)
+        } catch {
+            return .failure(error)
+        }
+        
+        context.write(MQTTPacket.Auth(
+            reasonCode: .continueAuthentication,
+            reasonString: nil,
+            authenticationMethod: authenticationMethod,
+            authenticationData: responseData?.byteBuffer
+        ))
+        return .pending
     }
 }
 

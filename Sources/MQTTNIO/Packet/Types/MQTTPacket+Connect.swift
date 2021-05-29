@@ -12,9 +12,15 @@ extension MQTTPacket {
         
         // MARK: - Init
         
-        init(configuration: MQTTConfiguration) {
+        init(
+            configuration: MQTTConfiguration,
+            authenticationMethod: String?,
+            authenticationData: ByteBuffer?
+        ) {
             data = Data(
-                configuration: configuration
+                configuration: configuration,
+                authenticationMethod: authenticationMethod,
+                authenticationData: authenticationData
             )
         }
         
@@ -34,13 +40,8 @@ extension MQTTPacket {
             properties.requestProblemInformation = connectProperties.requestProblemInformation
             properties.userProperties = connectProperties.userProperties
             
-            if let handler = connectProperties.authenticationHandler {
-                properties.authenticationMethod = handler.method
-                
-                if let data = handler.initialData {
-                    properties.authenticationData = data.byteBuffer
-                }
-            }
+            properties.authenticationMethod = data.authenticationMethod
+            properties.authenticationData = data.authenticationData
             
             return properties
         }
@@ -184,9 +185,17 @@ extension MQTTPacket.Connect {
     // Wrapper to avoid heap allocations when added to NIOAny
     private class Data {
         let configuration: MQTTConfiguration
+        let authenticationMethod: String?
+        let authenticationData: ByteBuffer?
         
-        init(configuration: MQTTConfiguration) {
+        init(
+            configuration: MQTTConfiguration,
+            authenticationMethod: String?,
+            authenticationData: ByteBuffer?
+        ) {
             self.configuration = configuration
+            self.authenticationMethod = authenticationMethod
+            self.authenticationData = authenticationData
         }
     }
     

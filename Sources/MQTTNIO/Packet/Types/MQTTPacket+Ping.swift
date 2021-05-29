@@ -12,6 +12,10 @@ extension MQTTPacket {
             from packet: inout MQTTPacket,
             version: MQTTProtocolVersion
         ) throws -> Self {
+            guard packet.fixedHeaderData == 0 else {
+                throw MQTTProtocolError("Invalid PingResp fixed header data")
+            }
+            
             return MQTTPacket.PingResp()
         }
         
