@@ -142,7 +142,7 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
         requestHandler.failEntries()
         
         if shouldShutdownEventLoopGroup {
-            try? eventLoopGroup.syncShutdownGracefully()
+            eventLoopGroup.shutdownGracefully { _ in }
         }
     }
     
