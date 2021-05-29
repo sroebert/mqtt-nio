@@ -106,7 +106,6 @@ final class MQTTSubscriptionsHandler: ChannelDuplexHandler {
                 return
             }
             
-            
             let response = acknowledgementHandler?(publish.message)
             let packet = MQTTPacket.Acknowledgement.pubAck(
                 packetId: packetId,

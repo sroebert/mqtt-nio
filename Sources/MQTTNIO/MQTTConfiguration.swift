@@ -53,6 +53,8 @@ public struct MQTTConfiguration {
     public var connectRequestTimeoutInterval: TimeAmount
     
     /// The time to wait before an unacknowledged publish message is retried. If `nil` a publish is only retried on reconnection.
+    ///
+    /// This property is ignored for MQTT 5, since it is not allowed to retry publishes other than on reconnection.
     public var publishRetryInterval: TimeAmount?
     
     /// The time to wait for an acknowledgement for subscribing or unsubscribing.

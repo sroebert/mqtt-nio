@@ -11,7 +11,6 @@ protocol MQTTRequestContext {
     
     func getNextPacketId() -> UInt16
     
-    @discardableResult
     func scheduleEvent(_ event: Any, in time: TimeAmount) -> Scheduled<Void>
 }
 

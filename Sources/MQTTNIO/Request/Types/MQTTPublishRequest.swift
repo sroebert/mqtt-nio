@@ -176,13 +176,14 @@ final class MQTTPublishRequest: MQTTRequest {
         cancelRetry()
         
         guard
+            context.version == .version3_1_1,
             let retryInterval = retryInterval,
             retryInterval.nanoseconds > 0
         else {
             return
         }
         
-        context.scheduleEvent(Event.retry, in: retryInterval)
+        scheduledRetry = context.scheduleEvent(Event.retry, in: retryInterval)
     }
     
     private func cancelRetry() {
