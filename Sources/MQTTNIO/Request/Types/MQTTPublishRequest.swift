@@ -32,11 +32,6 @@ final class MQTTPublishRequest: MQTTRequest {
     // MARK: - MQTTRequest
     
     func start(context: MQTTRequestContext) -> MQTTRequestResult<Void> {
-        let packet = MQTTPacket.Publish(message: message, packetId: packetId)
-        if let error = error(for: packet, context: context) {
-            return .failure(error)
-        }
-        
         let result: MQTTRequestResult<Void>
         switch message.qos {
         case .atMostOnce:
@@ -45,7 +40,14 @@ final class MQTTPublishRequest: MQTTRequest {
         case .atLeastOnce, .exactlyOnce:
             result = .pending
             packetId = context.getNextPacketId()
-            
+        }
+        
+        let packet = MQTTPacket.Publish(message: message, packetId: packetId)
+        if let error = error(for: packet, context: context) {
+            return .failure(error)
+        }
+        
+        if message.qos > .atMostOnce {
             scheduleRetry(context: context)
         }
         
