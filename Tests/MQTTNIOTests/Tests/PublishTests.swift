@@ -33,7 +33,7 @@ final class PublishTests: MQTTNIOTestCase {
         
         let topic = "mqtt-nio/tests/qos1"
         let payload = "Hello World!"
-        let qos: MQTTQoS = .atMostOnce
+        let qos: MQTTQoS = .atLeastOnce
         
         let expectation = XCTestExpectation(description: "Received payload")
         client.addMessageListener { _, message, _ in
