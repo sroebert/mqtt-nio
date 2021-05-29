@@ -58,10 +58,8 @@ public struct MQTTConfiguration {
     /// The time to wait for an acknowledgement for subscribing or unsubscribing.
     public var subscriptionTimeoutInterval: TimeAmount
     
-    /// A closure that will provide a authentication handler to use for enhanced authentication.
-    ///
-    /// An `MQTTAuthenticationProcess` will be passed to the closure to indicate which authentication process the handler will be used for.
-    public var authenticationHandlerProvider: (_ process: MQTTAuthenticationProcess) -> MQTTAuthenticationHandler?
+    /// A closure that will provide a authentication handler to use for enhanced authentication during connection.
+    public var authenticationHandlerProvider: () -> MQTTAuthenticationHandler?
     
     /// Creates an `MQTTConfiguration`.
     /// - Parameters:
@@ -82,7 +80,7 @@ public struct MQTTConfiguration {
     ///   - connectRequestTimeoutInterval: The time to wait for the server to respond to a connect message from the client. The default value is `5` seconds.
     ///   - publishRetryInterval: The time to wait before an unacknowledged publish message is retried. The default value is `5` seconds.
     ///   - subscriptionTimeoutInterval: The time to wait for an acknowledgement for subscribing or unsubscribing. The default value is `5` seconds.
-    ///   - authenticationHandlerProvider: A closure that will provide a authentication handler to use for enhanced authentication. The default value will return `nil` for the handler.
+    ///   - authenticationHandlerProvider: A closure that will provide a authentication handler to use for enhanced authentication during connection. The default value will return `nil` for the handler.
     public init(
         target: Target,
         tls: TLSConfiguration? = nil,
@@ -101,7 +99,7 @@ public struct MQTTConfiguration {
         connectRequestTimeoutInterval: TimeAmount = .seconds(5),
         publishRetryInterval: TimeAmount = .seconds(5),
         subscriptionTimeoutInterval: TimeAmount = .seconds(5),
-        authenticationHandlerProvider: @escaping (MQTTAuthenticationProcess) -> MQTTAuthenticationHandler? = { _ in nil }
+        authenticationHandlerProvider: @escaping () -> MQTTAuthenticationHandler? = { nil }
     ) {
         self.target = target
         self.tls = tls

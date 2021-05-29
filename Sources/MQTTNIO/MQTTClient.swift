@@ -413,6 +413,27 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
         }
     }
     
+    // MARK: - Re-authenticate
+    
+    /// Performs re-authentication with the broker.
+    ///
+    /// When performing re-authentication, the same authentication method should be used that was
+    /// used for connecting with the broker in the first place.
+    /// - Parameters:
+    ///   - handler: The authentication handler to use.
+    ///   - timeout: The time to wait for an authentication response from the broker. The default value is `5` seconds.
+    /// - Returns: An `EventLoopFuture` for when the re-authentication has completed.
+    public func reAuthenticate(
+        using handler: MQTTAuthenticationHandler,
+        timeout: TimeAmount = .seconds(5)
+    ) -> EventLoopFuture<Void> {
+        let request = MQTTReAuthenticateRequest(
+            authenticationHandler: handler,
+            timeoutInterval: timeout
+        )
+        return requestHandler.perform(request)
+    }
+    
     // MARK: - Listeners
     
     /// Adds a listener which will be called when the client has connected to a broker.

@@ -39,7 +39,7 @@ final class MQTTConnectRequest: MQTTRequest {
             "clean": .stringConvertible(configuration.clean),
         ])
         
-        authenticationHandler = configuration.authenticationHandlerProvider(.connect)
+        authenticationHandler = configuration.authenticationHandlerProvider()
         authenticationMethod = authenticationHandler?.authenticationMethod
         let authenticationData = authenticationHandler?.initialAuthenticationData
         
@@ -119,6 +119,8 @@ final class MQTTConnectRequest: MQTTRequest {
             ))
         }
         
+        context.logger.notice("Received: Auth")
+        
         let data = auth.authenticationData.map { Data($0.readableBytesView) }
         let responseData: Data?
         do {
@@ -126,6 +128,8 @@ final class MQTTConnectRequest: MQTTRequest {
         } catch {
             return .failure(error)
         }
+        
+        context.logger.notice("Sending: Auth")
         
         context.write(MQTTPacket.Auth(
             reasonCode: .continueAuthentication,

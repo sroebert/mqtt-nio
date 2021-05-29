@@ -1,14 +1,5 @@
 import Foundation
 
-/// Indicates which part of the enhanced authentication process is being performed.
-public enum MQTTAuthenticationProcess {
-    /// The initial authentication process when connecting to a 5.0 MQTT broker.
-    case connect
-    
-    /// The re-authentication while already connected to a 5.0 MQTT broker.
-    case reAuthenticate
-}
-
 /// Authentication handler protocol to handle enhanced authentication with a 5.0 MQTT broker.
 public protocol MQTTAuthenticationHandler {
     /// The name of the authentication method to use.
