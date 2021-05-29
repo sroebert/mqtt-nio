@@ -168,8 +168,8 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
             }
             
             // Update handler properties to match configuration
-            requestHandler.version = configuration.protocolVersion
-            subscriptionsHandler.acknowledgementHandler = configuration.acknowledgementHandler
+            requestHandler.version = _configuration.protocolVersion
+            subscriptionsHandler.acknowledgementHandler = _configuration.acknowledgementHandler
             
             let connection = MQTTConnection(
                 eventLoop: connectionEventLoop,
