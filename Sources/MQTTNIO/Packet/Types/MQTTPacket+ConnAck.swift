@@ -76,6 +76,8 @@ extension MQTTPacket {
             )
         }
         
+        // MARK: - Utils
+        
         @MQTTPropertiesParserBuilder
         private static var propertiesParser: MQTTPropertiesParser {
             \.$sessionExpiry

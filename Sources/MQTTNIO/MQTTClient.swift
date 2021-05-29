@@ -163,8 +163,10 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     @discardableResult
     public func connect() -> EventLoopFuture<Void> {
         return lock.withLock {
-            guard connection == nil else {
-                return connectionEventLoop.makeSucceededFuture(())
+            if let connection = connection {
+                return connectionEventLoop.flatSubmit {
+                    connection.connectFuture
+                }
             }
             
             // Update handler properties to match configuration
@@ -181,7 +183,24 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
             connection.delegate = self
             self.connection = connection
             
-            return connection.firstConnectFuture
+            let connectFuture = connection.connectFuture
+            if !_configuration.reconnectMode.shouldRetry {
+                // In the case of failure and not retrying,
+                // the connection should be cleared, allowing
+                // to reconnect again.
+                connectFuture.whenFailure { [weak self] _ in
+                    guard let strongSelf = self else {
+                        return
+                    }
+                    
+                    strongSelf.lock.withLock {
+                        if strongSelf.connection === connection {
+                            strongSelf.connection = nil
+                        }
+                    }
+                }
+            }
+            return connectFuture
         }
     }
     

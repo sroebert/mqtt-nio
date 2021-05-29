@@ -5,40 +5,49 @@ import NIO
 import NIOSSL
 
 class MQTTNIOTestCase: XCTestCase {
+    
+    // MARK: - Vars
+    
     private(set) var group: EventLoopGroup!
+    
     var eventLoop: EventLoop {
-        return self.group.next()
+        return group.next()
     }
+    
+    // MARK: - Set Up / Tear Down
     
     override func setUp() {
         XCTAssertTrue(isLoggingConfigured)
-        self.group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+        group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
     }
     
     override func tearDown() {
-        XCTAssertNoThrow(try self.group.syncShutdownGracefully())
-        self.group = nil
+        XCTAssertNoThrow(try group.syncShutdownGracefully())
+        group = nil
     }
     
     // MARK: - Clients
     
-    var plainClient: MQTTClient {
+    var client: MQTTClient {
         return MQTTClient(configuration: .init(
-            target: .host("localhost", port: 1883)
-        ), eventLoopGroup: group)
+            target: .host("localhost", port: 1883),
+            reconnectMode: .none
+        ), eventLoopGroupProvider: .shared(group))
     }
     
     var wsClient: MQTTClient {
         return MQTTClient(configuration: .init(
             target: .host("localhost", port: 1884),
-            webSockets: .enabled
+            webSockets: .enabled,
+            reconnectMode: .none
         ), eventLoopGroup: group)
     }
     
     var sslNoVerifyClient: MQTTClient {
         return MQTTClient(configuration: .init(
             target: .host("localhost", port: 8883),
-            tls: .forClient(certificateVerification: .none)
+            tls: .forClient(certificateVerification: .none),
+            reconnectMode: .none
         ), eventLoopGroup: group)
     }
     
@@ -46,7 +55,8 @@ class MQTTNIOTestCase: XCTestCase {
         return MQTTClient(configuration: .init(
             target: .host("localhost", port: 8884),
             tls: .forClient(certificateVerification: .none),
-            webSockets: .enabled
+            webSockets: .enabled,
+            reconnectMode: .none
         ), eventLoopGroup: group)
     }
     
@@ -65,12 +75,6 @@ class MQTTNIOTestCase: XCTestCase {
                 certificateVerification: .noHostnameVerification,
                 trustRoots: .certificates([caCertificate])
             )
-        ), eventLoopGroup: group)
-    }
-    
-    var authenticationClient: MQTTClient {
-        return MQTTClient(configuration: .init(
-            target: .host("localhost", port: 1885)
         ), eventLoopGroup: group)
     }
     

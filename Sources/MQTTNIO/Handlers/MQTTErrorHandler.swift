@@ -26,7 +26,5 @@ final class MQTTErrorHandler: ChannelInboundHandler {
         }
         
         delegate?.mttErrorHandler(self, caughtError: error, channel: context.channel)
-        
-        context.close(promise: nil)
     }
 }

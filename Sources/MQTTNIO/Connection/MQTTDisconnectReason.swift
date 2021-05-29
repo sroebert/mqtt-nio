@@ -3,8 +3,8 @@ public enum MQTTDisconnectReason {
     /// The user requested to close the connection.
     case userInitiated(UserRequest)
     
-    /// The connection was closed without a specific reason. This could be because of an error in the connection (e.g. no Internet).
-    case connectionClosed
+    /// The connection was closed without a specific reason. This could be because of an error in the connection (e.g. no Internet). Optionally the error that triggered the close is attached.
+    case connectionClosed(Error? = nil)
     
     /// The client disconnected because of protocol error.
     case client(MQTTProtocolError)

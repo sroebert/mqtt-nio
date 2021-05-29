@@ -3,7 +3,7 @@ import XCTest
 
 final class PublishTests: MQTTNIOTestCase {
     func testQoS0() throws {
-        let client = plainClient
+        let client = client
         wait(for: client.connect())
         
         let topic = "mqtt-nio/tests/qos0"
@@ -28,7 +28,7 @@ final class PublishTests: MQTTNIOTestCase {
     }
     
     func testQoS1() throws {
-        let client = plainClient
+        let client = client
         wait(for: client.connect())
         
         let topic = "mqtt-nio/tests/qos1"
@@ -53,7 +53,7 @@ final class PublishTests: MQTTNIOTestCase {
     }
     
     func testQoS2() throws {
-        let client = plainClient
+        let client = client
         wait(for: client.connect())
         
         let topic = "mqtt-nio/tests/qos2"
@@ -78,7 +78,7 @@ final class PublishTests: MQTTNIOTestCase {
     }
     
     func testRetain() throws {
-        let client = plainClient
+        let client = client
         wait(for: client.connect())
         
         let topic = "mqtt-nio/tests/retain"
@@ -116,7 +116,7 @@ final class PublishTests: MQTTNIOTestCase {
     }
     
     func testKeepSession() {
-        let client = plainClient
+        let client = client
         client.configuration.clean = false
         client.configuration.connectProperties.sessionExpiry = .afterInterval(.seconds(60))
         
@@ -142,7 +142,7 @@ final class PublishTests: MQTTNIOTestCase {
     }
     
     func testMultiSubscribe() {
-        let client = plainClient
+        let client = client
         wait(for: client.connect())
         
         let response = wait(for: client.subscribe(to: [
@@ -161,7 +161,7 @@ final class PublishTests: MQTTNIOTestCase {
     }
     
     func testUnsubscribe() {
-        let client = plainClient
+        let client = client
         wait(for: client.connect())
         
         let topic = "mqtt-nio/tests/unsubscribe"
@@ -181,15 +181,13 @@ final class PublishTests: MQTTNIOTestCase {
         wait(for: client.unsubscribe(from: topic))
         wait(for: client.publish(topic: topic, payload: payload))
         
-        wait(seconds: 1)
-        
         wait(for: [expectation], timeout: 2)
         
         wait(for: client.disconnect())
     }
     
     func testKeepAlive() {
-        let client = plainClient
+        let client = client
         client.configuration.keepAliveInterval = .seconds(1)
         wait(for: client.connect())
         
@@ -205,12 +203,13 @@ final class PublishTests: MQTTNIOTestCase {
     }
     
     func testInvalidClient() {
-        let client = plainClient
+        let client = client
+        client.configuration.protocolVersion = .version5
+        
         client.configuration.clean = false
         client.configuration.connectProperties.sessionExpiry = .afterInterval(.seconds(60))
         
         client.configuration.clientId = ""
-        client.configuration.reconnectMode = .none
         
         let expectation = XCTestExpectation(description: "Connect completed")
         client.connect().whenComplete { result in

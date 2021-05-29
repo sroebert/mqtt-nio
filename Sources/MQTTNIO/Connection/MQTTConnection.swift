@@ -39,17 +39,20 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
     let configuration: MQTTConfiguration
     let logger: Logger
     
+    var connectFuture: EventLoopFuture<Void> {
+        return channelFuture.map { _ in }
+    }
+    
     private let requestHandler: MQTTRequestHandler
     private let subscriptionsHandler: MQTTSubscriptionsHandler
     private let keepAliveHandler: MQTTKeepAliveHandler
     
     weak var delegate: MQTTConnectionDelegate?
     
-    private(set) var firstConnectFuture: EventLoopFuture<Void>!
     private var channelFuture: EventLoopFuture<Channel>!
     
     private var connectionFlags: ConnectionFlags = []
-    private var disconnectReason: MQTTDisconnectReason = .connectionClosed
+    private var disconnectReason: MQTTDisconnectReason = .connectionClosed()
     
     private var didUserInitiateClose: Bool = false
     
@@ -75,7 +78,6 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
         )
         
         channelFuture = connect()
-        firstConnectFuture = channelFuture.map { _ in }
     }
     
     // MARK: - Close
@@ -304,16 +306,16 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
         let request = MQTTConnectRequest(configuration: configuration)
         return requestHandler.perform(request).flatMap { connAck in
             // Reset the disconnect reason
-            self.disconnectReason = .connectionClosed
+            self.disconnectReason = .connectionClosed()
+            
+            // We established connection
+            self.connectionFlags.insert(.acceptedByBroker)
             
             // Process connAck
             let response = self.process(connAck)
             
             self.connectionFlags.insert(.notifiedDelegate)
             self.delegate?.mqttConnection(self, didConnectWith: response)
-            
-            // We established connection
-            self.connectionFlags.insert(.acceptedByBroker)
             
             // We don't have to trigger the didConnect if the user already initiated a close
             guard !self.didUserInitiateClose else {
@@ -444,11 +446,15 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
     func mttErrorHandler(_ handler: MQTTErrorHandler, caughtError error: Error, channel: Channel) {
         delegate?.mqttConnection(self, caughtError: error)
         
-        guard let protocolError = error as? MQTTProtocolError else {
-            return
+        if let protocolError = error as? MQTTProtocolError {
+            close(channel, reason: .client(protocolError))
+        } else {
+            // In case of an unknown error, simply close the channel,
+            // no need to send a disconnect packet.
+            connectionFlags.remove(.acceptedByBroker)
+            
+            close(channel, reason: .connectionClosed(error))
         }
-        
-        close(channel, reason: .client(protocolError))
     }
     
     // MARK: - MQTTFallbackPacketHandlerDelegate
