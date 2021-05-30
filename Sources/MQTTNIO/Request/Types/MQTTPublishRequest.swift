@@ -11,7 +11,7 @@ final class MQTTPublishRequest: MQTTRequest {
     
     // MARK: - Vars
     
-    let message: MQTTMessage
+    private(set) var message: MQTTMessage
     let retryInterval: TimeAmount?
     
     private var acknowledgedPub: Bool = false
@@ -32,6 +32,8 @@ final class MQTTPublishRequest: MQTTRequest {
     // MARK: - MQTTRequest
     
     func start(context: MQTTRequestContext) -> MQTTRequestResult<Void> {
+        preprocessMessage(context: context)
+        
         let result: MQTTRequestResult<Void>
         switch message.qos {
         case .atMostOnce:
@@ -149,6 +151,16 @@ final class MQTTPublishRequest: MQTTRequest {
     }
     
     // MARK: - Utils
+    
+    private func preprocessMessage(context: MQTTRequestContext) {
+        if !context.brokerConfiguration.isRetainAvailable && message.retain {
+            message.retain = false
+        }
+        
+        if message.qos > context.brokerConfiguration.maximumQoS {
+            message.qos = context.brokerConfiguration.maximumQoS
+        }
+    }
     
     private func error(for packet: MQTTPacket.Publish, context: MQTTRequestContext) -> Error? {
         guard packet.message.qos <= context.brokerConfiguration.maximumQoS else {

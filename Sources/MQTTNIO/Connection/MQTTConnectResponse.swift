@@ -1,3 +1,5 @@
+import NIO
+
 /// Response returned when the `MQTTClient` is connected to a broker.
 public struct MQTTConnectResponse {
     
@@ -9,6 +11,12 @@ public struct MQTTConnectResponse {
     /// The server can have set a different expiry than requested when connecting,
     /// this is the final value for the current connection.
     public var sessionExpiry: MQTTConfiguration.SessionExpiry
+    
+    /// The keep alive interval for the current connection.
+    ///
+    /// The server can have set a different keep alive than requested when connecting,
+    /// this is the final value for the current connection.
+    public var keepAliveInterval: TimeAmount
     
     /// When sending an empty client identifier, the server can set a client identifier for the client.
     ///

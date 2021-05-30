@@ -77,7 +77,7 @@ extension MQTTPacket {
             for subscription: MQTTSubscription,
             version: MQTTProtocolVersion
         ) -> UInt8 {
-            guard version > .version5 else {
+            guard version >= .version5 else {
                 return subscription.qos.rawValue
             }
             

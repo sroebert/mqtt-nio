@@ -17,10 +17,17 @@ services:
     image: eclipse-mosquitto
     container_name: mosquitto-authenticated
     volumes:
-      - ./Docker/certs:/mosquitto/data/certs
       - ./Docker/mosquitto-authenticated/mosquitto.conf:/mosquitto/config/mosquitto.conf
       - ./Docker/mosquitto-authenticated/passwd:/mosquitto/config/passwd
     ports:
       - 1885:1883
-      - 8885:8883
+    restart: unless-stopped
+    
+  mosquitto-limited:
+    image: eclipse-mosquitto
+    container_name: mosquitto-limited
+    volumes:
+      - ./Docker/mosquitto-limited/mosquitto.conf:/mosquitto/config/mosquitto.conf
+    ports:
+      - 1886:1883
     restart: unless-stopped

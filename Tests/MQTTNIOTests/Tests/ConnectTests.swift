@@ -3,7 +3,7 @@ import XCTest
 
 final class ConnectTests: MQTTNIOTestCase {
     func testConnectAndDisconnect() throws {
-        let client = client
+        let client = defaultClient
         
         for version in MQTTProtocolVersion.allCases {
             client.configuration.protocolVersion = version

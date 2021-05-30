@@ -28,7 +28,7 @@ class MQTTNIOTestCase: XCTestCase {
     
     // MARK: - Clients
     
-    var client: MQTTClient {
+    var defaultClient: MQTTClient {
         return MQTTClient(configuration: .init(
             target: .host("localhost", port: 1883),
             reconnectMode: .none
@@ -40,7 +40,7 @@ class MQTTNIOTestCase: XCTestCase {
             target: .host("localhost", port: 1884),
             webSockets: .enabled,
             reconnectMode: .none
-        ), eventLoopGroup: group)
+        ), eventLoopGroupProvider: .shared(group))
     }
     
     var sslNoVerifyClient: MQTTClient {
@@ -48,7 +48,7 @@ class MQTTNIOTestCase: XCTestCase {
             target: .host("localhost", port: 8883),
             tls: .forClient(certificateVerification: .none),
             reconnectMode: .none
-        ), eventLoopGroup: group)
+        ), eventLoopGroupProvider: .shared(group))
     }
     
     var wsSslNoVerifyClient: MQTTClient {
@@ -57,7 +57,7 @@ class MQTTNIOTestCase: XCTestCase {
             tls: .forClient(certificateVerification: .none),
             webSockets: .enabled,
             reconnectMode: .none
-        ), eventLoopGroup: group)
+        ), eventLoopGroupProvider: .shared(group))
     }
     
     var sslClient: MQTTClient {
@@ -75,7 +75,7 @@ class MQTTNIOTestCase: XCTestCase {
                 certificateVerification: .noHostnameVerification,
                 trustRoots: .certificates([caCertificate])
             )
-        ), eventLoopGroup: group)
+        ), eventLoopGroupProvider: .shared(group))
     }
     
     // MARK: - Utils

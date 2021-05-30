@@ -39,8 +39,8 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
     let configuration: MQTTConfiguration
     let logger: Logger
     
-    var connectFuture: EventLoopFuture<Void> {
-        return channelFuture.map { _ in }
+    var connectFuture: EventLoopFuture<MQTTConnectResponse> {
+        return _connectFuture.map { $1 }
     }
     
     private let requestHandler: MQTTRequestHandler
@@ -49,7 +49,7 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
     
     weak var delegate: MQTTConnectionDelegate?
     
-    private var channelFuture: EventLoopFuture<Channel>!
+    private var _connectFuture: EventLoopFuture<(Channel, MQTTConnectResponse)>!
     
     private var connectionFlags: ConnectionFlags = []
     private var disconnectReason: MQTTDisconnectReason = .connectionClosed()
@@ -77,17 +77,17 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
             logger: logger
         )
         
-        channelFuture = connect()
+        _connectFuture = connect()
     }
     
     // MARK: - Close
     
     func close(with request: MQTTDisconnectReason.UserRequest) -> EventLoopFuture<Void> {
-        return eventLoop.flatSubmit {
+        return eventLoop.flatSubmit { () -> EventLoopFuture<(Channel, MQTTConnectResponse)> in
             self.didUserInitiateClose = true
             
-            return self.channelFuture
-        }.flatMap { channel in
+            return self._connectFuture
+        }.flatMap { channel, _ in
             self.close(channel, reason: .userInitiated(request))
         }
     }
@@ -102,11 +102,11 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
     
     // MARK: - Connect
     
-    private func connect() -> EventLoopFuture<Channel> {
+    private func connect() -> EventLoopFuture<(Channel, MQTTConnectResponse)> {
         return connect(reconnectMode: configuration.reconnectMode)
     }
     
-    private func connect(reconnectMode: MQTTConfiguration.ReconnectMode) -> EventLoopFuture<Channel> {
+    private func connect(reconnectMode: MQTTConfiguration.ReconnectMode) -> EventLoopFuture<(Channel, MQTTConnectResponse)> {
         guard !didUserInitiateClose else {
             logger.debug("Ignoring connect, user initiated close")
             return eventLoop.makeFailedFuture(ConnectError.userDidInitiateClose)
@@ -120,7 +120,7 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
                 ])
                 return channel
             }
-            .flatMap { channel -> EventLoopFuture<Channel> in
+            .flatMap { channel -> EventLoopFuture<(Channel, MQTTConnectResponse)> in
                 // Send Connect packet to broker
                 self.requestConnectionWithBroker(for: channel).flatMapError { error in
                     self.logger.debug("Failed Connect request, shutting down channel", metadata: [
@@ -132,19 +132,19 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
                         throw error
                     }
                 }
-            }.map { channel -> Channel in
+            }.map { (channel, response) -> (Channel, MQTTConnectResponse) in
                 // Setup handler for when channel is closed (for any reason)
                 channel.closeFuture.flatMap {
                     // Property shutdown first
                     self.shutdown(channel)
                 }.whenSuccess { result in
                     // Schedule reconnect if needed
-                    if let channelFuture = self.scheduleReconnect(reconnectMode: reconnectMode) {
-                        self.channelFuture = channelFuture
+                    if let connectFuture = self.scheduleReconnect(reconnectMode: reconnectMode) {
+                        self._connectFuture = connectFuture
                     }
                 }
                 
-                return channel
+                return (channel, response)
             }.flatMapError { error in
                 self.delegate?.mqttConnection(self, caughtError: error)
                 
@@ -300,7 +300,7 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
         ]).map { channel }
     }
     
-    private func requestConnectionWithBroker(for channel: Channel) -> EventLoopFuture<Channel> {
+    private func requestConnectionWithBroker(for channel: Channel) -> EventLoopFuture<(Channel, MQTTConnectResponse)> {
         eventLoop.assertInEventLoop()
         
         let request = MQTTConnectRequest(configuration: configuration)
@@ -317,15 +317,19 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
             self.connectionFlags.insert(.notifiedDelegate)
             self.delegate?.mqttConnection(self, didConnectWith: response)
             
-            // We don't have to trigger the didConnect if the user already initiated a close
+            // Fail if the user initiated a close.
             guard !self.didUserInitiateClose else {
-                return self.eventLoop.makeSucceededFuture(())
+                return self.eventLoop.makeFailedFuture(MQTTConnectionError.connectionClosed)
             }
             
             self.connectionFlags.insert(.triggeredDidConnect)
-            return channel.triggerUserOutboundEvent(MQTTConnectionEvent.didConnect(isSessionPresent: response.isSessionPresent))
+            
+            let didConnectEvent = MQTTConnectionEvent.didConnect(isSessionPresent: response.isSessionPresent)
+            return channel
+                .triggerUserOutboundEvent(didConnectEvent)
+                .map { response }
         }.map {
-            channel
+            (channel, $0)
         }
     }
     
@@ -352,6 +356,8 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
             isSessionPresent: connAck.isSessionPresent,
             sessionExpiry: connAck.properties.sessionExpiry ??
                 configuration.connectProperties.sessionExpiry,
+            keepAliveInterval: connAck.properties.serverKeepAlive ??
+                configuration.keepAliveInterval,
             assignedClientIdentifier: connAck.properties.assignedClientIdentifier ??
                 configuration.clientId,
             userProperties: connAck.properties.userProperties,
@@ -421,7 +427,7 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
     
     // MARK: - Reconnect
     
-    private func scheduleReconnect(reconnectMode: MQTTConfiguration.ReconnectMode) -> EventLoopFuture<Channel>? {
+    private func scheduleReconnect(reconnectMode: MQTTConfiguration.ReconnectMode) -> EventLoopFuture<(Channel, MQTTConnectResponse)>? {
         eventLoop.assertInEventLoop()
         
         guard

@@ -68,7 +68,7 @@ public struct MQTTConfiguration {
     ///   - target: The target for the broker the client should connect to.
     ///   - tls: The TLS configuration for the connection with the broker. The default value is `nil`.
     ///   - webSockets: The configuration which should be set when using web sockets to connect. The default value is `nil`, indicating that web sockets should not be used.
-    ///   - protocolVersion: The MQTT protocol version to use when connecting to the broker. The default value is 3.1.1.
+    ///   - protocolVersion: The MQTT protocol version to use when connecting to the broker. The default value is `.version5`.
     ///   - clientId: The client identifier to use for the connection with the broker. The default value is `nl.roebert.MQTTNIO.` followed by a `UUID`.
     ///   - clean: Boolean, indicating whether the session for the client should be cleaned by the broker. The default value is `true`.
     ///   - credentials: The credentials used to connect to the broker. The default value is `nil`.
@@ -87,7 +87,7 @@ public struct MQTTConfiguration {
         target: Target,
         tls: TLSConfiguration? = nil,
         webSockets: WebSocketsConfiguration? = nil,
-        protocolVersion: MQTTProtocolVersion = .version3_1_1,
+        protocolVersion: MQTTProtocolVersion = .version5,
         clientId: String = "nl.roebert.MQTTNIO.\(UUID())",
         clean: Bool = true,
         credentials: Credentials? = nil,

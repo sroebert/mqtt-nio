@@ -159,9 +159,9 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     }
     
     /// Starts connecting to the broker indicating by the `configuration`.
-    /// - Returns: An `EventLoopFuture` for when the connection succeeds or fails.
+    /// - Returns: An `EventLoopFuture` with the `MQTTConnectResponse` returned from the broker.
     @discardableResult
-    public func connect() -> EventLoopFuture<Void> {
+    public func connect() -> EventLoopFuture<MQTTConnectResponse> {
         return lock.withLock {
             if let connection = connection {
                 return connectionEventLoop.flatSubmit {
@@ -237,7 +237,9 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     /// - Returns: An `EventLoopFuture` for when the reconnection succeeds or fails.
     @discardableResult
     public func reconnect() -> EventLoopFuture<Void> {
-        return disconnect().flatMap { self.connect() }
+        return disconnect()
+            .flatMap { self.connect() }
+            .map { _ in }
     }
     
     // MARK: - Publish

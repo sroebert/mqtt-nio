@@ -36,7 +36,7 @@ final class MQTTFallbackPacketHandler: ChannelDuplexHandler {
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         let packet = unwrapInboundIn(data)
         
-        guard version > .version5 else {
+        guard version >= .version5 else {
             // Versions lower than 5 do not support reasons
             logUnprocessedPacket(packet)
             return

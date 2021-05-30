@@ -7,7 +7,7 @@ final class AuthenticationTests: MQTTNIOTestCase {
         return MQTTClient(configuration: .init(
             target: .host("localhost", port: 1885),
             reconnectMode: .none
-        ), eventLoopGroup: group)
+        ), eventLoopGroupProvider: .shared(group))
     }
     
     func testSuccessLogin() throws {

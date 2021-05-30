@@ -144,7 +144,7 @@ extension MQTTPacket {
             var buffer = Allocator.shared.buffer(capacity: 0)
             buffer.writeInteger(data.packetId)
             
-            if version > .version5 {
+            if version >= .version5 {
                 if data.reasonCode != .success || reasonString != nil {
                     buffer.writeInteger(data.reasonCode.mqttReasonCode.rawValue)
                 }
