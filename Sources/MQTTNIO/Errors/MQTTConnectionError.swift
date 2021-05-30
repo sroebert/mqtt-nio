@@ -1,6 +1,6 @@
 /// Errors that can be received when trying to connect to a broker.
-public enum MQTTConnectionError: Error, Equatable {
-    /// The connection was closed while trying to connect.
+public enum MQTTConnectionError: Error {
+    /// The connection was closed while performing a request.
     case connectionClosed
     
     /// The broker took to long to respond to a packet.
@@ -12,7 +12,7 @@ public enum MQTTConnectionError: Error, Equatable {
 
 extension MQTTConnectionError {
     /// The reason returned from the server, indicating why the connection failed.
-    public struct ServerReason: Equatable {
+    public struct ServerReason {
     
         public enum Code: Equatable {
             /// The server does not wish to reveal the reason for the failure, or none of the other reason codes apply.

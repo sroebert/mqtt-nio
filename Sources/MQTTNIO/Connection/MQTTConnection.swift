@@ -8,8 +8,6 @@ import Logging
 protocol MQTTConnectionDelegate: AnyObject {
     func mqttConnection(_ connection: MQTTConnection, didConnectWith response: MQTTConnectResponse)
     func mqttConnection(_ connection: MQTTConnection, didDisconnectWith reason: MQTTDisconnectReason)
-    
-    func mqttConnection(_ connection: MQTTConnection, caughtError error: Error)
 }
 
 final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerDelegate {
@@ -146,8 +144,6 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
                 
                 return (channel, response)
             }.flatMapError { error in
-                self.delegate?.mqttConnection(self, caughtError: error)
-                
                 self.logger.debug("Failed to connect to broker", metadata: [
                     "error": "\(error)"
                 ])
@@ -203,7 +199,6 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
                 channel
             }
         } catch {
-            delegate?.mqttConnection(self, caughtError: error)
             return eventLoop.makeFailedFuture(error)
         }
     }
@@ -450,8 +445,6 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
     // MARK: - MQTTErrorHandlerDelegate
     
     func mttErrorHandler(_ handler: MQTTErrorHandler, caughtError error: Error, channel: Channel) {
-        delegate?.mqttConnection(self, caughtError: error)
-        
         if let protocolError = error as? MQTTProtocolError {
             close(channel, reason: .client(protocolError))
         } else {

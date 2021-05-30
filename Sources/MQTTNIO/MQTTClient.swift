@@ -72,9 +72,6 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     /// The list of message listeners.
     private let messageListeners: CallbackList<(MQTTClient, MQTTMessage)>
     
-    /// The list of error listeners.
-    private let errorListeners: CallbackList<(MQTTClient, Error)>
-    
     // MARK: - Init
     
     /// Creates an `MQTTClient`
@@ -116,7 +113,6 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
         connectListeners = CallbackList(eventLoop: callbackEventLoop)
         disconnectListeners = CallbackList(eventLoop: callbackEventLoop)
         messageListeners = CallbackList(eventLoop: callbackEventLoop)
-        errorListeners = CallbackList(eventLoop: callbackEventLoop)
         
         subscriptionsHandler.delegate = self
     }
@@ -234,12 +230,24 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     
     /// Disconnects and reconnects to the broker, making sure the updating `configuration` values
     /// are in use.
+    /// - Parameters:
+    ///   - sendWillMessage: If `true` a 5.0 MQTT broker will send the Will message after disconnection. The default value is `false`.
+    ///   - sessionExpiry: Optionally a different session expiry can be passed when disconnecting. The default value is `nil`.
+    ///   - userProperties: The user properties to send with the disconnect message to a 5.0 MQTT broker.
     /// - Returns: An `EventLoopFuture` for when the reconnection succeeds or fails.
     @discardableResult
-    public func reconnect() -> EventLoopFuture<Void> {
-        return disconnect()
-            .flatMap { self.connect() }
-            .map { _ in }
+    public func reconnect(
+        sendWillMessage: Bool = false,
+        sessionExpiry: MQTTConfiguration.SessionExpiry? = nil,
+        userProperties: [MQTTUserProperty] = []
+    ) -> EventLoopFuture<Void> {
+        return disconnect(
+            sendWillMessage: sendWillMessage,
+            sessionExpiry: sessionExpiry,
+            userProperties: userProperties
+        )
+        .flatMap { self.connect() }
+        .map { _ in }
     }
     
     // MARK: - Publish
@@ -260,16 +268,16 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     ///
     /// Depending on the QoS level, the client might keep on retrying to publish the message until it succeeds.
     /// - Parameters:
-    ///   - topic: The topic for the message.
     ///   - payload: The optional payload of the message. The default is `nil`.
+    ///   - topic: The topic for the message.
     ///   - qos: The QoS level for the message. The default is `.atMostOnce`.
     ///   - retain: Boolean indicating whether to retain the message. The default value is `false`.
     ///   - properties: The message properties to send when publishing to a 5.0 MQTT broker.
     /// - Returns: An `EventLoopFuture` for when the publishing has completed.
     @discardableResult
     public func publish(
-        topic: String,
-        payload: MQTTPayload = .empty,
+        _ payload: MQTTPayload = .empty,
+        to topic: String,
         qos: MQTTQoS = .atMostOnce,
         retain: Bool = false,
         properties: MQTTMessage.Properties = .init()
@@ -288,16 +296,16 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     ///
     /// Depending on the QoS level, the client might keep on retrying to publish the message until it succeeds.
     /// - Parameters:
-    ///   - topic: The topic for the message.
     ///   - payload: The payload of the message in the form of a string.
+    ///   - topic: The topic for the message.
     ///   - qos: The QoS level for the message. The default is `.atMostOnce`.
     ///   - retain: Boolean indicating whether to retain the message. The default value is `false`.
     ///   - properties: The message properties to send when publishing to a 5.0 MQTT broker.
     /// - Returns: An `EventLoopFuture` for when the publishing has completed.
     @discardableResult
     public func publish(
-        topic: String,
-        payload: String,
+        _ payload: String,
+        to topic: String,
         qos: MQTTQoS = .atMostOnce,
         retain: Bool = false,
         properties: MQTTMessage.Properties = .init()
@@ -477,16 +485,6 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
         }
     }
     
-    /// Adds a listener which will be called when the client caught an error.
-    /// - Parameter listener: The listener to add.
-    /// - Returns: An `MQTTListenerContext` which can be used to stop the listening.
-    @discardableResult
-    public func addErrorListener(_ listener: @escaping MQTTErrorListener) -> MQTTListenerContext {
-        return errorListeners.append { arguments, context in
-            listener(arguments.0, arguments.1, context)
-        }
-    }
-    
     /// Adds a listener which will be called when the client has received an `MQTTMessage`.
     /// - Parameter listener: The listener to add.
     /// - Returns: An `MQTTListenerContext` which can be used to stop the listening.
@@ -513,10 +511,6 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
         }
         
         disconnectListeners.emit(arguments: (self, reason))
-    }
-    
-    func mqttConnection(_ connection: MQTTConnection, caughtError error: Error) {
-        errorListeners.emit(arguments: (self, error))
     }
     
     // MARK: - MQTTSubscriptionsHandlerDelegate

@@ -1,5 +1,5 @@
 /// Used to send or receive additional data with certain MQTT packets.
-public struct MQTTUserProperty: Hashable {
+public struct MQTTUserProperty: Equatable {
     
     /// The name of the user property.
     public var name: String

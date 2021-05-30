@@ -1,5 +1,5 @@
 import Logging
-import MQTTNIO
+@testable import MQTTNIO
 import XCTest
 import NIO
 import NIOSSL

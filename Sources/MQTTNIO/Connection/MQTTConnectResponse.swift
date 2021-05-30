@@ -1,7 +1,7 @@
 import NIO
 
 /// Response returned when the `MQTTClient` is connected to a broker.
-public struct MQTTConnectResponse {
+public struct MQTTConnectResponse: Equatable {
     
     /// Indicates whether there is a session present for the client on the broker.
     public var isSessionPresent: Bool
@@ -38,7 +38,7 @@ public struct MQTTConnectResponse {
 }
 
 /// Information received when connecting with the broker, indicating the capabilities of the broker.
-public struct MQTTBrokerConfiguration {
+public struct MQTTBrokerConfiguration: Equatable {
     
     /// The maximum QoS value allowed by the server.
     ///

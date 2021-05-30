@@ -20,7 +20,7 @@ final class MQTT5Tests: MQTTNIOTestCase {
         XCTAssertEqual(response?.keepAliveInterval, .seconds(30))
     }
     
-    func testBrokerConfiguration1() throws {
+    func testDefaultBrokerConfiguration() throws {
         let client = defaultClient
         client.configuration.protocolVersion = .version5
         
@@ -31,7 +31,7 @@ final class MQTT5Tests: MQTTNIOTestCase {
         XCTAssertEqual(response?.brokerConfiguration.maximumQoS, .exactlyOnce)
     }
     
-    func testBrokerConfiguration2() throws {
+    func testLimitedBrokerConfiguration() throws {
         let client = limitedClient
         
         let response = wait(for: client.connect())
@@ -48,10 +48,10 @@ final class MQTT5Tests: MQTTNIOTestCase {
         let topic = "mqtt-nio/tests/maximum-packet-size"
         
         let smallPublish = Data(repeating: 1, count: 10)
-        wait(for: client.publish(topic: topic, payload: .bytes(smallPublish.byteBuffer)))
+        wait(for: client.publish(.bytes(smallPublish.byteBuffer), to: topic))
         
         let largePubish = Data(repeating: 1, count: 100)
-        let error = waitForFailure(for: client.publish(topic: topic, payload: .bytes(largePubish.byteBuffer)))
+        let error = waitForFailure(for: client.publish(.bytes(largePubish.byteBuffer), to: topic))
         XCTAssertEqual((error as? MQTTProtocolError)?.code, .packetTooLarge)
         
         // As the client prevents the message from being sent, it should still be connected
@@ -64,9 +64,9 @@ final class MQTT5Tests: MQTTNIOTestCase {
         
         let topic = "mqtt-nio/tests/maximum-qos"
         
-        wait(for: client.publish(topic: topic, payload: "test1", qos: .atMostOnce))
-        wait(for: client.publish(topic: topic, payload: "test2", qos: .atLeastOnce))
-        wait(for: client.publish(topic: topic, payload: "test3", qos: .exactlyOnce))
+        wait(for: client.publish("test1", to: topic, qos: .atMostOnce))
+        wait(for: client.publish("test2", to: topic, qos: .atLeastOnce))
+        wait(for: client.publish("test3", to: topic, qos: .exactlyOnce))
     }
     
     func testNoLocal() throws {
@@ -83,19 +83,19 @@ final class MQTT5Tests: MQTTNIOTestCase {
         }
         
         wait(for: client.subscribe(to: topic, options: .init(noLocalMessages: true)))
-        wait(for: client.publish(topic: topic, payload: payload))
+        wait(for: client.publish(payload, to: topic))
         wait(for: [expectation], timeout: 1)
     }
     
-    func testRetainAsPublished1() throws {
+    func testRetainAsPublishedFalse() throws {
         let client = defaultClient
         wait(for: client.connect())
         
-        let topic = "mqtt-nio/tests/retain-as-published1"
+        let topic = "mqtt-nio/tests/retain-as-published-false"
         let payload = "Hello World!"
         
         // Clear retained message
-        wait(for: client.publish(topic: topic, retain: true))
+        wait(for: client.publish(to: topic, retain: true))
         
         let expectation = XCTestExpectation(description: "Received payload")
         expectation.assertForOverFulfill = true
@@ -106,22 +106,22 @@ final class MQTT5Tests: MQTTNIOTestCase {
         }
         
         wait(for: client.subscribe(to: topic, options: .init(retainAsPublished: false)))
-        wait(for: client.publish(topic: topic, payload: payload, retain: true))
+        wait(for: client.publish(payload, to: topic, retain: true))
         wait(for: [expectation], timeout: 1)
         
         // Clear again
-        wait(for: client.publish(topic: topic, retain: true))
+        wait(for: client.publish(to: topic, retain: true))
     }
     
-    func testRetainAsPublished2() throws {
+    func testRetainAsPublishedTrue() throws {
         let client = defaultClient
         wait(for: client.connect())
         
-        let topic = "mqtt-nio/tests/retain-as-published2"
+        let topic = "mqtt-nio/tests/retain-as-published-true"
         let payload = "Hello World!"
         
         // Clear retained message
-        wait(for: client.publish(topic: topic, retain: true))
+        wait(for: client.publish(to: topic, retain: true))
         
         let expectation = XCTestExpectation(description: "Received payload")
         expectation.assertForOverFulfill = true
@@ -132,11 +132,11 @@ final class MQTT5Tests: MQTTNIOTestCase {
         }
         
         wait(for: client.subscribe(to: topic, options: .init(retainAsPublished: true)))
-        wait(for: client.publish(topic: topic, payload: payload, retain: true))
+        wait(for: client.publish(payload, to: topic, retain: true))
         wait(for: [expectation], timeout: 1)
         
         // Clear again
-        wait(for: client.publish(topic: topic, retain: true))
+        wait(for: client.publish(to: topic, retain: true))
     }
     
     func testSendOnSubscribe() throws {
@@ -147,7 +147,7 @@ final class MQTT5Tests: MQTTNIOTestCase {
         let payload = "Hello World!"
         
         // Setup retained message
-        wait(for: client.publish(topic: topic, payload: payload, retain: true))
+        wait(for: client.publish(payload, to: topic, retain: true))
         
         let expectation = XCTestExpectation(description: "Received payload")
         expectation.expectedFulfillmentCount = 2
@@ -161,7 +161,7 @@ final class MQTT5Tests: MQTTNIOTestCase {
         wait(for: [expectation], timeout: 1)
         
         // Clear again
-        wait(for: client.publish(topic: topic, retain: true))
+        wait(for: client.publish(to: topic, retain: true))
     }
     
     func testSendOnSubscribeIfNotExists() throws {
@@ -172,7 +172,7 @@ final class MQTT5Tests: MQTTNIOTestCase {
         let payload = "Hello World!"
         
         // Setup retained message
-        wait(for: client.publish(topic: topic, payload: payload, retain: true))
+        wait(for: client.publish(payload, to: topic, retain: true))
         
         let expectation = XCTestExpectation(description: "Received payload")
         expectation.assertForOverFulfill = true
@@ -186,7 +186,7 @@ final class MQTT5Tests: MQTTNIOTestCase {
         wait(for: [expectation], timeout: 1)
         
         // Clear again
-        wait(for: client.publish(topic: topic, retain: true))
+        wait(for: client.publish(to: topic, retain: true))
     }
     
     func testNoRetained() throws {
@@ -197,7 +197,7 @@ final class MQTT5Tests: MQTTNIOTestCase {
         let payload = "Hello World!"
         
         // Setup retained message
-        wait(for: client.publish(topic: topic, payload: payload, retain: true))
+        wait(for: client.publish(payload, to: topic, retain: true))
         
         let expectation = XCTestExpectation(description: "Received payload")
         expectation.isInverted = true
@@ -210,7 +210,7 @@ final class MQTT5Tests: MQTTNIOTestCase {
         wait(for: [expectation], timeout: 1)
         
         // Clear again
-        wait(for: client.publish(topic: topic, retain: true))
+        wait(for: client.publish(to: topic, retain: true))
     }
     
     func testUserProperties() throws {
@@ -236,8 +236,8 @@ final class MQTT5Tests: MQTTNIOTestCase {
         wait(for: client.subscribe(to: topic))
         
         wait(for: client.publish(
-            topic: topic,
-            payload: payload,
+            payload,
+            to: topic,
             properties: .init(
                 userProperties: userProperties
             )
@@ -275,8 +275,140 @@ final class MQTT5Tests: MQTTNIOTestCase {
         wait(for: client.subscribe(to: topic1, identifier: 1))
         wait(for: client.subscribe(to: topic2, identifier: 2))
         
-        wait(for: client.publish(topic: topic1, payload: payload))
-        wait(for: client.publish(topic: topic2, payload: payload))
+        wait(for: client.publish(payload, to: topic1))
+        wait(for: client.publish(payload, to: topic2))
         wait(for: [expectation1, expectation2], timeout: 1)
+    }
+    
+    func testWillMessage() throws {
+        let topic = "mqtt-nio/tests/will-message"
+        let payload = "This is a will message"
+        
+        let client1 = defaultClient
+        client1.configuration.willMessage = MQTTWillMessage(
+            topic: topic,
+            payload: payload
+        )
+        wait(for: client1.connect())
+        
+        let client2 = defaultClient
+        wait(for: client2.connect())
+        
+        let expectation = XCTestExpectation(description: "Received payload")
+        expectation.assertForOverFulfill = true
+        client2.addMessageListener { _, message, _ in
+            XCTAssertEqual(message.topic, topic)
+            XCTAssertEqual(message.payload.string, payload)
+            
+            expectation.fulfill()
+        }
+        wait(for: client2.subscribe(to: topic))
+        
+        wait(for: client1.disconnect(sendWillMessage: true))
+        
+        wait(for: [expectation], timeout: 1)
+    }
+    
+    func testNoWillMessage() throws {
+        let topic = "mqtt-nio/tests/no-will-message"
+        let payload = "This is a will message"
+        
+        let client1 = defaultClient
+        client1.configuration.willMessage = MQTTWillMessage(
+            topic: topic,
+            payload: payload
+        )
+        wait(for: client1.connect())
+        
+        let client2 = defaultClient
+        wait(for: client2.connect())
+        
+        let expectation = XCTestExpectation(description: "Received payload")
+        expectation.isInverted = true
+        client2.addMessageListener { _, message, _ in
+            expectation.fulfill()
+        }
+        wait(for: client2.subscribe(to: topic))
+        
+        wait(for: client1.disconnect(sendWillMessage: false))
+        
+        wait(for: [expectation], timeout: 1)
+    }
+    
+    func testWillMessageProperties() throws {
+        let topic = "mqtt-nio/tests/will-message-properties"
+        let payload = "This is a will message"
+        let userProperties: [MQTTUserProperty] = [
+            "key1": "some-value-1",
+            "key2": "some-value-2"
+        ]
+        
+        let client1 = defaultClient
+        client1.configuration.willMessage = MQTTWillMessage(
+            topic: topic,
+            payload: payload,
+            properties: .init(userProperties: userProperties)
+        )
+        wait(for: client1.connect())
+        
+        let client2 = defaultClient
+        wait(for: client2.connect())
+        
+        let expectation = XCTestExpectation(description: "Received payload")
+        expectation.assertForOverFulfill = true
+        client2.addMessageListener { _, message, _ in
+            XCTAssertEqual(message.topic, topic)
+            XCTAssertEqual(message.payload.string, payload)
+            XCTAssertEqual(message.properties.userProperties, userProperties)
+            
+            expectation.fulfill()
+        }
+        wait(for: client2.subscribe(to: topic))
+        
+        wait(for: client1.disconnect(sendWillMessage: true))
+        
+        wait(for: [expectation], timeout: 1)
+    }
+    
+    func testWillMessageDelay() throws {
+        let topic = "mqtt-nio/tests/will-message-delay"
+        let payload = "This is a will message"
+        
+        let client1 = defaultClient
+        client1.configuration.willMessage = MQTTWillMessage(
+            topic: topic,
+            payload: payload,
+            properties: .init(delayInterval: .seconds(5))
+        )
+        wait(for: client1.connect())
+        
+        let client2 = defaultClient
+        wait(for: client2.connect())
+        
+        let expectation = XCTestExpectation(description: "Received payload")
+        expectation.isInverted = true
+        client2.addMessageListener { _, message, _ in
+            expectation.fulfill()
+        }
+        wait(for: client2.subscribe(to: topic))
+        
+        wait(for: client1.disconnect(sendWillMessage: true))
+        
+        wait(seconds: 2)
+        wait(for: client1.connect())
+        
+        wait(for: [expectation], timeout: 1)
+    }
+    
+    func testSessionExpiryAtClose() throws {
+        // TODO: Implement
+    }
+    
+    func testSessionExpiryAfterInterval() throws {
+        // TODO: Implement
+    }
+    
+    func testRequestResponse() throws {
+        // TODO: Implement
     }
 }

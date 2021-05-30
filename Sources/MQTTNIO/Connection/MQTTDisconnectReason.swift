@@ -15,7 +15,7 @@ public enum MQTTDisconnectReason {
 
 extension MQTTDisconnectReason {
     /// When disconnecting use the `disconnect` function from the `MQTTClient`, this structure holds the data passed with the disconnect request.
-    public struct UserRequest {
+    public struct UserRequest: Equatable {
         /// If `true` a 5.0 MQTT broker will send the Will message after disconnection.
         public var sendWillMessage: Bool
         
@@ -26,7 +26,7 @@ extension MQTTDisconnectReason {
         public var userProperties: [MQTTUserProperty]
     }
     
-    public struct ServerReason: Equatable {
+    public struct ServerReason {
         
         public enum Code: Equatable {
             /// The server does not wish to reveal the reason for the failure, or none of the other reason codes apply.

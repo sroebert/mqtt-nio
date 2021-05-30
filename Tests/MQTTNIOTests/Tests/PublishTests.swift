@@ -25,7 +25,7 @@ final class PublishTests: MQTTNIOTestCase {
             let response = wait(for: client.subscribe(to: topic, qos: qos))
             XCTAssertEqual(response?.result, .success(qos))
             
-            wait(for: client.publish(topic: topic, payload: payload, qos: qos))
+            wait(for: client.publish(payload, to: topic, qos: qos))
             
             wait(for: [expectation], timeout: 2)
             
@@ -58,7 +58,7 @@ final class PublishTests: MQTTNIOTestCase {
             let response = wait(for: client.subscribe(to: topic, qos: qos))
             XCTAssertEqual(response?.result, .success(qos))
             
-            wait(for: client.publish(topic: topic, payload: payload, qos: qos))
+            wait(for: client.publish(payload, to: topic, qos: qos))
             
             wait(for: [expectation], timeout: 2)
             
@@ -91,7 +91,7 @@ final class PublishTests: MQTTNIOTestCase {
             let response = wait(for: client.subscribe(to: topic, qos: qos))
             XCTAssertEqual(response?.result, .success(qos))
             
-            wait(for: client.publish(topic: topic, payload: payload, qos: qos))
+            wait(for: client.publish(payload, to: topic, qos: qos))
             
             wait(for: [expectation], timeout: 2)
             
@@ -113,7 +113,7 @@ final class PublishTests: MQTTNIOTestCase {
             let payload = "Hello World!"
             
             // Clear
-            wait(for: client.publish(topic: topic, retain: true))
+            wait(for: client.publish(to: topic, retain: true))
             
             let expectation1 = XCTestExpectation(description: "Received payload")
             expectation1.assertForOverFulfill = true
@@ -126,7 +126,7 @@ final class PublishTests: MQTTNIOTestCase {
             }
             
             wait(for: client.subscribe(to: topic))
-            wait(for: client.publish(topic: topic, payload: payload, retain: true))
+            wait(for: client.publish(payload, to: topic, retain: true))
             wait(for: [expectation1], timeout: 2)
             
             let expectation2 = XCTestExpectation(description: "Received payload")
@@ -144,7 +144,7 @@ final class PublishTests: MQTTNIOTestCase {
             wait(for: [expectation2], timeout: 2)
             
             // Clear again
-            wait(for: client.publish(topic: topic, retain: true))
+            wait(for: client.publish(to: topic, retain: true))
             
             wait(for: client.disconnect())
             
@@ -176,7 +176,7 @@ final class PublishTests: MQTTNIOTestCase {
             
             wait(for: client.disconnect())
             wait(for: client.connect())
-            wait(for: client.publish(topic: topic, payload: payload))
+            wait(for: client.publish(payload, to: topic))
             
             wait(for: [expectation], timeout: 2)
             
@@ -229,10 +229,10 @@ final class PublishTests: MQTTNIOTestCase {
             }
             
             wait(for: client.subscribe(to: topic))
-            wait(for: client.publish(topic: topic, payload: payload))
+            wait(for: client.publish(payload, to: topic))
             
             wait(for: client.unsubscribe(from: topic))
-            wait(for: client.publish(topic: topic, payload: payload))
+            wait(for: client.publish(payload, to: topic))
             
             wait(for: [expectation], timeout: 2)
             
@@ -257,7 +257,7 @@ final class PublishTests: MQTTNIOTestCase {
             let payload = "Hello World!"
             
             XCTAssertTrue(client.isConnected)
-            wait(for: client.publish(topic: topic, payload: payload))
+            wait(for: client.publish(payload, to: topic))
             
             wait(for: client.disconnect())
         }

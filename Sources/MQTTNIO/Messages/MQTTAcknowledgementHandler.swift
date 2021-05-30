@@ -55,7 +55,7 @@ public struct MQTTAcknowledgementResponse {
 
 extension MQTTAcknowledgementResponse {
     /// An error which can be returned with an acknowledgement of a message to a 5.0 MQTT broker.
-    public struct Error: Equatable {
+    public struct Error {
         
         public enum Code {
             /// The receiver does not accept the publish but either does not want to reveal the reason, or it does not match one of the other values.
