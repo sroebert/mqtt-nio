@@ -62,7 +62,10 @@ extension MQTTPacket {
             }
             
             guard let reasonCodeValue = packet.data.readInteger(as: UInt8.self) else {
-                throw MQTTProtocolError("Invalid disconnect packet structure")
+                return Disconnect(
+                    reasonCode: .normalDisconnection,
+                    properties: MQTTProperties()
+                )
             }
             
             guard
@@ -72,7 +75,12 @@ extension MQTTPacket {
                 throw MQTTProtocolError("Invalid disconnect reason code")
             }
             
-            let properties = try MQTTProperties.parse(from: &packet.data, using: propertiesParser)
+            let properties: MQTTProperties
+            if packet.data.readableBytes > 0 {
+                properties = try .parse(from: &packet.data, using: propertiesParser)
+            } else {
+                properties = MQTTProperties()
+            }
             
             return Disconnect(
                 reasonCode: reasonCode,

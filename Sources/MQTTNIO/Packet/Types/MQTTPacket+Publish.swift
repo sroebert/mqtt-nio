@@ -207,13 +207,8 @@ extension MQTTPacket {
             properties.topicAlias = topicAlias
             properties.userProperties = message.properties.userProperties
             
-            if let configuration = message.properties.requestConfiguration {
-                properties.responseTopic = configuration.responseTopic
-                
-                if let data = configuration.correlationData {
-                    properties.correlationData = data.byteBuffer
-                }
-            }
+            properties.responseTopic = message.properties.responseTopic
+            properties.correlationData = message.properties.correlationData?.byteBuffer
             
             return properties
         }
@@ -221,14 +216,9 @@ extension MQTTPacket {
         private static func messageProperties(for properties: MQTTProperties) -> MQTTMessage.Properties {
             return MQTTMessage.Properties(
                 expiryInterval: properties.messageExpiryInterval,
-                requestConfiguration: properties.responseTopic.map { topic in
-                    let correlationData = properties.correlationData.map {
-                        Foundation.Data($0.readableBytesView)
-                    }
-                    return MQTTRequestConfiguration(
-                        responseTopic: topic,
-                        correlationData: correlationData
-                    )
+                responseTopic: properties.responseTopic,
+                correlationData: properties.correlationData.map {
+                    Foundation.Data($0.readableBytesView)
                 },
                 userProperties: properties.userProperties,
                 subscriptionIdentifiers: properties.subscriptionIdentifiers

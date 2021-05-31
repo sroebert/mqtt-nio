@@ -61,13 +61,8 @@ extension MQTTPacket {
             properties.messageExpiryInterval = message.properties.expiryInterval
             properties.userProperties = message.properties.userProperties
             
-            if let configuration = message.properties.requestConfiguration {
-                properties.responseTopic = configuration.responseTopic
-                
-                if let data = configuration.correlationData {
-                    properties.correlationData = data.byteBuffer
-                }
-            }
+            properties.responseTopic = message.properties.responseTopic
+            properties.correlationData = message.properties.correlationData?.byteBuffer
             
             return properties
         }

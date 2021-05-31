@@ -38,7 +38,7 @@ extension String: MQTTPropertyValue {
     }
     
     var propertyValueLength: Int {
-        return utf8.count + 2
+        return MemoryLayout<UInt16>.size + utf8.count
     }
 }
 
@@ -85,6 +85,6 @@ extension ByteBuffer: MQTTPropertyValue {
     }
     
     var propertyValueLength: Int {
-        return readableBytes
+        return MemoryLayout<UInt16>.size + readableBytes
     }
 }

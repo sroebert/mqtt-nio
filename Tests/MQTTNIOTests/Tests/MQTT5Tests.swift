@@ -399,17 +399,64 @@ final class MQTT5Tests: MQTTNIOTestCase {
         wait(for: [expectation], timeout: 1)
     }
     
-    func testSessionExpiryAtClose() throws {
-        let client = defaultClient
-        client.configuration.clean = true
-        client.configuration.sessionExpiry = .atClose
-    }
-    
-    func testSessionExpiryAfterInterval() throws {
-        // TODO: Implement
-    }
-    
     func testRequestResponse() throws {
-        // TODO: Implement
+        let client1 = defaultClient
+        let client2 = defaultClient
+        
+        let requestTopic = "mqtt-nio/tests/request-response/request"
+        let responseTopic = "mqtt-nio/tests/request-response/response"
+        let requestPayload = "Hello world 1"
+        let responsePayload = "Hello world 2"
+        let correlationData = Data((0..<16).map { _ in UInt8.random(in: 0..<255) })
+        
+        wait(for: client1.connect())
+        wait(for: client1.subscribe(to: responseTopic))
+        
+        let responseExpectation = XCTestExpectation(description: "Received response")
+        client1.whenMessage { message in
+            XCTAssertEqual(message.payload.string, responsePayload)
+            XCTAssertNotNil(message.properties.correlationData)
+            
+            guard let messageCorrelationData = message.properties.correlationData else {
+                return
+            }
+            
+            XCTAssertEqual(messageCorrelationData, correlationData)
+            
+            responseExpectation.fulfill()
+        }
+        
+        wait(for: client2.connect())
+        wait(for: client2.subscribe(to: requestTopic))
+        
+        let requestExpectation = XCTestExpectation(description: "Received request")
+        client2.whenMessage { [weak client2] message in
+            XCTAssertEqual(message.payload.string, requestPayload)
+            XCTAssertNotNil(message.properties.responseTopic)
+            XCTAssertNotNil(message.properties.correlationData)
+            
+            guard
+                let messageResponseTopic = message.properties.responseTopic,
+                let messageCorrelationData = message.properties.correlationData
+            else {
+                return
+            }
+            
+            XCTAssertEqual(messageResponseTopic, responseTopic)
+            XCTAssertEqual(messageCorrelationData, correlationData)
+            
+            client2?.publish(responsePayload, to: messageResponseTopic, properties: .init(
+                correlationData: messageCorrelationData
+            ))
+            
+            requestExpectation.fulfill()
+        }
+        
+        wait(for: client1.publish(requestPayload, to: requestTopic, properties: .init(
+            responseTopic: responseTopic,
+            correlationData: correlationData
+        )))
+        
+        wait(for: [requestExpectation, responseExpectation], timeout: 1)
     }
 }

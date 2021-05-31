@@ -93,6 +93,10 @@ final class MQTTFallbackPacketHandler: ChannelDuplexHandler {
     }
     
     private func handle(_ disconnect: MQTTPacket.Disconnect, context: ChannelHandlerContext) {
+        logger.debug("Received disconnect from broker", metadata: [
+            "reasonCode": "\(disconnect.reasonCode)"
+        ])
+        
         let reason: MQTTDisconnectReason.ServerReason?
         if let code = disconnect.reasonCode.disconnectReasonCode(with: disconnect.properties) {
             reason = MQTTDisconnectReason.ServerReason(
