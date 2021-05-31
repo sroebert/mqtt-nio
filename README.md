@@ -11,7 +11,7 @@ This library has support for WebSocket connections and TLS. It runs on all platf
 Use the SPM string to easily include the dependendency in your Package.swift file.
 
 ```swift
-.package(url: "https://github.com/sroebert/mqtt-nio.git", from: ...)
+.package(url: "https://github.com/sroebert/mqtt-nio.git", from: "2.0.0")
 ```
 
 ## Supported Platforms
@@ -61,30 +61,12 @@ client.connect()
 
 ### Subscribe
 ```swift
-client.subscribe(to: "some/topic").whenComplete { result in
-    switch result {
-    case .success(.success):
-        print("Subscribed!")
-    case .success(.failure(let reason)):
-        print("Server rejected: \(reason)")
-    case .failure:
-        print("Server did not respond")
-    }
-}
+client.subscribe(to: "some/topic")
 ```
 
 ### Unsubscribe
 ```swift
-client.unsubscribe(from: "some/topic").whenComplete { result in
-    switch result {
-    case .success(.success):
-        print("Unsubscribed!")
-    case .success(.failure(let reason)):
-        print("Server rejected: \(reason)")
-    case .failure:
-        print("Server did not respond")
-    }
-}
+client.unsubscribe(from: "some/topic")
 ```
 
 ### Publish
