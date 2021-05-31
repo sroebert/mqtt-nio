@@ -125,6 +125,7 @@ final class PublishTests: MQTTNIOTestCase {
             
             wait(for: client.subscribe(to: topic))
             wait(for: client.publish(payload, to: topic, retain: true))
+            
             wait(for: [expectation1], timeout: 2)
             cancellable1.cancel()
             
@@ -141,12 +142,12 @@ final class PublishTests: MQTTNIOTestCase {
             wait(for: client.subscribe(to: topic))
 
             wait(for: [expectation2], timeout: 2)
+            cancellable2.cancel()
             
             // Clear again
             wait(for: client.publish(to: topic, retain: true))
             
             wait(for: client.disconnect())
-            cancellable2.cancel()
         }
     }
     
