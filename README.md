@@ -37,7 +37,7 @@ This package has no additional system dependencies.
 ```swift
 let client = MQTTClient(
     configuration: .init(
-        target: .host("127.0.0.1", port: 1883),
+        target: .host("127.0.0.1", port: 1883)
     ),
     eventLoopGroupProvider: .createNew
 )
@@ -45,6 +45,19 @@ client.connect()
 ```
 
 The client automatically reconnects when failing to connect or when disconnected from the broker.
+
+### Connect to an MQTT 3.1.1 broker
+
+```swift
+let client = MQTTClient(
+    configuration: .init(
+        target: .host("127.0.0.1", port: 1883),
+        protocolVersion: .version3_1_1
+    ),
+    eventLoopGroupProvider: .createNew
+)
+client.connect()
+```
 
 ### Subscribe
 ```swift
