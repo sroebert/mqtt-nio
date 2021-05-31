@@ -2,6 +2,9 @@ import NIO
 import NIOSSL
 import NIOConcurrencyHelpers
 import Logging
+#if canImport(Combine)
+import Combine
+#endif
 
 /// Client for connecting with an `MQTT` broker.
 ///
@@ -68,6 +71,17 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     /// The list of message callback entries.
     private let messageCallbacks: CallbackList<MQTTMessage>
     
+    #if canImport(Combine)
+    @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
+    private lazy var connectSubject: PassthroughSubject<MQTTConnectResponse, Never>! = { nil }()
+    
+    @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
+    private lazy var disconnectSubject: PassthroughSubject<MQTTDisconnectReason, Never>! = { nil }()
+    
+    @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
+    private lazy var messageSubject: PassthroughSubject<MQTTMessage, Never>! = { nil }()
+    #endif
+    
     // MARK: - Init
     
     /// Creates an `MQTTClient`
@@ -108,6 +122,14 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
         connectCallbacks = CallbackList()
         disconnectCallback = CallbackList()
         messageCallbacks = CallbackList()
+        
+        #if canImport(Combine)
+        if #available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *) {
+            connectSubject = PassthroughSubject()
+            disconnectSubject = PassthroughSubject()
+            messageSubject = PassthroughSubject()
+        }
+        #endif
         
         subscriptionsHandler.delegate = self
     }
@@ -486,7 +508,44 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     
     // MARK: - Publishers
     
+    #if canImport(Combine)
     
+    /// Publisher receiving messages when this client is connected to a broker.
+    ///
+    /// This is only available on platforms where `Combine` is available.
+    @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
+    public var connectPublisher: AnyPublisher<MQTTConnectResponse, Never> {
+        return connectSubject.eraseToAnyPublisher()
+    }
+    
+    /// Publisher receiving messages when this client disconnects from a broker.
+    ///
+    /// This is only available on platforms where `Combine` is available.
+    @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
+    public var disconnectPublisher: AnyPublisher<MQTTDisconnectReason, Never> {
+        return disconnectSubject.eraseToAnyPublisher()
+    }
+    
+    /// Publisher for receiving MQTT messages.
+    ///
+    /// This is only available on platforms where `Combine` is available.
+    @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
+    public var messagePublisher: AnyPublisher<MQTTMessage, Never> {
+        return messageSubject.eraseToAnyPublisher()
+    }
+    
+    /// Returns a publisher for receiving MQTT messages to a specific topic.
+    /// - Parameter topic: The topic to receive messages for.
+    ///
+    /// This is only available on platforms where `Combine` is available.
+    @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
+    public func messagePublisher(forTopic topic: String) -> AnyPublisher<MQTTMessage, Never> {
+        return messageSubject
+            .filter { $0.topic == topic }
+            .eraseToAnyPublisher()
+    }
+    
+    #endif
     
     // MARK: - MQTTConnectionDelegate
     
@@ -496,6 +555,12 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
         }
         
         connectCallbacks.emit(arguments: response)
+        
+        #if canImport(Combine)
+        if #available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *) {
+            connectSubject.send(response)
+        }
+        #endif
     }
     
     func mqttConnection(_ connection: MQTTConnection, didDisconnectWith reason: MQTTDisconnectReason) {
@@ -504,11 +569,23 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
         }
         
         disconnectCallback.emit(arguments: reason)
+        
+        #if canImport(Combine)
+        if #available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *) {
+            disconnectSubject.send(reason)
+        }
+        #endif
     }
     
     // MARK: - MQTTSubscriptionsHandlerDelegate
     
     func mqttSubscriptionsHandler(_ handler: MQTTSubscriptionsHandler, didReceiveMessage message: MQTTMessage) {
         messageCallbacks.emit(arguments: message)
+        
+        #if canImport(Combine)
+        if #available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *) {
+            messageSubject.send(message)
+        }
+        #endif
     }
 }

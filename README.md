@@ -102,3 +102,27 @@ client.whenMessage { message in
     print("Received: \(message)")
 }
 ```
+
+For platforms where the `Combine` framework is available, it is also possible to subscribe to publishers.
+```swift
+let cancellable = client.connectPublisher
+    .sink { response in
+        print("Connected, is session present: \(response.isSessionPresent)")
+    }
+```
+```swift
+let cancellable = client.disconnectPublisher
+    .sink { reason in
+        print("Disconnected: \(reason)")
+    }
+```
+```swift
+let cancellable1 = client.messagePublisher
+    .sink { message in
+        print("Received: \(message)")
+    }
+let cancellable2 = client.messagePublisher(forTopic: "some/topic")
+    .sink { message in
+        print("Received: \(message)")
+    }
+```
