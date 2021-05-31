@@ -76,7 +76,7 @@ final class MQTTSubscriptionsHandler: ChannelDuplexHandler {
     // MARK: - Utils
     
     private func emit(_ message: MQTTMessage) {
-        logger.debug("Emitting message to listeners", metadata: [
+        logger.debug("Emitting message to callbacks", metadata: [
             "topic": .string(message.topic),
             "payload": .string(message.payload.debugDescription),
             "qos": .stringConvertible(message.qos.rawValue),

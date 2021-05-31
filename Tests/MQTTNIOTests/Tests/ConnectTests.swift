@@ -55,7 +55,7 @@ final class ConnectTests: MQTTNIOTestCase {
         
         let expectation = XCTestExpectation(description: "Received payload")
         expectation.assertForOverFulfill = true
-        client2.addMessageListener { _, message, _ in
+        client2.whenMessage { message in
             XCTAssertEqual(message.topic, topic)
             XCTAssertEqual(message.payload.string, payload)
             
@@ -78,7 +78,7 @@ final class ConnectTests: MQTTNIOTestCase {
         wait(for: [expectation], timeout: 1)
     }
     
-    func testConnectionListeners() throws {
+    func testConnectionCallbacks() throws {
         let client = defaultClient
         
         for version in MQTTProtocolVersion.allCases {
@@ -89,19 +89,22 @@ final class ConnectTests: MQTTNIOTestCase {
             let connectExpectation = XCTestExpectation(description: "Received connect event")
             connectExpectation.expectedFulfillmentCount = 2
             connectExpectation.assertForOverFulfill = true
-            let listenerContext1 = client.addConnectListener { _, _, context in
+            
+            var cancellable1: MQTTCancellable?
+            cancellable1 = client.whenConnected { _ in
                 connectExpectation.fulfill()
                 
                 counter += 1
                 if counter == 2 {
-                    context.stopListening()
+                    cancellable1?.cancel()
                 }
             }
             
             let disconnectExpectation = XCTestExpectation(description: "Received disconnect event")
             disconnectExpectation.expectedFulfillmentCount = 3
             disconnectExpectation.assertForOverFulfill = true
-            let listenerContext2 = client.addDisconnectListener { _, reason, _ in
+            
+            let cancellable2 = client.whenDisconnected { reason in
                 disconnectExpectation.fulfill()
                 
                 guard case .userInitiated = reason else {
@@ -121,8 +124,8 @@ final class ConnectTests: MQTTNIOTestCase {
             
             wait(for: [connectExpectation, disconnectExpectation], timeout: 60)
             
-            listenerContext1.stopListening()
-            listenerContext2.stopListening()
+            cancellable1?.cancel()
+            cancellable2.cancel()
         }
     }
     

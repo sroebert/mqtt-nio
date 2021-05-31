@@ -28,17 +28,16 @@ extension MQTTPacket {
         
         private var properties: MQTTProperties {
             var properties = MQTTProperties()
-            let connectProperties = data.configuration.connectProperties
             
-            if connectProperties.sessionExpiry != .atClose {
-                properties.sessionExpiry = connectProperties.sessionExpiry
+            if data.configuration.sessionExpiry != .atClose {
+                properties.sessionExpiry = data.configuration.sessionExpiry
             }
             
-            properties.receiveMaximum = connectProperties.receiveMaximum
-            properties.maximumPacketSize = connectProperties.maximumPacketSize
-            properties.requestResponseInformation = connectProperties.requestResponseInformation
-            properties.requestProblemInformation = connectProperties.requestProblemInformation
-            properties.userProperties = connectProperties.userProperties
+            properties.receiveMaximum = data.configuration.receiveMaximum
+            properties.maximumPacketSize = data.configuration.maximumPacketSize
+            properties.requestResponseInformation = data.configuration.requestResponseInformation
+            properties.requestProblemInformation = data.configuration.requestProblemInformation
+            properties.userProperties = data.configuration.userProperties
             
             properties.authenticationMethod = data.authenticationMethod
             properties.authenticationData = data.authenticationData

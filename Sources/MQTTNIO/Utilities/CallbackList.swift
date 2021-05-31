@@ -1,3 +1,4 @@
+import Dispatch
 import NIO
 import NIOConcurrencyHelpers
 
@@ -5,7 +6,7 @@ final class CallbackList<Arguments> {
     
     // MARK: - Types
     
-    typealias Callback = (Arguments, Entry) -> Void
+    typealias Callback = (Arguments) -> Void
     
     final class Entry {
         weak var list: CallbackList<Arguments>?
@@ -23,26 +24,8 @@ final class CallbackList<Arguments> {
     
     // MARK: - Vars
     
-    private var _eventLoop: EventLoop
-    var eventLoop: EventLoop {
-        get {
-            return lock.withLock { _eventLoop }
-        }
-        set {
-            lock.withLockVoid {
-                _eventLoop = newValue
-            }
-        }
-    }
-    
     private var callbackEntries: [Entry] = []
     private let lock = Lock()
-    
-    // MARK: - Init
-    
-    init(eventLoop: EventLoop) {
-        _eventLoop = eventLoop
-    }
     
     // MARK: - Callbacks
     
@@ -63,9 +46,9 @@ final class CallbackList<Arguments> {
     }
     
     func emit(arguments: Arguments) {
-        let (eventLoop, entries) = lock.withLock { (_eventLoop, callbackEntries) }
-        eventLoop.execute {
-            entries.forEach { $0.callback(arguments, $0) }
+        let entries = lock.withLock { callbackEntries }
+        DispatchQueue.main.async {
+            entries.forEach { $0.callback(arguments) }
         }
     }
 }

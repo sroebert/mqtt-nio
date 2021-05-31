@@ -31,8 +31,35 @@ public struct MQTTConfiguration {
     /// The optional `MQTTMessage` the broker should send under certain conditions if the client would disconnect.
     public var willMessage: MQTTWillMessage?
     
-    /// The connection properties to send when connecting with a 5.0 MQTT broker.
-    public var connectProperties: ConnectProperties
+    /// Indicates when the session of the client should expire.
+    ///
+    /// This is only used with a 5.0 MQTT broker.
+    public var sessionExpiry: SessionExpiry
+    
+    /// The receive maximum, indicating the maximum number of QoS > 0 packets that can be received concurrently.
+    ///
+    /// This is only used with a 5.0 MQTT broker.
+    public var receiveMaximum: Int?
+    
+    /// The maximum allowed size of packets to receive.
+    ///
+    /// This is only used with a 5.0 MQTT broker.
+    public var maximumPacketSize: Int?
+    
+    /// Indicates whether the server should provide response information when connecting.
+    ///
+    /// This is only used with a 5.0 MQTT broker.
+    public var requestResponseInformation: Bool
+    
+    /// Indicates whether the server should provide a reason string and user properties in case of failures.
+    ///
+    /// This is only used with a 5.0 MQTT broker.
+    public var requestProblemInformation: Bool
+    
+    /// Additional user properties to send when connecting with the broker.
+    ///
+    /// This is only used with a 5.0 MQTT broker.
+    public var userProperties: [MQTTUserProperty]
     
     /// Optional acknowledgement handler which will be called for QoS 1 and 2 messages received from a 5.0 broker.
     public var acknowledgementHandler: MQTTAcknowledgementHandler?
@@ -73,7 +100,12 @@ public struct MQTTConfiguration {
     ///   - clean: Boolean, indicating whether the session for the client should be cleaned by the broker. The default value is `true`.
     ///   - credentials: The credentials used to connect to the broker. The default value is `nil`.
     ///   - willMessage: The optional `MQTTMessage` the broker should send under certain conditions if the client would disconnect. The default value is `nil`.
-    ///   - connectProperties: The connection properties to send when connecting with a 5.0 MQTT broker.
+    ///   - sessionExpiry: Indicates when the session of the client should expire.
+    ///   - receiveMaximum: The receive maximum, indicating the maximum number of QoS > 0 packets that can be received concurrently. The default value is `nil`, indicating the server should use the default value.
+    ///   - maximumPacketSize: The maximum allowed size of packets to receive. The default value is `nil`, indicating that there is no maximum.
+    ///   - requestResponseInformation: Indicates whether the server should provide response information when connecting. The default value is `false`.
+    ///   - requestProblemInformation: Indicates whether the server should provide a reason string and user properties in case of failures. The default value is `true`.
+    ///   - userProperties: Additional user properties to send when connecting with the broker. The default value is an empty array.
     ///   - acknowledgementHandler: Optional acknowledgement handler which will be called for QoS 1 and 2 messages received from a 5.0 broker. The default value is `nil`.
     ///   - keepAliveInterval: The time interval in which a message must be send to the broker to keep the connection alive. The default value is `60` seconds.
     ///   - reschedulePings: When `true` keep alive ping messages are rescheduled when sending other packets. The default value is `true`.
@@ -92,7 +124,12 @@ public struct MQTTConfiguration {
         clean: Bool = true,
         credentials: Credentials? = nil,
         willMessage: MQTTWillMessage? = nil,
-        connectProperties: ConnectProperties = ConnectProperties(),
+        sessionExpiry: SessionExpiry = .atClose,
+        receiveMaximum: Int? = nil,
+        maximumPacketSize: Int? = nil,
+        requestResponseInformation: Bool = false,
+        requestProblemInformation: Bool = true,
+        userProperties: [MQTTUserProperty] = [],
         acknowledgementHandler: MQTTAcknowledgementHandler? = nil,
         keepAliveInterval: TimeAmount = .seconds(60),
         reschedulePings: Bool = true,
@@ -111,7 +148,12 @@ public struct MQTTConfiguration {
         self.clean = clean
         self.credentials = credentials
         self.willMessage = willMessage
-        self.connectProperties = connectProperties
+        self.sessionExpiry = sessionExpiry
+        self.receiveMaximum = receiveMaximum
+        self.maximumPacketSize = maximumPacketSize
+        self.requestResponseInformation = requestResponseInformation
+        self.requestProblemInformation = requestProblemInformation
+        self.userProperties = userProperties
         self.acknowledgementHandler = acknowledgementHandler
         self.keepAliveInterval = keepAliveInterval
         self.reschedulePings = reschedulePings
@@ -258,51 +300,5 @@ extension MQTTConfiguration {
         case afterInterval(TimeAmount)
         /// Never expires.
         case never
-    }
-    
-    /// Properties used when connecting with a 5.0 MQTT broker.
-    public struct ConnectProperties {
-        
-        /// Indicates when the session of the client should expire.
-        public var sessionExpiry: SessionExpiry
-        
-        /// The receive maximum, indicating the maximum number of QoS > 0 packets that can be received concurrently.
-        public var receiveMaximum: Int?
-        
-        /// The maximum allowed size of packets to receive.
-        public var maximumPacketSize: Int?
-        
-        /// Indicates whether the server should provide response information when connecting.
-        public var requestResponseInformation: Bool
-        
-        /// Indicates whether the server should provide a reason string and user properties in case of failures.
-        public var requestProblemInformation: Bool
-        
-        /// Additional user properties to send when connecting with the broker.
-        public var userProperties: [MQTTUserProperty]
-        
-        /// Creates an `ConnectProperties`.
-        /// - Parameters:
-        ///   - sessionExpiry: Indicates when the session of the client should expire.
-        ///   - receiveMaximum: The receive maximum, indicating the maximum number of QoS > 0 packets that can be received concurrently. The default value is `nil`, indicating the server should use the default value.
-        ///   - maximumPacketSize: The maximum allowed size of packets to receive. The default value is `nil`, indicating that there is no maximum.
-        ///   - requestResponseInformation: Indicates whether the server should provide response information when connecting. The default value is `false`.
-        ///   - requestProblemInformation: Indicates whether the server should provide a reason string and user properties in case of failures. The default value is `true`.
-        ///   - userProperties: Additional user properties to send when connecting with the broker. The default value is an empty array.
-        public init(
-            sessionExpiry: SessionExpiry = .atClose,
-            receiveMaximum: Int? = nil,
-            maximumPacketSize: Int? = nil,
-            requestResponseInformation: Bool = false,
-            requestProblemInformation: Bool = true,
-            userProperties: [MQTTUserProperty] = []
-        ) {
-            self.sessionExpiry = sessionExpiry
-            self.receiveMaximum = receiveMaximum
-            self.maximumPacketSize = maximumPacketSize
-            self.requestResponseInformation = requestResponseInformation
-            self.requestProblemInformation = requestProblemInformation
-            self.userProperties = userProperties
-        }
     }
 }

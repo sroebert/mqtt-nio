@@ -16,7 +16,7 @@ final class PublishTests: MQTTNIOTestCase {
             
             let expectation = XCTestExpectation(description: "Received payload")
             expectation.assertForOverFulfill = true
-            let listenerContext = client.addMessageListener { _, message, _ in
+            let cancellable = client.whenMessage { message in
                 XCTAssertEqual(message.payload.string, payload)
                 XCTAssertEqual(message.qos, qos)
                 expectation.fulfill()
@@ -31,7 +31,7 @@ final class PublishTests: MQTTNIOTestCase {
             
             wait(for: client.disconnect())
             
-            listenerContext.stopListening()
+            cancellable.cancel()
         }
     }
     
@@ -49,7 +49,7 @@ final class PublishTests: MQTTNIOTestCase {
             
             let expectation = XCTestExpectation(description: "Received payload")
             expectation.assertForOverFulfill = true
-            let listenerContext = client.addMessageListener { _, message, _ in
+            let cancellable = client.whenMessage { message in
                 XCTAssertEqual(message.payload.string, payload)
                 XCTAssertEqual(message.qos, qos)
                 expectation.fulfill()
@@ -64,7 +64,7 @@ final class PublishTests: MQTTNIOTestCase {
             
             wait(for: client.disconnect())
             
-            listenerContext.stopListening()
+            cancellable.cancel()
         }
     }
     
@@ -82,7 +82,7 @@ final class PublishTests: MQTTNIOTestCase {
             
             let expectation = XCTestExpectation(description: "Received payload")
             expectation.assertForOverFulfill = true
-            let listenerContext = client.addMessageListener { _, message, _ in
+            let cancellable = client.whenMessage { message in
                 XCTAssertEqual(message.payload.string, payload)
                 XCTAssertEqual(message.qos, qos)
                 expectation.fulfill()
@@ -97,7 +97,7 @@ final class PublishTests: MQTTNIOTestCase {
             
             wait(for: client.disconnect())
             
-            listenerContext.stopListening()
+            cancellable.cancel()
         }
     }
     
@@ -117,21 +117,20 @@ final class PublishTests: MQTTNIOTestCase {
             
             let expectation1 = XCTestExpectation(description: "Received payload")
             expectation1.assertForOverFulfill = true
-            let listenerContext1 = client.addMessageListener { _, message, context in
+            let cancellable1 = client.whenMessage { message in
                 XCTAssertEqual(message.payload.string, payload)
                 XCTAssertFalse(message.retain)
                 expectation1.fulfill()
-                
-                context.stopListening()
             }
             
             wait(for: client.subscribe(to: topic))
             wait(for: client.publish(payload, to: topic, retain: true))
             wait(for: [expectation1], timeout: 2)
+            cancellable1.cancel()
             
             let expectation2 = XCTestExpectation(description: "Received payload")
             expectation2.assertForOverFulfill = true
-            let listenerContext2 = client.addMessageListener { _, message, context in
+            let cancellable2 = client.whenMessage { message in
                 XCTAssertEqual(message.payload.string, payload)
                 XCTAssertTrue(message.retain)
                 expectation2.fulfill()
@@ -147,16 +146,14 @@ final class PublishTests: MQTTNIOTestCase {
             wait(for: client.publish(to: topic, retain: true))
             
             wait(for: client.disconnect())
-            
-            listenerContext1.stopListening()
-            listenerContext2.stopListening()
+            cancellable2.cancel()
         }
     }
     
     func testKeepSession() {
         let client = defaultClient
         client.configuration.clean = false
-        client.configuration.connectProperties.sessionExpiry = .afterInterval(.seconds(60))
+        client.configuration.sessionExpiry = .afterInterval(.seconds(60))
         
         for version in MQTTProtocolVersion.allCases {
             client.configuration.protocolVersion = version
@@ -169,7 +166,7 @@ final class PublishTests: MQTTNIOTestCase {
             
             let expectation = XCTestExpectation(description: "Received payload")
             expectation.assertForOverFulfill = true
-            let listenerContext = client.addMessageListener { _, message, context in
+            let cancellable = client.whenMessage { message in
                 XCTAssertEqual(message.payload.string, payload)
                 expectation.fulfill()
             }
@@ -182,8 +179,32 @@ final class PublishTests: MQTTNIOTestCase {
             
             wait(for: client.disconnect())
             
-            listenerContext.stopListening()
+            cancellable.cancel()
         }
+    }
+    
+    func testNotKeepingSession() {
+        let client = defaultClient
+        client.configuration.clean = false
+        client.configuration.sessionExpiry = .atClose
+        
+        let topic = "mqtt-nio/tests/not-keeping-session"
+        let payload = "Hello World!"
+        
+        wait(for: client.connect())
+        wait(for: client.subscribe(to: topic))
+        
+        let expectation = XCTestExpectation(description: "Received payload")
+        expectation.isInverted = true
+        client.whenMessage { _ in
+            expectation.fulfill()
+        }
+        
+        wait(for: client.disconnect())
+        wait(for: client.connect())
+        wait(for: client.publish(payload, to: topic))
+        
+        wait(for: [expectation], timeout: 2)
     }
     
     func testMultiSubscribe() {
@@ -223,7 +244,7 @@ final class PublishTests: MQTTNIOTestCase {
             
             let expectation = XCTestExpectation(description: "Received payload")
             expectation.assertForOverFulfill = true
-            let listenerContext = client.addMessageListener { _, message, _ in
+            let cancellable = client.whenMessage { message in
                 XCTAssertEqual(message.payload.string, payload)
                 expectation.fulfill()
             }
@@ -238,7 +259,7 @@ final class PublishTests: MQTTNIOTestCase {
             
             wait(for: client.disconnect())
             
-            listenerContext.stopListening()
+            cancellable.cancel()
         }
     }
     
@@ -265,8 +286,6 @@ final class PublishTests: MQTTNIOTestCase {
     
     func testInvalidClient() {
         let client = defaultClient
-        client.configuration.clean = false
-        client.configuration.connectProperties.sessionExpiry = .afterInterval(.seconds(60))
         client.configuration.clientId = ""
         
         for version in MQTTProtocolVersion.allCases {

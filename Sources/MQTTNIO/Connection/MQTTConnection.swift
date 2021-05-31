@@ -349,12 +349,9 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
         
         return MQTTConnectResponse(
             isSessionPresent: connAck.isSessionPresent,
-            sessionExpiry: connAck.properties.sessionExpiry ??
-                configuration.connectProperties.sessionExpiry,
-            keepAliveInterval: connAck.properties.serverKeepAlive ??
-                configuration.keepAliveInterval,
-            assignedClientIdentifier: connAck.properties.assignedClientIdentifier ??
-                configuration.clientId,
+            sessionExpiry: connAck.properties.sessionExpiry ?? configuration.sessionExpiry,
+            keepAliveInterval: connAck.properties.serverKeepAlive ?? configuration.keepAliveInterval,
+            assignedClientIdentifier: connAck.properties.assignedClientIdentifier ?? configuration.clientId,
             userProperties: connAck.properties.userProperties,
             responseInformation: connAck.properties.responseInformation,
             brokerConfiguration: brokerConfiguration

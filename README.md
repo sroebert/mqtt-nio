@@ -52,8 +52,8 @@ client.subscribe(to: "some/topic").whenComplete { result in
     switch result {
     case .success(.success):
         print("Subscribed!")
-    case .success(.failure):
-        print("Server rejected")
+    case .success(.failure(let reason)):
+        print("Server rejected: \(reason)")
     case .failure:
         print("Server did not respond")
     }
@@ -66,6 +66,8 @@ client.unsubscribe(from: "some/topic").whenComplete { result in
     switch result {
     case .success:
         print("Unsubscribed!")
+    case .success(.failure(let reason)):
+        print("Server rejected: \(reason)")
     case .failure:
         print("Server did not respond")
     }
@@ -75,39 +77,28 @@ client.unsubscribe(from: "some/topic").whenComplete { result in
 ### Publish
 
 ```swift
-client.publish(
-    topic: "some/topic",
-    payload: "Hello World!",
-    qos: .exactlyOnce
-)
+client.publish("Hello World!", to: "some/topic", qos: .exactlyOnce)
 ```
 ```swift
-client.publish(topic: "some/topic", payload: "Hello World!")
+client.publish("Hello World!", "some/topic")
 ```
 ```swift
-client.publish(
-    topic: "some/topic",
-    payload: "Hello World!",
-    retain: true
-)
+client.publish("Hello World!", to: "some/topic", retain: true)
 ```
 
-### Add listeners to know when the client connects/disconnects, receives errors and messages. 
+### Receive callbacks to know when the client connects/disconnects and receives messages. 
 ```swift
-client.addConnectListener { _, response, _ in
-    print("Connected: \(response.returnCode)")
+client.whenConnected { response in
+    print("Connected, is session present: \(response.isSessionPresent)")
 }
-client.addDisconnectListener { _, reason, _ in
+```
+```
+client.whenDisconnected { reason in
     print("Disconnected: \(reason)")
 }
 ```
 ```swift
-client.addErrorListener { _, error, _ in
-    print("Error: \(error)")
-}
-```
-```swift
-client.addMessageListener { _, message, _ in
+client.whenMessage { message in
     print("Received: \(message)")
 }
 ```

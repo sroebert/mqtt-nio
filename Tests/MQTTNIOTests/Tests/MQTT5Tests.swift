@@ -22,7 +22,6 @@ final class MQTT5Tests: MQTTNIOTestCase {
     
     func testDefaultBrokerConfiguration() throws {
         let client = defaultClient
-        client.configuration.protocolVersion = .version5
         
         let response = wait(for: client.connect())
         XCTAssertNotNil(response)
@@ -78,7 +77,7 @@ final class MQTT5Tests: MQTTNIOTestCase {
         
         let expectation = XCTestExpectation(description: "Received payload")
         expectation.isInverted = true
-        client.addMessageListener { _, message, _ in
+        client.whenMessage { message in
             expectation.fulfill()
         }
         
@@ -99,7 +98,7 @@ final class MQTT5Tests: MQTTNIOTestCase {
         
         let expectation = XCTestExpectation(description: "Received payload")
         expectation.assertForOverFulfill = true
-        client.addMessageListener { _, message, _ in
+        client.whenMessage { message in
             XCTAssertEqual(message.payload.string, payload)
             XCTAssertFalse(message.retain)
             expectation.fulfill()
@@ -125,7 +124,7 @@ final class MQTT5Tests: MQTTNIOTestCase {
         
         let expectation = XCTestExpectation(description: "Received payload")
         expectation.assertForOverFulfill = true
-        client.addMessageListener { _, message, _ in
+        client.whenMessage { message in
             XCTAssertEqual(message.payload.string, payload)
             XCTAssertTrue(message.retain)
             expectation.fulfill()
@@ -151,7 +150,7 @@ final class MQTT5Tests: MQTTNIOTestCase {
         
         let expectation = XCTestExpectation(description: "Received payload")
         expectation.expectedFulfillmentCount = 2
-        client.addMessageListener { _, message, _ in
+        client.whenMessage { message in
             XCTAssertEqual(message.payload.string, payload)
             expectation.fulfill()
         }
@@ -176,7 +175,7 @@ final class MQTT5Tests: MQTTNIOTestCase {
         
         let expectation = XCTestExpectation(description: "Received payload")
         expectation.assertForOverFulfill = true
-        client.addMessageListener { _, message, _ in
+        client.whenMessage { message in
             XCTAssertEqual(message.payload.string, payload)
             expectation.fulfill()
         }
@@ -201,7 +200,7 @@ final class MQTT5Tests: MQTTNIOTestCase {
         
         let expectation = XCTestExpectation(description: "Received payload")
         expectation.isInverted = true
-        client.addMessageListener { _, message, _ in
+        client.whenMessage { message in
             expectation.fulfill()
         }
         
@@ -227,7 +226,7 @@ final class MQTT5Tests: MQTTNIOTestCase {
         
         let expectation = XCTestExpectation(description: "Received payload")
         expectation.assertForOverFulfill = true
-        client.addMessageListener { _, message, _ in
+        client.whenMessage { message in
             XCTAssertEqual(message.payload.string, payload)
             XCTAssertEqual(message.properties.userProperties, userProperties)
             expectation.fulfill()
@@ -259,7 +258,7 @@ final class MQTT5Tests: MQTTNIOTestCase {
         let expectation2 = XCTestExpectation(description: "Received payload 2")
         expectation2.assertForOverFulfill = true
         
-        client.addMessageListener { _, message, _ in
+        client.whenMessage { message in
             XCTAssertEqual(message.properties.subscriptionIdentifiers.count, 1)
             
             switch message.properties.subscriptionIdentifiers.first {
@@ -296,7 +295,7 @@ final class MQTT5Tests: MQTTNIOTestCase {
         
         let expectation = XCTestExpectation(description: "Received payload")
         expectation.assertForOverFulfill = true
-        client2.addMessageListener { _, message, _ in
+        client2.whenMessage { message in
             XCTAssertEqual(message.topic, topic)
             XCTAssertEqual(message.payload.string, payload)
             
@@ -325,7 +324,7 @@ final class MQTT5Tests: MQTTNIOTestCase {
         
         let expectation = XCTestExpectation(description: "Received payload")
         expectation.isInverted = true
-        client2.addMessageListener { _, message, _ in
+        client2.whenMessage { message in
             expectation.fulfill()
         }
         wait(for: client2.subscribe(to: topic))
@@ -356,7 +355,7 @@ final class MQTT5Tests: MQTTNIOTestCase {
         
         let expectation = XCTestExpectation(description: "Received payload")
         expectation.assertForOverFulfill = true
-        client2.addMessageListener { _, message, _ in
+        client2.whenMessage { message in
             XCTAssertEqual(message.topic, topic)
             XCTAssertEqual(message.payload.string, payload)
             XCTAssertEqual(message.properties.userProperties, userProperties)
@@ -387,7 +386,7 @@ final class MQTT5Tests: MQTTNIOTestCase {
         
         let expectation = XCTestExpectation(description: "Received payload")
         expectation.isInverted = true
-        client2.addMessageListener { _, message, _ in
+        client2.whenMessage { message in
             expectation.fulfill()
         }
         wait(for: client2.subscribe(to: topic))
@@ -401,7 +400,9 @@ final class MQTT5Tests: MQTTNIOTestCase {
     }
     
     func testSessionExpiryAtClose() throws {
-        // TODO: Implement
+        let client = defaultClient
+        client.configuration.clean = true
+        client.configuration.sessionExpiry = .atClose
     }
     
     func testSessionExpiryAfterInterval() throws {

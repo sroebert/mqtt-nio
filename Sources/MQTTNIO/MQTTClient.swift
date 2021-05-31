@@ -11,8 +11,7 @@ import Logging
 ///
 /// If configured with `.retry` as the reconnect mode, the client will automatically
 /// reconnect in case of a connection failure. Any published message will be retried after reconnection.
-/// `addConnectListener` and `addDisconnectListener` can be used to listen for
-/// changes in the connection.
+/// `whenConnected` and `whenDisconnected` can be used to receive callbacks for changes in the connection.
 public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegate {
     
     // MARK: - Vars
@@ -33,7 +32,7 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
         }
     }
     
-    /// The `EventLoopGroup` used for the connection with the broker and the callbacks to the listeners.
+    /// The `EventLoopGroup` used for the connection with the broker.
     let eventLoopGroup: EventLoopGroup
     
     /// Indicates whether the event loop group should be shutdown when this class is deallocated.
@@ -54,23 +53,20 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     /// The `EventLoop` used for the connection with the broker.
     private let connectionEventLoop: EventLoop
     
-    /// The `EventLoop` used for the calling the listener callbacks.
-    private let callbackEventLoop: EventLoop
-    
     /// The `MQTTRequestHandler` for the broker connection pipeline.
     private let requestHandler: MQTTRequestHandler
     
     /// The `MQTTSubscriptionsHandler` for the broker connection pipeline.
     private let subscriptionsHandler: MQTTSubscriptionsHandler
     
-    /// The list of connect listeners.
-    private let connectListeners: CallbackList<(MQTTClient, MQTTConnectResponse)>
+    /// The list of connect callback entries.
+    private let connectCallbacks: CallbackList<MQTTConnectResponse>
     
-    /// The list of disconnect listeners.
-    private let disconnectListeners: CallbackList<(MQTTClient, MQTTDisconnectReason)>
+    /// The list of disconnect callback entries.
+    private let disconnectCallback: CallbackList<MQTTDisconnectReason>
     
-    /// The list of message listeners.
-    private let messageListeners: CallbackList<(MQTTClient, MQTTMessage)>
+    /// The list of message callback entries.
+    private let messageCallbacks: CallbackList<MQTTMessage>
     
     // MARK: - Init
     
@@ -98,7 +94,6 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
         self.logger = logger
         
         connectionEventLoop = eventLoopGroup.next()
-        callbackEventLoop = eventLoopGroup.next()
         
         requestHandler = MQTTRequestHandler(
             eventLoop: connectionEventLoop,
@@ -110,9 +105,9 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
             logger: logger
         )
         
-        connectListeners = CallbackList(eventLoop: callbackEventLoop)
-        disconnectListeners = CallbackList(eventLoop: callbackEventLoop)
-        messageListeners = CallbackList(eventLoop: callbackEventLoop)
+        connectCallbacks = CallbackList()
+        disconnectCallback = CallbackList()
+        messageCallbacks = CallbackList()
         
         subscriptionsHandler.delegate = self
     }
@@ -463,37 +458,35 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
         return requestHandler.perform(request)
     }
     
-    // MARK: - Listeners
+    // MARK: - Callbacks
     
-    /// Adds a listener which will be called when the client has connected to a broker.
-    /// - Parameter listener: The listener to add.
-    /// - Returns: An `MQTTListenerContext` which can be used to stop the listening.
+    /// Adds an observer callback which will be called when the client has connected to a broker.
+    /// - Parameter callback: The observer callback to add which will be called with the connect response when connected to a broker.
+    /// - Returns: An `MQTTCancellable` which can be used to cancel the observer callback.
     @discardableResult
-    public func addConnectListener(_ listener: @escaping MQTTConnectListener) -> MQTTListenerContext {
-        return connectListeners.append { arguments, context in
-            listener(arguments.0, arguments.1, context)
-        }
+    public func whenConnected(_ callback: @escaping (_ response: MQTTConnectResponse) -> Void) -> MQTTCancellable {
+        return connectCallbacks.append(callback)
     }
     
-    /// Adds a listener which will be called when the client has disconnected from a broker.
-    /// - Parameter listener: The listener to add.
-    /// - Returns: An `MQTTListenerContext` which can be used to stop the listening.
+    /// Adds an observer callback which will be called when the client has disconnected from a broker.
+    /// - Parameter callback: The observer callback to add which will be called when disconnect with the reason for disconnection.
+    /// - Returns: An `MQTTCancellable` which can be used to cancel the observer callback.
     @discardableResult
-    public func addDisconnectListener(_ listener: @escaping MQTTDisconnectListener) -> MQTTListenerContext {
-        return disconnectListeners.append { arguments, context in
-            listener(arguments.0, arguments.1, context)
-        }
+    public func whenDisconnected(_ callback: @escaping (_ reason: MQTTDisconnectReason) -> Void) -> MQTTCancellable {
+        return disconnectCallback.append(callback)
     }
     
-    /// Adds a listener which will be called when the client has received an `MQTTMessage`.
-    /// - Parameter listener: The listener to add.
-    /// - Returns: An `MQTTListenerContext` which can be used to stop the listening.
+    /// Adds an observer callback which will be called when the client has received an `MQTTMessage`.
+    /// - Parameter callback: The observer callback to add which will be called with the received message.
+    /// - Returns: An `MQTTCancellable` which can be used to cancel the observer callback.
     @discardableResult
-    public func addMessageListener(_ listener: @escaping MQTTMessageListener) -> MQTTListenerContext {
-        return messageListeners.append { arguments, context in
-            listener(arguments.0, arguments.1, context)
-        }
+    public func whenMessage(_ callback: @escaping (_ message: MQTTMessage) -> Void) -> MQTTCancellable {
+        return messageCallbacks.append(callback)
     }
+    
+    // MARK: - Publishers
+    
+    
     
     // MARK: - MQTTConnectionDelegate
     
@@ -502,7 +495,7 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
             _isConnected = true
         }
         
-        connectListeners.emit(arguments: (self, response))
+        connectCallbacks.emit(arguments: response)
     }
     
     func mqttConnection(_ connection: MQTTConnection, didDisconnectWith reason: MQTTDisconnectReason) {
@@ -510,12 +503,12 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
             _isConnected = false
         }
         
-        disconnectListeners.emit(arguments: (self, reason))
+        disconnectCallback.emit(arguments: reason)
     }
     
     // MARK: - MQTTSubscriptionsHandlerDelegate
     
     func mqttSubscriptionsHandler(_ handler: MQTTSubscriptionsHandler, didReceiveMessage message: MQTTMessage) {
-        messageListeners.emit(arguments: (self, message))
+        messageCallbacks.emit(arguments: message)
     }
 }
