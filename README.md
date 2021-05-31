@@ -64,7 +64,7 @@ client.subscribe(to: "some/topic").whenComplete { result in
 ```swift
 client.unsubscribe(from: "some/topic").whenComplete { result in
     switch result {
-    case .success:
+    case .success(.success):
         print("Unsubscribed!")
     case .success(.failure(let reason)):
         print("Server rejected: \(reason)")
