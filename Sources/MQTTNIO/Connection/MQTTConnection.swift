@@ -147,13 +147,7 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
                 self.logger.debug("Failed to connect to broker", metadata: [
                     "error": "\(error)"
                 ])
-                
-                // If possible, try to reconnect
-                guard let reconnectFuture = self.scheduleReconnect(reconnectMode: reconnectMode) else {
-                    return self.eventLoop.makeFailedFuture(error)
-                }
-                
-                return reconnectFuture
+                return self.eventLoop.makeFailedFuture(error)
             }
     }
     
