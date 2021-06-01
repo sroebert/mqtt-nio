@@ -10,10 +10,6 @@ final class WebSocketInitialRequestHandler: ChannelInboundHandler, RemovableChan
     typealias InboundIn = HTTPClientResponsePart
     typealias OutboundOut = HTTPClientRequestPart
     
-    enum Error: Swift.Error {
-        case upgradeFailed
-    }
-    
     // MARK: - Vars
 
     let logger: Logger
@@ -21,6 +17,9 @@ final class WebSocketInitialRequestHandler: ChannelInboundHandler, RemovableChan
     let path: String
     let extraHeaders: [String: String]
     let onFailure: (ChannelHandlerContext, Error) -> Void
+    
+    private var upgradeResponseStatus: HTTPResponseStatus?
+    private var upgradeResponseData: ByteBuffer = Allocator.shared.buffer(capacity: 0)
     
     // MARK: - Init
 
@@ -68,14 +67,27 @@ final class WebSocketInitialRequestHandler: ChannelInboundHandler, RemovableChan
         let response = unwrapInboundIn(data)
 
         switch response {
-        case .head, .body:
-            break
+        case .head(let head):
+            upgradeResponseStatus = head.status
+            
+        case .body(var body):
+            upgradeResponseData.writeBuffer(&body)
             
         case .end:
+            var data = upgradeResponseData
+            let readableBytes = data.readableBytes
+            let response = data.readString(length: readableBytes)
             logger.error("Failed to upgrade WebSocket", metadata: [
-                "error": "Invalid response"
+                "error": "Invalid response",
+                "responseStatus": upgradeResponseStatus.map { "\($0)" } ?? "unknown",
+                "response": .string(response ?? "\(readableBytes) bytes")
             ])
-            onFailure(context, Error.upgradeFailed)
+            
+            onFailure(context, MQTTWebSocketError(
+                responseStatus: upgradeResponseStatus,
+                responseData: upgradeResponseData,
+                underlyingError: nil
+            ))
         }
     }
     
@@ -83,6 +95,11 @@ final class WebSocketInitialRequestHandler: ChannelInboundHandler, RemovableChan
         logger.error("Failed to upgrade WebSocket", metadata: [
             "error": "\(error)"
         ])
-        onFailure(context, error)
+        
+        onFailure(context, MQTTWebSocketError(
+            responseStatus: nil,
+            responseData: nil,
+            underlyingError: error
+        ))
     }
 }
