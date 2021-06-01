@@ -3,6 +3,7 @@ import Logging
 import XCTest
 import NIO
 import NIOSSL
+import NIOTransportServices
 
 class MQTTNIOTestCase: XCTestCase {
     
@@ -14,11 +15,20 @@ class MQTTNIOTestCase: XCTestCase {
         return group.next()
     }
     
+    private static func createEventLoopGroup() -> EventLoopGroup {
+        #if canImport(Network)
+        if #available(OSX 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *) {
+            return NIOTSEventLoopGroup()
+        }
+        #endif
+        return MultiThreadedEventLoopGroup(numberOfThreads: 1)
+    }
+    
     // MARK: - Set Up / Tear Down
     
     override func setUp() {
         XCTAssertTrue(isLoggingConfigured)
-        group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+        group = Self.createEventLoopGroup()
     }
     
     override func tearDown() {

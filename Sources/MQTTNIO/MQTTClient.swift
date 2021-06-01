@@ -1,6 +1,7 @@
 import NIO
 import NIOSSL
 import NIOConcurrencyHelpers
+import NIOTransportServices
 import Logging
 #if canImport(Combine)
 import Combine
@@ -82,6 +83,24 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     private lazy var messageSubject: PassthroughSubject<MQTTMessage, Never>! = { nil }()
     #endif
     
+    private var useNIOTS: Bool {
+        #if canImport(Network)
+        if #available(OSX 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *) {
+            return eventLoopGroup is NIOTSEventLoopGroup
+        }
+        #endif
+        return false
+    }
+    
+    private static func createEventLoopGroup() -> EventLoopGroup {
+        #if canImport(Network)
+        if #available(OSX 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *) {
+            return NIOTSEventLoopGroup()
+        }
+        #endif
+        return MultiThreadedEventLoopGroup(numberOfThreads: 1)
+    }
+    
     // MARK: - Init
     
     /// Creates an `MQTTClient`
@@ -98,7 +117,7 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
         
         switch eventLoopGroupProvider {
         case .createNew:
-            eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+            eventLoopGroup = Self.createEventLoopGroup()
             shouldShutdownEventLoopGroup = true
             
         case .shared(let eventLoopGroup):
@@ -188,6 +207,7 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
             
             let connection = MQTTConnection(
                 eventLoop: connectionEventLoop,
+                useNIOTS: useNIOTS,
                 configuration: _configuration,
                 requestHandler: requestHandler,
                 subscriptionsHandler: subscriptionsHandler,

@@ -3,6 +3,7 @@ import NIO
 import NIOSSL
 import NIOHTTP1
 import NIOWebSocket
+import NIOTransportServices
 import Logging
 
 protocol MQTTConnectionDelegate: AnyObject {
@@ -34,6 +35,7 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
     // MARK: - Vars
     
     let eventLoop: EventLoop
+    let useNIOTS: Bool
     let configuration: MQTTConfiguration
     let logger: Logger
     
@@ -58,12 +60,14 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
     
     init(
         eventLoop: EventLoop,
+        useNIOTS: Bool,
         configuration: MQTTConfiguration,
         requestHandler: MQTTRequestHandler,
         subscriptionsHandler: MQTTSubscriptionsHandler,
         logger: Logger
     ) {
         self.eventLoop = eventLoop
+        self.useNIOTS = useNIOTS
         self.configuration = configuration
         self.logger = logger
         
@@ -151,17 +155,25 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
             }
     }
     
+    private var bootstrap: NIOClientTCPBootstrapProtocol {
+        #if canImport(Network)
+        if #available(OSX 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *), useNIOTS {
+            return NIOTSConnectionBootstrap(group: eventLoop)
+        }
+        #endif
+        return ClientBootstrap(group: eventLoop)
+    }
+    
     private func connectToBroker() -> EventLoopFuture<Channel> {
         logger.debug("Connecting to broker", metadata: [
             "target": "\(configuration.target)"
         ])
         
-        let target = configuration.target
-        return ClientBootstrap(group: eventLoop)
+        return bootstrap
             .channelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SO_REUSEADDR), value: 1)
             .channelOption(ChannelOptions.socket(IPPROTO_TCP, TCP_NODELAY), value: 1)
             .connectTimeout(configuration.connectionTimeoutInterval)
-            .connect(to: target)
+            .connect(to: configuration.target)
             .flatMap { self.initializeTLS(for: $0) }
             .flatMap {
                 if let webSocketsConfiguration = self.configuration.webSockets {
@@ -455,7 +467,7 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
     }
 }
 
-extension ClientBootstrap {
+extension NIOClientTCPBootstrapProtocol {
     fileprivate func connect(to target: MQTTConfiguration.Target) -> EventLoopFuture<Channel> {
         switch target {
         case .host(let host, port: let port):

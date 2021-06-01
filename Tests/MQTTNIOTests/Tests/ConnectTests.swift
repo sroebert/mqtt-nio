@@ -27,14 +27,15 @@ final class ConnectTests: MQTTNIOTestCase {
     
     func testFailureToConnect() throws {
         let client = nonExistingClient
+        client.configuration.connectionTimeoutInterval = .seconds(2)
         
         for version in MQTTProtocolVersion.allCases {
             client.configuration.protocolVersion = version
             
-            let error = waitForFailure(for: client.connect())
+            let error = waitForFailure(for: client.connect(), timeout: 4)
             XCTAssertFalse(client.isConnected)
             
-            XCTAssertTrue(error is NIOConnectionError)
+            XCTAssertTrue(error is NIOConnectionError || error is ChannelError)
             
             wait(for: client.disconnect())
         }

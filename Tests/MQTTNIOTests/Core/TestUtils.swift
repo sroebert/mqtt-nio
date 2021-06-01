@@ -45,7 +45,7 @@ extension XCTestCase {
         }
         
         let expectationResult = XCTWaiter.wait(for: [expectation], timeout: timeout)
-        XCTAssertEqual(expectationResult, .completed, "Expected result to be successful", file: file, line: line)
+        XCTAssertEqual(expectationResult, .completed, "Expected result to be a failure", file: file, line: line)
         
         return error
     }
