@@ -2,9 +2,12 @@ name: test
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
+      - 'feature/**'
   pull_request:
-    branches: [ main ]
+    branches:
+      - main
 
 jobs:
   test:
@@ -13,18 +16,42 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-18.04, ubuntu-latest]
+        os: [ubuntu-latest, macos-latest]
 
     steps:
-    - uses: actions/checkout@v2
+      # Checkout
+      - name: Checkout
+        uses: actions/checkout@v2
 
-    - name: Setup Certificates
-      run: ./Docker/certs/generate.sh
+      # Install
+      - name: Install mosquitto
+        if: runner.os == 'macOS'
+        run: brew install mosquitto
 
-    - name: Setup Mosquitto Containers
-      run: docker-compose pull
-    - name: Run Mosquitto Containers
-      run: docker-compose up -d
+      - name: Generate certificates
+        run: ./mosquitto/certs/generate.sh
 
-    - name: Run tests
-      run: swift test --sanitize=thread
+      - name: Setup Swift
+        uses: fwal/setup-swift@v1
+        with:
+          swift-version: "5.4.0"
+
+      # Brokers
+      - name: Run brokers
+        if: runner.os == 'macOS'
+        run: |
+          mosquitto -d -c mosquitto/mosquitto-default.conf
+          mosquitto -d -c mosquitto/mosquitto-authenticated.conf
+          mosquitto -d -c mosquitto/mosquitto-limited.conf
+
+      - name: Run brokers
+        if: runner.os == 'Linux'
+        run: docker-compose up -d
+
+      # Test
+      - name: Run tests
+        run: swift test --sanitize=thread
+
+      - name: Run iOS tests
+        if: runner.os == 'macOS'
+        run: xcodebuild test -scheme mqtt-nio -sdk iphonesimulator -destination 'name=Any iOS Simulator Device`'

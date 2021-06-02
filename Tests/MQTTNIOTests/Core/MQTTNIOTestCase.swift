@@ -76,7 +76,7 @@ class MQTTNIOTestCase: XCTestCase {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-        let caCertifcateURL = rootDir.appendingPathComponent("Docker/certs/ca.crt")
+        let caCertifcateURL = rootDir.appendingPathComponent("mosquitto/certs/ca.crt")
         let caCertificate = try! NIOSSLCertificate.fromPEMFile(caCertifcateURL.path)[0]
         
         return MQTTClient(configuration: .init(

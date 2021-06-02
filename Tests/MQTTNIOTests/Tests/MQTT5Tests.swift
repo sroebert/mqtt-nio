@@ -98,7 +98,7 @@ final class MQTT5Tests: MQTTNIOTestCase {
         
         let expectation = XCTestExpectation(description: "Received payload")
         expectation.assertForOverFulfill = true
-        client.whenMessage { message in
+        let cancellable = client.whenMessage { message in
             XCTAssertEqual(message.payload.string, payload)
             XCTAssertFalse(message.retain)
             expectation.fulfill()
@@ -107,6 +107,7 @@ final class MQTT5Tests: MQTTNIOTestCase {
         wait(for: client.subscribe(to: topic, options: .init(retainAsPublished: false)))
         wait(for: client.publish(payload, to: topic, retain: true))
         wait(for: [expectation], timeout: 1)
+        cancellable.cancel()
         
         // Clear again
         wait(for: client.publish(to: topic, retain: true))
@@ -124,7 +125,7 @@ final class MQTT5Tests: MQTTNIOTestCase {
         
         let expectation = XCTestExpectation(description: "Received payload")
         expectation.assertForOverFulfill = true
-        client.whenMessage { message in
+        let cancellable = client.whenMessage { message in
             XCTAssertEqual(message.payload.string, payload)
             XCTAssertTrue(message.retain)
             expectation.fulfill()
@@ -133,6 +134,7 @@ final class MQTT5Tests: MQTTNIOTestCase {
         wait(for: client.subscribe(to: topic, options: .init(retainAsPublished: true)))
         wait(for: client.publish(payload, to: topic, retain: true))
         wait(for: [expectation], timeout: 1)
+        cancellable.cancel()
         
         // Clear again
         wait(for: client.publish(to: topic, retain: true))
@@ -150,7 +152,7 @@ final class MQTT5Tests: MQTTNIOTestCase {
         
         let expectation = XCTestExpectation(description: "Received payload")
         expectation.expectedFulfillmentCount = 2
-        client.whenMessage { message in
+        let cancellable = client.whenMessage { message in
             XCTAssertEqual(message.payload.string, payload)
             expectation.fulfill()
         }
@@ -158,6 +160,7 @@ final class MQTT5Tests: MQTTNIOTestCase {
         wait(for: client.subscribe(to: topic, options: .init(retainedMessageHandling: .sendOnSubscribe)))
         wait(for: client.subscribe(to: topic, options: .init(retainedMessageHandling: .sendOnSubscribe)))
         wait(for: [expectation], timeout: 1)
+        cancellable.cancel()
         
         // Clear again
         wait(for: client.publish(to: topic, retain: true))
@@ -175,7 +178,7 @@ final class MQTT5Tests: MQTTNIOTestCase {
         
         let expectation = XCTestExpectation(description: "Received payload")
         expectation.assertForOverFulfill = true
-        client.whenMessage { message in
+        let cancellable = client.whenMessage { message in
             XCTAssertEqual(message.payload.string, payload)
             expectation.fulfill()
         }
@@ -183,6 +186,7 @@ final class MQTT5Tests: MQTTNIOTestCase {
         wait(for: client.subscribe(to: topic, options: .init(retainedMessageHandling: .sendOnSubscribeIfNotExists)))
         wait(for: client.subscribe(to: topic, options: .init(retainedMessageHandling: .sendOnSubscribeIfNotExists)))
         wait(for: [expectation], timeout: 1)
+        cancellable.cancel()
         
         // Clear again
         wait(for: client.publish(to: topic, retain: true))
@@ -192,7 +196,7 @@ final class MQTT5Tests: MQTTNIOTestCase {
         let client = defaultClient
         wait(for: client.connect())
         
-        let topic = "mqtt-nio/tests/retain-handling/send-on-subscribe-if-not-exists"
+        let topic = "mqtt-nio/tests/retain-handling/do-not-send"
         let payload = "Hello World!"
         
         // Setup retained message
@@ -200,13 +204,14 @@ final class MQTT5Tests: MQTTNIOTestCase {
         
         let expectation = XCTestExpectation(description: "Received payload")
         expectation.isInverted = true
-        client.whenMessage { message in
+        let cancellable = client.whenMessage { message in
             expectation.fulfill()
         }
         
         wait(for: client.subscribe(to: topic, options: .init(retainedMessageHandling: .doNotSend)))
         wait(for: client.subscribe(to: topic, options: .init(retainedMessageHandling: .doNotSend)))
         wait(for: [expectation], timeout: 1)
+        cancellable.cancel()
         
         // Clear again
         wait(for: client.publish(to: topic, retain: true))

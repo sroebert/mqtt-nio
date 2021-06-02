@@ -6,5 +6,5 @@ xcuserdata/
 .swiftpm
 Package.resolved
 DerivedData
-Docker/certs/ca.*
-Docker/certs/server.*
+mosquitto/certs/ca.*
+mosquitto/certs/server.*

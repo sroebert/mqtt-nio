@@ -4,7 +4,9 @@ Non-blocking, event-driven Swift client for MQTT ([5.0](https://docs.oasis-open.
 
 This library has support for WebSocket connections and TLS. It runs on all platforms Swift NIO runs on (e.g. macOS, iOS, Linux, etc.).
 
-![test](https://github.com/sroebert/mqtt-nio/workflows/test/badge.svg)
+[![Tests](https://img.shields.io/github/workflow/status/sroebert/mqtt-nio/test/main.svg?label=Tests&style=for-the-badge)](https://github.com/sroebert/mqtt-nio/actions)
+[![Swift 5.4](http://img.shields.io/badge/swift-5.4-brightgreen.svg?style=for-the-badge)](https://swift.org)
+[![Release](https://img.shields.io/github/release/sroebert/mqtt-nio.svg?style=for-the-badge)](https://github.com/sroebert/mqtt-nio/releases)
 
 ## Installation
 
@@ -27,7 +29,7 @@ This package has four dependencies:
 
 - [`apple/swift-nio`](https://github.com/apple/swift-nio) for IO
 - [`apple/swift-nio-ssl`](https://github.com/apple/swift-nio-ssl) for TLS
-- [`apple/swift-nio-transport-services`](https://github.com/apple/swift-nio-transport-services) to support Apple platforms as first-class citizens 
+- [`apple/swift-nio-transport-services`](https://github.com/apple/swift-nio-transport-services) to support Apple platforms as first-class citizens
 - [`apple/swift-log`](https://github.com/apple/swift-log) for logging
 
 This package has no additional system dependencies.
@@ -82,7 +84,7 @@ client.publish("Hello World!", "some/topic")
 client.publish("Hello World!", to: "some/topic", retain: true)
 ```
 
-### Receive callbacks to know when the client connects/disconnects and receives messages. 
+### Receive callbacks to know when the client connects/disconnects and receives messages.
 ```swift
 client.whenConnected { response in
     print("Connected, is session present: \(response.isSessionPresent)")
@@ -121,4 +123,11 @@ let cancellable2 = client.messagePublisher(forTopic: "some/topic")
     .sink { message in
         print("Received: \(message)")
     }
+```
+
+## Unit Tests
+
+To easily run the tests locally, simply run docker-compose to setup the needed MQTT broker containers.
+```
+docker-compose up
 ```
