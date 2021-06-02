@@ -3,16 +3,28 @@ import Logging
 
 final class MQTTDisconnectRequest: MQTTRequest {
     
+    // MARK: - Types
+    
+    private enum Event {
+        case timeout
+    }
+    
     // MARK: - Vars
     
     let reasonCode: MQTTPacket.Disconnect.ReasonCode
     let reasonString: String?
     let sessionExpiry: MQTTConfiguration.SessionExpiry?
     let userProperties: [MQTTUserProperty]
+    let timeoutInterval: TimeAmount
+    
+    private var timeoutScheduled: Scheduled<Void>?
     
     // MARK: - Init
     
-    init?(reason: MQTTDisconnectReason) {
+    init?(
+        reason: MQTTDisconnectReason,
+        timeoutInterval: TimeAmount = .seconds(2)
+    ) {
         switch reason {
         case .connectionClosed, .server:
             // In this case no disconnect message has to be send to the server
@@ -23,12 +35,14 @@ final class MQTTDisconnectRequest: MQTTRequest {
             self.reasonString = nil
             self.sessionExpiry = userRequest.sessionExpiry
             self.userProperties = userRequest.userProperties
+            self.timeoutInterval = timeoutInterval
             
         case .client(let protocolError):
             self.reasonCode = protocolError.code.disconnectReasonCode
             self.reasonString = protocolError.message
             self.sessionExpiry = nil
             self.userProperties = []
+            self.timeoutInterval = timeoutInterval
         }
     }
     
@@ -49,10 +63,27 @@ final class MQTTDisconnectRequest: MQTTRequest {
         )
         context.write(disconnect)
         
-        return .success(())
+        guard context.version >= .version5 else {
+            return .success
+        }
+        
+        timeoutScheduled = context.scheduleEvent(Event.timeout, in: timeoutInterval)
+        return .pending
     }
     
     func disconnected(context: MQTTRequestContext) -> MQTTRequestResult<Void> {
-        return .success(())
+        timeoutScheduled?.cancel()
+        timeoutScheduled = nil
+        
+        return .success
+    }
+    
+    func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult<Void> {
+        guard case Event.timeout = event else {
+            return .pending
+        }
+        
+        context.logger.notice("Broker did not close connection in time, disconnect manually")
+        return .success
     }
 }
