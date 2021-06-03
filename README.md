@@ -27,10 +27,10 @@ MQTTNIO supports the following platforms:
 
 This package has four dependencies:
 
-- [`apple/swift-nio`](https://github.com/apple/swift-nio) for IO
-- [`apple/swift-nio-ssl`](https://github.com/apple/swift-nio-ssl) for TLS
-- [`apple/swift-nio-transport-services`](https://github.com/apple/swift-nio-transport-services) to support Apple platforms as first-class citizens
-- [`apple/swift-log`](https://github.com/apple/swift-log) for logging
+- [`apple/swift-nio`](https://github.com/apple/swift-nio) for IO.
+- [`apple/swift-nio-ssl`](https://github.com/apple/swift-nio-ssl) for TLS.
+- [`apple/swift-nio-transport-services`](https://github.com/apple/swift-nio-transport-services) to support Apple platforms as first-class citizens.
+- [`apple/swift-log`](https://github.com/apple/swift-log) for logging.
 
 This package has no additional system dependencies.
 
