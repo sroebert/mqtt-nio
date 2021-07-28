@@ -18,6 +18,13 @@ final class ConfigurationTests: XCTestCase {
         XCTAssertNil(configuration.webSockets)
     }
     
+    func testIpPortURL() throws {
+        let configuration = configuration(forURL: "192.168.1.123:1234")
+        XCTAssertEqual(configuration.target, .host("192.168.1.123", port: 1234))
+        XCTAssertNil(configuration.tls)
+        XCTAssertNil(configuration.webSockets)
+    }
+    
     func testHostURL() throws {
         let configuration = configuration(forURL: "test.mosquitto.org")
         XCTAssertEqual(configuration.target, .host("test.mosquitto.org", port: 1883))

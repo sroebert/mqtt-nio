@@ -247,16 +247,11 @@ public struct MQTTConfiguration {
             path = url.path.selfIfNotEmpty
         } else {
             // If url does not have a host, use the first part of the path instead
-            var pathElements = url.path.split(separator: "/")
-            if let pathHost = pathElements.first {
-                host = String(pathHost)
-                
-                pathElements.removeFirst()
-                path = pathElements.joined(separator: "/").selfIfNotEmpty
-            } else {
-                host = url.path
-                path = nil
+            if let url = URL(string: "mqtt://\(url.path)"), url.host != nil {
+                return parse(url)
             }
+            host = url.path
+            path = nil
         }
         
         let useTLS: Bool
