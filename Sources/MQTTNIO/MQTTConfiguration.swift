@@ -164,12 +164,144 @@ public struct MQTTConfiguration {
         self.subscriptionTimeoutInterval = subscriptionTimeoutInterval
         self.authenticationHandlerProvider = authenticationHandlerProvider
     }
+    
+    /// Creates an `MQTTConfiguration`.
+    /// - Parameters:
+    ///   - url: The url for the broker the client should connect to.
+    ///            The url will be parsed to determine the target, the TLS configuration (if any) and whether WebSockets will be used.
+    ///            If the scheme is unknown, the default MQTT port 1883, without TLS configuration, will be used.
+    ///   - protocolVersion: The MQTT protocol version to use when connecting to the broker. The default value is `.version5`.
+    ///   - clientId: The client identifier to use for the connection with the broker. The default value is `nl.roebert.MQTTNIO.` followed by a `UUID`.
+    ///   - clean: Boolean, indicating whether the session for the client should be cleaned by the broker. The default value is `true`.
+    ///   - credentials: The credentials used to connect to the broker. The default value is `nil`.
+    ///   - willMessage: The optional `MQTTMessage` the broker should send under certain conditions if the client would disconnect. The default value is `nil`.
+    ///   - sessionExpiry: Indicates when the session of the client should expire.
+    ///   - receiveMaximum: The receive maximum, indicating the maximum number of QoS > 0 packets that can be received concurrently. The default value is `nil`, indicating the server should use the default value.
+    ///   - maximumPacketSize: The maximum allowed size of packets to receive. The default value is `nil`, indicating that there is no maximum.
+    ///   - requestResponseInformation: Indicates whether the server should provide response information when connecting. The default value is `false`.
+    ///   - requestProblemInformation: Indicates whether the server should provide a reason string and user properties in case of failures. The default value is `true`.
+    ///   - userProperties: Additional user properties to send when connecting with the broker. The default value is an empty array.
+    ///   - acknowledgementHandler: Optional acknowledgement handler which will be called for QoS 1 and 2 messages received from a 5.0 broker. The default value is `nil`.
+    ///   - keepAliveInterval: The time interval in which a message must be send to the broker to keep the connection alive. The default value is `60` seconds.
+    ///   - reschedulePings: When `true` keep alive ping messages are rescheduled when sending other packets. The default value is `true`.
+    ///   - connectionTimeoutInterval: The interval after which connection with the broker will fail. The default value is `30` seconds.
+    ///   - reconnectMode: The mode for reconnection that will be used if the client is disconnected from the server. The default value is `retry` with a minimum of `1` second and maximum of `120` seconds.
+    ///   - connectRequestTimeoutInterval: The time to wait for the server to respond to a connect message from the client. The default value is `5` seconds.
+    ///   - publishRetryInterval: The time to wait before an unacknowledged publish message is retried. The default value is `5` seconds.
+    ///   - subscriptionTimeoutInterval: The time to wait for an acknowledgement for subscribing or unsubscribing. The default value is `5` seconds.
+    ///   - authenticationHandlerProvider: A closure that will provide a authentication handler to use for enhanced authentication during connection. The default value will return `nil` for the handler.
+    public init(
+        url: URL,
+        protocolVersion: MQTTProtocolVersion = .version5,
+        clientId: String = "nl.roebert.MQTTNIO.\(UUID())",
+        clean: Bool = true,
+        credentials: Credentials? = nil,
+        willMessage: MQTTWillMessage? = nil,
+        sessionExpiry: SessionExpiry = .atClose,
+        receiveMaximum: Int? = nil,
+        maximumPacketSize: Int? = nil,
+        requestResponseInformation: Bool = false,
+        requestProblemInformation: Bool = true,
+        userProperties: [MQTTUserProperty] = [],
+        acknowledgementHandler: MQTTAcknowledgementHandler? = nil,
+        keepAliveInterval: TimeAmount = .seconds(60),
+        reschedulePings: Bool = true,
+        connectionTimeoutInterval: TimeAmount = .seconds(30),
+        reconnectMode: ReconnectMode = .retry(minimumDelay: .seconds(1), maximumDelay: .seconds(120)),
+        connectRequestTimeoutInterval: TimeAmount = .seconds(5),
+        publishRetryInterval: TimeAmount = .seconds(5),
+        subscriptionTimeoutInterval: TimeAmount = .seconds(5),
+        authenticationHandlerProvider: @escaping () -> MQTTAuthenticationHandler? = { nil }
+    ) {
+        let (target, tls, webSockets) = Self.parse(url)
+        self.target = target
+        self.tls = tls
+        self.webSockets = webSockets
+        self.protocolVersion = protocolVersion
+        self.clientId = clientId
+        self.clean = clean
+        self.credentials = credentials
+        self.willMessage = willMessage
+        self.sessionExpiry = sessionExpiry
+        self.receiveMaximum = receiveMaximum
+        self.maximumPacketSize = maximumPacketSize
+        self.requestResponseInformation = requestResponseInformation
+        self.requestProblemInformation = requestProblemInformation
+        self.userProperties = userProperties
+        self.acknowledgementHandler = acknowledgementHandler
+        self.keepAliveInterval = keepAliveInterval
+        self.reschedulePings = reschedulePings
+        self.connectionTimeoutInterval = connectionTimeoutInterval
+        self.reconnectMode = reconnectMode
+        self.connectRequestTimeoutInterval = connectRequestTimeoutInterval
+        self.publishRetryInterval = publishRetryInterval
+        self.subscriptionTimeoutInterval = subscriptionTimeoutInterval
+        self.authenticationHandlerProvider = authenticationHandlerProvider
+    }
+    
+    private static func parse(_ url: URL) -> (Target, TLSConfiguration?, WebSocketsConfiguration?) {
+        let host: String
+        let path: String?
+        if let urlHost = url.host {
+            host = urlHost
+            path = url.path.selfIfNotEmpty
+        } else {
+            // If url does not have a host, use the first part of the path instead
+            var pathElements = url.path.split(separator: "/")
+            if let pathHost = pathElements.first {
+                host = String(pathHost)
+                
+                pathElements.removeFirst()
+                path = pathElements.joined(separator: "/").selfIfNotEmpty
+            } else {
+                host = url.path
+                path = nil
+            }
+        }
+        
+        let useTLS: Bool
+        let useWebSockets: Bool
+        let port: Int
+        switch url.scheme {
+        case "mqtt":
+            useTLS = false
+            useWebSockets = false
+            port = url.port ?? 1883
+            
+        case "mqtts":
+            useTLS = true
+            useWebSockets = false
+            port = url.port ?? 8883
+            
+        case "ws", "http":
+            useTLS = false
+            useWebSockets = true
+            port = url.port ?? 80
+            
+        case "wss", "https":
+            useTLS = true
+            useWebSockets = true
+            port = url.port ?? 443
+            
+        default:
+            // Unknown scheme, use defaults
+            port = 1883
+            useTLS = false
+            useWebSockets = false
+        }
+        
+        return (
+            Target.host(host, port: port),
+            useTLS ? .makeClientConfiguration() : nil,
+            useWebSockets ? (path.map { .init(path: $0) } ?? .enabled) : nil
+        )
+    }
 }
 
 extension MQTTConfiguration {
     
     /// The target for the `MQTTClient` to connect to.
-    public enum Target {
+    public enum Target: Equatable {
         /// Target indicated by a hostname and port number.
         case host(String, port: Int)
         
@@ -192,7 +324,7 @@ extension MQTTConfiguration {
     }
 
     /// The credentials for connection with a broker.
-    public struct Credentials {
+    public struct Credentials: Equatable {
         
         /// The username to connect with.
         public var username: String
@@ -229,7 +361,7 @@ extension MQTTConfiguration {
     }
     
     /// The configuration to setup a connection using websockets.
-    public struct WebSocketsConfiguration {
+    public struct WebSocketsConfiguration: Equatable {
         
         /// The web socket path to use.
         public var path: String
@@ -254,7 +386,7 @@ extension MQTTConfiguration {
     }
     
     /// The reconnect mode for an `MQTTClient` to use when it gets disconnected from the broker.
-    public enum ReconnectMode {
+    public enum ReconnectMode: Equatable {
         /// The client will not automatically reconnect.
         case none
         

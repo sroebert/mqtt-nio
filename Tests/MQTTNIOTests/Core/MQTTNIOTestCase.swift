@@ -53,10 +53,16 @@ class MQTTNIOTestCase: XCTestCase {
         ), eventLoopGroupProvider: .shared(group))
     }
     
+    var sslConfiguration: TLSConfiguration = {
+        var config = TLSConfiguration.makeClientConfiguration()
+        config.certificateVerification = .none
+        return config
+    }()
+    
     var sslNoVerifyClient: MQTTClient {
         return MQTTClient(configuration: .init(
             target: .host("localhost", port: 8883),
-            tls: .forClient(certificateVerification: .none),
+            tls: sslConfiguration,
             reconnectMode: .none
         ), eventLoopGroupProvider: .shared(group))
     }
@@ -64,7 +70,7 @@ class MQTTNIOTestCase: XCTestCase {
     var wsSslNoVerifyClient: MQTTClient {
         return MQTTClient(configuration: .init(
             target: .host("localhost", port: 8884),
-            tls: .forClient(certificateVerification: .none),
+            tls: sslConfiguration,
             webSockets: .enabled,
             reconnectMode: .none
         ), eventLoopGroupProvider: .shared(group))
@@ -79,12 +85,13 @@ class MQTTNIOTestCase: XCTestCase {
         let caCertifcateURL = rootDir.appendingPathComponent("mosquitto/certs/ca.crt")
         let caCertificate = try! NIOSSLCertificate.fromPEMFile(caCertifcateURL.path)[0]
         
+        var sslConfig = TLSConfiguration.makeClientConfiguration()
+        sslConfig.certificateVerification = .noHostnameVerification
+        sslConfig.trustRoots = .certificates([caCertificate])
+        
         return MQTTClient(configuration: .init(
             target: .host("localhost", port: 8883),
-            tls: .forClient(
-                certificateVerification: .noHostnameVerification,
-                trustRoots: .certificates([caCertificate])
-            )
+            tls: sslConfig
         ), eventLoopGroupProvider: .shared(group))
     }
     

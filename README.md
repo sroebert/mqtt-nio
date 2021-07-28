@@ -62,6 +62,18 @@ let client = MQTTClient(
 client.connect()
 ```
 
+### Connect using a URL
+
+```swift
+let client = MQTTClient(configuration: .init(url: URL(string: "mqtts://test.mosquitto.org")!))
+client.connect()
+```
+
+```swift
+let client = MQTTClient(configuration: .init(url: URL(string: "wss://test.mosquitto.org:8081")!))
+client.connect()
+```
+
 ### Subscribe
 ```swift
 client.subscribe(to: "some/topic")
@@ -127,7 +139,8 @@ let cancellable2 = client.messagePublisher(forTopic: "some/topic")
 
 ## Unit Tests
 
-To easily run the tests locally, simply run docker-compose to setup the needed MQTT broker containers.
+To easily run the tests locally, first generate self signed certificates followed by running docker-compose to setup the needed MQTT broker containers.
 ```
-docker-compose up
+./mosquitto/certs/generate.sh
+docker compose up
 ```
