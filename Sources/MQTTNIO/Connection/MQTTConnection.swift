@@ -117,7 +117,7 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
         // First connect to broker
         return connectToBroker()
             .map { channel -> Channel in
-                self.logger.debug("Connected to broker", metadata: [
+                self.logger.notice("Connected to broker", metadata: [
                     "target": "\(self.configuration.target)"
                 ])
                 return channel
@@ -125,7 +125,7 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
             .flatMap { channel -> EventLoopFuture<(Channel, MQTTConnectResponse)> in
                 // Send Connect packet to broker
                 self.requestConnectionWithBroker(for: channel).flatMapError { error in
-                    self.logger.debug("Failed Connect request, shutting down channel", metadata: [
+                    self.logger.error("Failed Connect request, shutting down channel", metadata: [
                         "error": "\(error)"
                     ])
                     
@@ -148,7 +148,7 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
                 
                 return (channel, response)
             }.flatMapError { error in
-                self.logger.debug("Failed to connect to broker", metadata: [
+                self.logger.error("Failed to connect to broker", metadata: [
                     "error": "\(error)"
                 ])
                 return self.eventLoop.makeFailedFuture(error)
@@ -383,7 +383,7 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
     private func notifyClosed() {
         eventLoop.assertInEventLoop()
         
-        logger.debug("Channel closed")
+        logger.notice("Channel closed")
         
         if connectionFlags.contains(.notifiedDelegate) {
             connectionFlags.remove(.notifiedDelegate)

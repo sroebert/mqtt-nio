@@ -37,7 +37,7 @@ final class MQTTReAuthenticateRequest: MQTTRequest {
         
         timeoutScheduled = context.scheduleEvent(Event.timeout, in: timeoutInterval)
         
-        context.logger.notice("Sending: Auth (Re-Authetication)")
+        context.logger.debug("Sending: Auth (Re-Authetication)")
         context.write(MQTTPacket.Auth(
             reasonCode: .reAuthenticate,
             reasonString: nil,
@@ -100,7 +100,7 @@ final class MQTTReAuthenticateRequest: MQTTRequest {
             ))
         }
         
-        context.logger.notice("Received: Auth")
+        context.logger.debug("Received: Auth")
         
         let data = auth.authenticationData.map { Data($0.readableBytesView) }
         let responseData: Data?
@@ -112,7 +112,7 @@ final class MQTTReAuthenticateRequest: MQTTRequest {
         
         timeoutScheduled = context.scheduleEvent(Event.timeout, in: timeoutInterval)
         
-        context.logger.notice("Sending: Auth")
+        context.logger.debug("Sending: Auth")
         context.write(MQTTPacket.Auth(
             reasonCode: .continueAuthentication,
             reasonString: nil,

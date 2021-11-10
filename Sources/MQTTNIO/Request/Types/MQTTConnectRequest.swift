@@ -119,7 +119,7 @@ final class MQTTConnectRequest: MQTTRequest {
             ))
         }
         
-        context.logger.notice("Received: Auth")
+        context.logger.debug("Received: Auth")
         
         let data = auth.authenticationData.map { Data($0.readableBytesView) }
         let responseData: Data?
@@ -129,7 +129,7 @@ final class MQTTConnectRequest: MQTTRequest {
             return .failure(error)
         }
         
-        context.logger.notice("Sending: Auth")
+        context.logger.debug("Sending: Auth")
         
         context.write(MQTTPacket.Auth(
             reasonCode: .continueAuthentication,
