@@ -521,6 +521,36 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
         return messageCallbacks.append(callback)
     }
     
+    /// Adds an observer callback which will be called when the client has received an `MQTTMessage` for a specific topic.
+    /// - Parameters:
+    ///   - topic: The topic to receive messages for.
+    ///   - callback: The observer callback to add which will be called with the received message.
+    /// - Returns: An `MQTTCancellable` which can be used to cancel the observer callback.
+    @discardableResult
+    public func whenMessage(forTopic topic: String, _ callback: @escaping (_ message: MQTTMessage) -> Void) -> MQTTCancellable {
+        return messageCallbacks.append { message in
+            guard message.topic == topic else {
+                return
+            }
+            callback(message)
+        }
+    }
+    
+    /// Adds an observer callback which will be called when the client has received an `MQTTMessage` for a specific subscription identifier.
+    /// - Parameters:
+    ///   - identifier: The subscription identifier to receive messages for.
+    ///   - callback: The observer callback to add which will be called with the received message.
+    /// - Returns: An `MQTTCancellable` which can be used to cancel the observer callback.
+    @discardableResult
+    public func whenMessage(forIdentifier identifier: Int, _ callback: @escaping (_ message: MQTTMessage) -> Void) -> MQTTCancellable {
+        return messageCallbacks.append { message in
+            guard message.properties.subscriptionIdentifiers.contains(identifier) else {
+                return
+            }
+            callback(message)
+        }
+    }
+    
     // MARK: - Publishers
     
     #if canImport(Combine)
@@ -557,6 +587,17 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     public func messagePublisher(forTopic topic: String) -> AnyPublisher<MQTTMessage, Never> {
         return messageSubject
             .filter { $0.topic == topic }
+            .eraseToAnyPublisher()
+    }
+    
+    /// Returns a publisher for receiving MQTT messages to a specific subscription identifier.
+    /// - Parameter identifier: The subscription identifier to receive messages for.
+    ///
+    /// This is only available on platforms where `Combine` is available.
+    @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
+    public func messagePublisher(forIdentifier identifier: Int) -> AnyPublisher<MQTTMessage, Never> {
+        return messageSubject
+            .filter { $0.properties.subscriptionIdentifiers.contains(identifier) }
             .eraseToAnyPublisher()
     }
     

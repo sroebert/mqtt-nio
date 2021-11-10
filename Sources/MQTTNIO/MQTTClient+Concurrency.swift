@@ -248,8 +248,18 @@ extension MQTTClient {
     
     /// An async sequence for iterating over received messages from the broker to a specific topic.
     /// - Parameter topic: The topic to receive messages for.
-    public func messages(for topic: String) -> AsyncFilterSequence<AsyncStream<MQTTMessage>> {
-        return messages.filter { $0.topic == topic }
+    public func messages(forTopic topic: String) -> AsyncFilterSequence<AsyncStream<MQTTMessage>> {
+        return messages.filter {
+            $0.topic == topic
+        }
+    }
+    
+    /// An async sequence for iterating over received messages from the broker to a specific subscription identifier.
+    /// - Parameter identifier: The subscription identifier to receive messages for.
+    public func messages(forIdentifier identifier: Int) -> AsyncFilterSequence<AsyncStream<MQTTMessage>> {
+        return messages.filter {
+            $0.properties.subscriptionIdentifiers.contains(identifier)
+        }
     }
 }
 
