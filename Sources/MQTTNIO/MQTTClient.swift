@@ -360,11 +360,6 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     // MARK: - Subscriptions
     
     /// Subscribes to one or more topics on the broker.
-    /// - Parameter subscriptions: An array of `MQTTSubscription`s indicating what to subscribe to.
-    /// - Returns: An `EventLoopFuture` with an array of `MQTTSubscriptionResult`s indicating the results for each `MQTTSubscription`.
-    
-    
-    /// Subscribes to one or more topics on the broker.
     /// - Parameters:
     ///   - subscriptions: An array of `MQTTSubscription`s indicating what to subscribe to.
     ///   - identifier: Optional identifier which will be send to broker and will be set on messages received for this subscription. This only works with 5.0 MQTT brokers.
@@ -442,7 +437,7 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     /// - Parameters:
     ///   - topicFilters: The topic filters to unsubscribe from.
     ///   - userProperties: Additional user properties to send when subscribing. This only works with 5.0 MQTT brokers.
-    /// - Returns: An `EventLoopFuture` for when the unsubscribing has completed.
+    /// - Returns: An `EventLoopFuture` with the `MQTTUnsubscribeResponse` indicating the result of unsubscribing.
     @discardableResult
     func unsubscribe(
         from topicFilters: [String],
@@ -461,7 +456,7 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     /// - Parameters:
     ///   - topicFilter: The topic filter to unsubscribe from.
     ///   - userProperties: Additional user properties to send when subscribing. This only works with 5.0 MQTT brokers.
-    /// - Returns: An `EventLoopFuture` for when the unsubscribing has completed.
+    /// - Returns: An `EventLoopFuture` with the `MQTTUnsubscribeResponse` indicating the result of unsubscribing.
     @discardableResult
     public func unsubscribe(
         from topicFilter: String,
