@@ -60,6 +60,20 @@ final class ConfigurationTests: XCTestCase {
         XCTAssertEqual(configuration.webSockets, .init(path: "/some-path"))
     }
     
+    func testWebSocketURLWithQuery() throws {
+        let configuration = configuration(forURL: "ws://test.mosquitto.org?key1=value1&key2=value2")
+        XCTAssertEqual(configuration.target, .host("test.mosquitto.org", port: 80))
+        XCTAssertNil(configuration.tls)
+        XCTAssertEqual(configuration.webSockets, .init(path: "?key1=value1&key2=value2"))
+    }
+    
+    func testWebSocketURLWithPathAndQuery() throws {
+        let configuration = configuration(forURL: "ws://test.mosquitto.org/some-other-path?key1=value1&key2=value2")
+        XCTAssertEqual(configuration.target, .host("test.mosquitto.org", port: 80))
+        XCTAssertNil(configuration.tls)
+        XCTAssertEqual(configuration.webSockets, .init(path: "/some-other-path?key1=value1&key2=value2"))
+    }
+    
     func testWebSocketHTTPURL() throws {
         let configuration = configuration(forURL: "http://test.mosquitto.org")
         XCTAssertEqual(configuration.target, .host("test.mosquitto.org", port: 80))

@@ -239,9 +239,14 @@ public struct MQTTConfiguration {
         self.authenticationHandlerProvider = authenticationHandlerProvider
     }
     
+    private static func query(for url: URL) -> String? {
+        return url.query?.selfIfNotEmpty.map { "?\($0)" }
+    }
+    
     private static func parse(_ url: URL) -> (Target, TLSConfiguration?, WebSocketsConfiguration?) {
         let host: String
-        let path: String?
+        
+        var path: String?
         if let urlHost = url.host {
             host = urlHost
             path = url.path.selfIfNotEmpty
@@ -252,6 +257,10 @@ public struct MQTTConfiguration {
             }
             host = url.path
             path = nil
+        }
+        
+        if let query = url.query?.selfIfNotEmpty {
+            path = "\(path ?? "")?\(query)"
         }
         
         let useTLS: Bool
