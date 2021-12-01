@@ -187,7 +187,7 @@ extension MQTTClient {
     ///   - userProperties: Additional user properties to send when subscribing. This only works with 5.0 MQTT brokers.
     /// - Returns: The `MQTTUnsubscribeResponse` indicating the result of unsubscribing.
     @discardableResult
-    func unsubscribe(
+    public func unsubscribe(
         from topicFilters: [String],
         userProperties: [MQTTUserProperty] = []
     ) async throws -> MQTTUnsubscribeResponse {
