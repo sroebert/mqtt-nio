@@ -47,8 +47,6 @@ final class CallbackList<Arguments> {
     
     func emit(arguments: Arguments) {
         let entries = lock.withLock { callbackEntries }
-        DispatchQueue.main.async {
-            entries.forEach { $0.callback(arguments) }
-        }
+        entries.forEach { $0.callback(arguments) }
     }
 }
