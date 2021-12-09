@@ -66,8 +66,14 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     /// The list of connect callback entries.
     private let connectCallbacks: CallbackList<MQTTConnectResponse>
     
+    /// The list of reconnect callback entries.
+    private let reconnectCallbacks: CallbackList<Void>
+    
     /// The list of disconnect callback entries.
-    private let disconnectCallback: CallbackList<MQTTDisconnectReason>
+    private let disconnectCallbacks: CallbackList<MQTTDisconnectReason>
+    
+    /// The list of connection error callback entries.
+    private let connectionFailureCallbacks: CallbackList<Error>
     
     /// The list of message callback entries.
     private let messageCallbacks: CallbackList<MQTTMessage>
@@ -77,7 +83,13 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     private lazy var connectSubject: PassthroughSubject<MQTTConnectResponse, Never>! = { nil }()
     
     @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
+    private lazy var reconnectSubject: PassthroughSubject<Void, Never>! = { nil }()
+    
+    @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
     private lazy var disconnectSubject: PassthroughSubject<MQTTDisconnectReason, Never>! = { nil }()
+    
+    @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
+    private lazy var connectionFailureSubject: PassthroughSubject<Error, Never>! = { nil }()
     
     @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
     private lazy var messageSubject: PassthroughSubject<MQTTMessage, Never>! = { nil }()
@@ -139,13 +151,17 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
         )
         
         connectCallbacks = CallbackList()
-        disconnectCallback = CallbackList()
+        reconnectCallbacks = CallbackList()
+        disconnectCallbacks = CallbackList()
+        connectionFailureCallbacks = CallbackList()
         messageCallbacks = CallbackList()
         
         #if canImport(Combine)
         if #available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *) {
             connectSubject = PassthroughSubject()
+            reconnectSubject = PassthroughSubject()
             disconnectSubject = PassthroughSubject()
+            connectionFailureSubject = PassthroughSubject()
             messageSubject = PassthroughSubject()
         }
         #endif
@@ -505,12 +521,28 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
         return connectCallbacks.append(callback)
     }
     
+    /// Adds an observer callback which will be called when the client starts reconnecting to a broker.
+    /// - Parameter callback: The observer callback to add which will be called when reconnecting to a broker.
+    /// - Returns: An `MQTTCancellable` which can be used to cancel the observer callback.
+    @discardableResult
+    public func whenReconnecting(_ callback: @escaping () -> Void) -> MQTTCancellable {
+        return reconnectCallbacks.append(callback)
+    }
+    
     /// Adds an observer callback which will be called when the client has disconnected from a broker.
     /// - Parameter callback: The observer callback to add which will be called when disconnect with the reason for disconnection.
     /// - Returns: An `MQTTCancellable` which can be used to cancel the observer callback.
     @discardableResult
     public func whenDisconnected(_ callback: @escaping (_ reason: MQTTDisconnectReason) -> Void) -> MQTTCancellable {
-        return disconnectCallback.append(callback)
+        return disconnectCallbacks.append(callback)
+    }
+    
+    /// Adds an observer callback which will be called when connection with a broker fails.
+    /// - Parameter callback: The observer callback to add which will be called with the error when connecting to a broker fails.
+    /// - Returns: An `MQTTCancellable` which can be used to cancel the observer callback.
+    @discardableResult
+    public func whenConnectionFailure(_ callback: @escaping (Error) -> Void) -> MQTTCancellable {
+        return connectionFailureCallbacks.append(callback)
     }
     
     /// Adds an observer callback which will be called when the client has received an `MQTTMessage`.
@@ -563,12 +595,28 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
         return connectSubject.eraseToAnyPublisher()
     }
     
+    /// Publisher receiving messages when this client starts reconnecting to a broker.
+    ///
+    /// This is only available on platforms where `Combine` is available.
+    @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
+    public var reconnectPublisher: AnyPublisher<Void, Never> {
+        return reconnectSubject.eraseToAnyPublisher()
+    }
+    
     /// Publisher receiving messages when this client disconnects from a broker.
     ///
     /// This is only available on platforms where `Combine` is available.
     @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
     public var disconnectPublisher: AnyPublisher<MQTTDisconnectReason, Never> {
         return disconnectSubject.eraseToAnyPublisher()
+    }
+    
+    /// Publisher receiving messages when this client fails to connect to a broker.
+    ///
+    /// This is only available on platforms where `Combine` is available.
+    @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
+    public var connectionFailurePublisher: AnyPublisher<Error, Never> {
+        return connectionFailureSubject.eraseToAnyPublisher()
     }
     
     /// Publisher for receiving MQTT messages.
@@ -619,16 +667,36 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
         #endif
     }
     
+    func mqttConnectionWillReconnect(_ connection: MQTTConnection) {
+        reconnectCallbacks.emit()
+        
+        #if canImport(Combine)
+        if #available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *) {
+            reconnectSubject.send()
+        }
+        #endif
+    }
+    
     func mqttConnection(_ connection: MQTTConnection, didDisconnectWith reason: MQTTDisconnectReason) {
         lock.withLockVoid {
             _isConnected = false
         }
         
-        disconnectCallback.emit(arguments: reason)
+        disconnectCallbacks.emit(arguments: reason)
         
         #if canImport(Combine)
         if #available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *) {
             disconnectSubject.send(reason)
+        }
+        #endif
+    }
+    
+    func mqttConnection(_ connection: MQTTConnection, didFailToConnectWith error: Error) {
+        connectionFailureCallbacks.emit(arguments: error)
+        
+        #if canImport(Combine)
+        if #available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *) {
+            connectionFailureSubject.send(error)
         }
         #endif
     }

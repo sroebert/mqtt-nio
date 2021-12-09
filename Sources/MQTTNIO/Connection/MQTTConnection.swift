@@ -8,7 +8,9 @@ import Logging
 
 protocol MQTTConnectionDelegate: AnyObject {
     func mqttConnection(_ connection: MQTTConnection, didConnectWith response: MQTTConnectResponse)
+    func mqttConnectionWillReconnect(_ connection: MQTTConnection)
     func mqttConnection(_ connection: MQTTConnection, didDisconnectWith reason: MQTTDisconnectReason)
+    func mqttConnection(_ connection: MQTTConnection, didFailToConnectWith error: Error)
 }
 
 final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerDelegate {
@@ -51,6 +53,8 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
     
     private var _connectFuture: EventLoopFuture<(Channel, MQTTConnectResponse)>!
     
+    private var reconnectTask: Scheduled<EventLoopFuture<(Channel, MQTTConnectResponse)>>?
+    
     private var connectionFlags: ConnectionFlags = []
     private var disconnectReason: MQTTDisconnectReason = .connectionClosed()
     
@@ -87,6 +91,9 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
     func close(with request: MQTTDisconnectReason.UserRequest) -> EventLoopFuture<Void> {
         return eventLoop.flatSubmit { () -> EventLoopFuture<(Channel, MQTTConnectResponse)> in
             self.didUserInitiateClose = true
+            
+            self.reconnectTask?.cancel()
+            self.reconnectTask = nil
             
             return self._connectFuture
         }.flatMap { channel, _ in
@@ -140,6 +147,10 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
                     // Property shutdown first
                     self.shutdown(channel)
                 }.whenSuccess { result in
+                    self.logger.notice("Disconnected from broker", metadata: [
+                        "target": "\(self.configuration.target)"
+                    ])
+                    
                     // Schedule reconnect if needed
                     if let connectFuture = self.scheduleReconnect(reconnectMode: reconnectMode) {
                         self._connectFuture = connectFuture
@@ -151,6 +162,14 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
                 self.logger.error("Failed to connect to broker", metadata: [
                     "error": "\(error)"
                 ])
+                
+                self.delegate?.mqttConnection(self, didFailToConnectWith: error)
+                
+                // Schedule reconnect if needed
+                if let connectFuture = self.scheduleReconnect(reconnectMode: reconnectMode) {
+                    self._connectFuture = connectFuture
+                }
+                
                 return self.eventLoop.makeFailedFuture(error)
             }
     }
@@ -165,7 +184,7 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
     }
     
     private func connectToBroker() -> EventLoopFuture<Channel> {
-        logger.debug("Connecting to broker", metadata: [
+        logger.notice("Connecting to broker", metadata: [
             "target": "\(configuration.target)"
         ])
         
@@ -435,14 +454,21 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
             return nil
         }
         
-        logger.debug("Scheduling retry to connect to broker", metadata: [
+        logger.notice("Scheduling to reconnect to broker", metadata: [
             "delay": "\(delay.nanoseconds / 1_000_000_000)"
         ])
         
         // Reconnect after delay
-        return eventLoop.scheduleTask(in: delay) {
-            self.connect(reconnectMode: reconnectMode.next)
-        }.futureResult.flatMap { $0 }
+        let reconnectTask = eventLoop.scheduleTask(in: delay) { () -> EventLoopFuture<(Channel, MQTTConnectResponse)> in
+            self.delegate?.mqttConnectionWillReconnect(self)
+            
+            return self.connect(reconnectMode: reconnectMode.next)
+        }
+        
+        self.reconnectTask?.cancel()
+        self.reconnectTask = reconnectTask
+        
+        return reconnectTask.futureResult.flatMap { $0 }
     }
     
     // MARK: - MQTTErrorHandlerDelegate

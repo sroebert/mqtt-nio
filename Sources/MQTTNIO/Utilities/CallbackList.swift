@@ -50,3 +50,9 @@ final class CallbackList<Arguments> {
         entries.forEach { $0.callback(arguments) }
     }
 }
+
+extension CallbackList where Arguments == Void {
+    func emit() {
+        emit(arguments: ())
+    }
+}
