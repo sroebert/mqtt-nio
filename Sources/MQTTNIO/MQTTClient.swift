@@ -555,13 +555,13 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     
     /// Adds an observer callback which will be called when the client has received an `MQTTMessage` for a specific topic.
     /// - Parameters:
-    ///   - topic: The topic to receive messages for.
+    ///   - topicFilter: The topic filter to receive messages for.
     ///   - callback: The observer callback to add which will be called with the received message.
     /// - Returns: An `MQTTCancellable` which can be used to cancel the observer callback.
     @discardableResult
-    public func whenMessage(forTopic topic: String, _ callback: @escaping (_ message: MQTTMessage) -> Void) -> MQTTCancellable {
+    public func whenMessage(forTopic topicFilter: String, _ callback: @escaping (_ message: MQTTMessage) -> Void) -> MQTTCancellable {
         return messageCallbacks.append { message in
-            guard message.topic == topic else {
+            guard message.topic.matchesMqttTopicFilter(topicFilter) else {
                 return
             }
             callback(message)
@@ -628,13 +628,13 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     }
     
     /// Returns a publisher for receiving MQTT messages to a specific topic.
-    /// - Parameter topic: The topic to receive messages for.
+    /// - Parameter topicFilter: The topic filter to receive messages for.
     ///
     /// This is only available on platforms where `Combine` is available.
     @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
-    public func messagePublisher(forTopic topic: String) -> AnyPublisher<MQTTMessage, Never> {
+    public func messagePublisher(forTopic topicFilter: String) -> AnyPublisher<MQTTMessage, Never> {
         return messageSubject
-            .filter { $0.topic == topic }
+            .filter { $0.topic.matchesMqttTopicFilter(topicFilter) }
             .eraseToAnyPublisher()
     }
     

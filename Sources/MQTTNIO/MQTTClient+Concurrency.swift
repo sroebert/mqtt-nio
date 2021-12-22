@@ -247,10 +247,10 @@ extension MQTTClient {
     }
     
     /// An async sequence for iterating over received messages from the broker to a specific topic.
-    /// - Parameter topic: The topic to receive messages for.
-    public func messages(forTopic topic: String) -> AsyncFilterSequence<AsyncStream<MQTTMessage>> {
+    /// - Parameter topicFilter: The topic filter to receive messages for.
+    public func messages(forTopic topicFilter: String) -> AsyncFilterSequence<AsyncStream<MQTTMessage>> {
         return messages.filter {
-            $0.topic == topic
+            $0.topic.matchesMqttTopicFilter(topicFilter)
         }
     }
     
