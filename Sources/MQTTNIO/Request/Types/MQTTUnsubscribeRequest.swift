@@ -42,7 +42,7 @@ final class MQTTUnsubscribeRequest: MQTTRequest {
             packetId: packetId
         )
         
-        if let error = error(for: packet, context: context) {
+        if let error = requestError(context: context) ?? error(for: packet, context: context) {
             return .failure(error)
         }
         
@@ -116,6 +116,14 @@ final class MQTTUnsubscribeRequest: MQTTRequest {
     }
     
     // MARK: - Utils
+    
+    private func requestError(context: MQTTRequestContext) -> Error? {
+        guard !topicFilters.contains(where: { !$0.isValidMqttTopicFilter }) else {
+            return MQTTUnsubscribeError.invalidTopic
+        }
+        
+        return nil
+    }
     
     private func error(for packet: MQTTPacket.Unsubscribe, context: MQTTRequestContext) -> Error? {
         if let maximumPacketSize = context.brokerConfiguration.maximumPacketSize {

@@ -163,6 +163,10 @@ final class MQTTPublishRequest: MQTTRequest {
     }
     
     private func error(for packet: MQTTPacket.Publish, context: MQTTRequestContext) -> Error? {
+        guard packet.message.topic.isValidMqttTopic else {
+            return MQTTPublishError.invalidTopic
+        }
+        
         guard packet.message.qos <= context.brokerConfiguration.maximumQoS else {
             return MQTTPublishError.exceedsMaximumQoS
         }

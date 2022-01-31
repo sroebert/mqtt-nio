@@ -350,8 +350,8 @@ extension MQTTConfiguration {
         /// - Parameters:
         ///   - username: The username for the credentials.
         ///   - password: The password for the credentials as a string.
-        public init(username: String, password: String) {
-            self.init(username: username, password: password.byteBuffer)
+        public init(username: String, password: String?) {
+            self.init(username: username, password: password?.byteBuffer)
         }
         
         /// Creates a `Credentials` struct.

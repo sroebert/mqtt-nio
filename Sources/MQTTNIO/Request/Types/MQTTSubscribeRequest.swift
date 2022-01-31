@@ -125,14 +125,17 @@ final class MQTTSubscribeRequest: MQTTRequest {
     // MARK: - Utils
     
     private func requestError(context: MQTTRequestContext) -> Error? {
+        guard !subscriptions.contains(where: { !$0.topicFilter.isValidMqttTopicFilter }) else {
+            return MQTTSubscribeError.invalidTopic
+        }
+        
         if !context.brokerConfiguration.isSubscriptionIdentifierAvailable && subscriptionIdentifier != nil {
             return MQTTSubscribeError.subscriptionIdentifiersNotSupported
         }
         
         if !context.brokerConfiguration.isWildcardSubscriptionAvailable {
             for subscription in subscriptions {
-                let topics = subscription.topicFilter.split(separator: "/", omittingEmptySubsequences: false)
-                if topics.contains(where: { $0 == "#" || $0 == "+" }) {
+                if subscription.topicFilter.contains(where: { $0 == "#" || $0 == "+" }) {
                     return MQTTSubscribeError.subscriptionWildcardsNotSupported
                 }
             }

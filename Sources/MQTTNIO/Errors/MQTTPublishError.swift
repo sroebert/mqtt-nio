@@ -3,6 +3,9 @@ public enum MQTTPublishError: Error {
     /// The client reconnected to the broker and the session was cleared. Because of this, the publish was cancelled.
     case sessionCleared
     
+    /// The topic to publish to is invalid.
+    case invalidTopic
+    
     /// The message has a QoS value not supported by the broker.
     case exceedsMaximumQoS
     
