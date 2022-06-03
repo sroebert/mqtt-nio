@@ -69,12 +69,12 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
     }
     
     func failEntries() {
-        eventLoop.execute {
-            self.entriesInflight.forEach { $0.fail(with: DeinitError()) }
-            
-            let entriesQueue = self.lock.withLock { self.entriesQueue }
-            entriesQueue.forEach { $0.fail(with: DeinitError()) }
-        }
+        precondition(eventLoop.inEventLoop)
+        
+        self.entriesInflight.forEach { $0.fail(with: DeinitError()) }
+        
+        let entriesQueue = self.lock.withLock { self.entriesQueue }
+        entriesQueue.forEach { $0.fail(with: DeinitError()) }
     }
     
     // MARK: - ChannelDuplexHandler

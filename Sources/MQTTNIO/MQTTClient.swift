@@ -198,10 +198,27 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     }
     
     deinit {
-        requestHandler.failEntries()
-        
-        if shouldShutdownEventLoopGroup {
-            eventLoopGroup.shutdownGracefully { _ in }
+        connectionEventLoop.execute { [logger, shouldShutdownEventLoopGroup, eventLoopGroup, requestHandler, connection] in
+            requestHandler.failEntries()
+            
+            if let connection = connection {
+                let request = MQTTDisconnectReason.UserRequest(
+                    sendWillMessage: false,
+                    sessionExpiry: nil,
+                    userProperties: []
+                )
+                connection.close(with: request).whenComplete { _ in
+                    if shouldShutdownEventLoopGroup {
+                        eventLoopGroup.shutdownGracefully { _ in }
+                    }
+                }
+                
+                logger.warning("Connection closed because of client deallocation")
+            } else {
+                if shouldShutdownEventLoopGroup {
+                    eventLoopGroup.shutdownGracefully { _ in }
+                }
+            }
         }
     }
     
