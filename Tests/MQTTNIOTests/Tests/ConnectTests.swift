@@ -144,8 +144,8 @@ final class ConnectTests: MQTTNIOTestCase {
         }
     }
     
-    func testSSLWithoutVerification() throws {
-        let client = sslNoVerifyClient
+    func testTLSWithoutVerification() throws {
+        let client = tlsNoVerifyClient
         
         for version in MQTTProtocolVersion.allCases {
             client.configuration.protocolVersion = version
@@ -158,8 +158,8 @@ final class ConnectTests: MQTTNIOTestCase {
         }
     }
     
-    func testWebsocketsSSLWithoutVerification() throws {
-        let client = wsSslNoVerifyClient
+    func testWebsocketsTLSWithoutVerification() throws {
+        let client = wsTLSNoVerifyClient
         
         for version in MQTTProtocolVersion.allCases {
             client.configuration.protocolVersion = version
@@ -172,8 +172,9 @@ final class ConnectTests: MQTTNIOTestCase {
         }
     }
     
-    func testSSL() throws {
-        let client = sslClient
+    #if canImport(NIOSSL)
+    func testNIOSSLTLS() throws {
+        let client = try nioSSLTLSClient
 
         for version in MQTTProtocolVersion.allCases {
             client.configuration.protocolVersion = version
@@ -185,4 +186,21 @@ final class ConnectTests: MQTTNIOTestCase {
             XCTAssertFalse(client.isConnected)
         }
     }
+    #endif
+    
+    #if canImport(Network)
+    func testTransportServicesTLS() throws {
+        let client = try transportServicesTLSClient
+
+        for version in MQTTProtocolVersion.allCases {
+            client.configuration.protocolVersion = version
+            
+            wait(for: client.connect())
+            XCTAssertTrue(client.isConnected)
+            
+            wait(for: client.disconnect())
+            XCTAssertFalse(client.isConnected)
+        }
+    }
+    #endif
 }

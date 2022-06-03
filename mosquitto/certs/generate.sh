@@ -10,6 +10,7 @@ SUBJECT_CLIENT="/C=NL/ST=Amsterdam/L=Amsterdam/O=roebert/OU=Client/CN=$IP"
 function generate_CA () {
    echo "$SUBJECT_CA"
    openssl req -x509 -nodes -sha256 -newkey rsa:2048 -subj "$SUBJECT_CA"  -days 365 -keyout "$SCRIPT_DIR/ca.key" -out "$SCRIPT_DIR/ca.crt"
+   openssl x509 -in "$SCRIPT_DIR/ca.crt" -out "$SCRIPT_DIR/ca.der" -outform DER
 }
 
 function generate_server () {

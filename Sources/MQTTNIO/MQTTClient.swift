@@ -1,5 +1,7 @@
 import NIO
+#if canImport(NIOSSL)
 import NIOSSL
+#endif
 import NIOConcurrencyHelpers
 import NIOTransportServices
 import Logging
@@ -104,10 +106,19 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
         return false
     }
     
-    private static func createEventLoopGroup() -> EventLoopGroup {
+    private static func createEventLoopGroup(for configuration: MQTTConfiguration) -> EventLoopGroup {
         #if canImport(Network)
         if #available(OSX 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *) {
-            return NIOTSEventLoopGroup()
+            switch configuration.tls {
+            case .none, .transportServices:
+                return NIOTSEventLoopGroup()
+                
+            // This should use canImport(NIOSSL), will change when it works with SwiftUI previews.
+            #if os(macOS) || os(Linux)
+            case .nioSSL:
+                break
+            #endif
+            }
         }
         #endif
         return MultiThreadedEventLoopGroup(numberOfThreads: 1)
@@ -129,7 +140,7 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
         
         switch eventLoopGroupProvider {
         case .createNew:
-            eventLoopGroup = Self.createEventLoopGroup()
+            eventLoopGroup = Self.createEventLoopGroup(for: configuration)
             shouldShutdownEventLoopGroup = true
             
         case .shared(let eventLoopGroup):

@@ -1,5 +1,11 @@
 import NIO
+#if canImport(Network)
+import Network
+#endif
+#if canImport(NIOSSL)
 import NIOSSL
+#endif
+import NIOTransportServices
 import Foundation
 
 /// Configuration for the `MQTTClient`.
@@ -176,7 +182,7 @@ public struct MQTTConfiguration {
     ///   - credentials: The credentials used to connect to the broker. The default value is `nil`.
     ///   - willMessage: The optional `MQTTMessage` the broker should send under certain conditions if the client would disconnect. The default value is `nil`.
     ///   - sessionExpiry: Indicates when the session of the client should expire.
-    ///   - receiveMaximum: The receive maximum, indicating the maximum number of QoS > 0 packets that can be received concurrently. The default value is `nil`, indicating the server should use the default value.
+    ///   - receiveMaximum: The receive maximum, indicating the maximcreateNewum number of QoS > 0 packets that can be received concurrently. The default value is `nil`, indicating the server should use the default value.
     ///   - maximumPacketSize: The maximum allowed size of packets to receive. The default value is `nil`, indicating that there is no maximum.
     ///   - requestResponseInformation: Indicates whether the server should provide response information when connecting. The default value is `false`.
     ///   - requestProblemInformation: Indicates whether the server should provide a reason string and user properties in case of failures. The default value is `true`.
@@ -296,7 +302,7 @@ public struct MQTTConfiguration {
         
         return (
             Target.host(host, port: port),
-            useTLS ? .makeClientConfiguration() : nil,
+            useTLS ? .default : nil,
             useWebSockets ? (path.map { .init(path: $0) } ?? .enabled) : nil
         )
     }
@@ -361,6 +367,57 @@ extension MQTTConfiguration {
         public init(username: String, password: ByteBuffer? = nil) {
             self.username = username
             self.password = password
+        }
+    }
+    
+    /// The configuration for using a connection with TLS.
+    public enum TLSConfiguration {
+        /// This should use canImport(NIOSSL), will change when it works with SwiftUI previews.
+        #if os(macOS) || os(Linux)
+        /// NIOSSL configuration.
+        case nioSSL(NIOSSL.TLSConfiguration)
+        #endif
+        #if canImport(Network)
+        /// NIOTransportServices configuration, the preferred option for iOS, tvOS and watchOS.
+        case transportServices(TSTLSConfiguration)
+        #endif
+        
+        /// This should use canImport(NIOSSL), will change when it works with SwiftUI previews.
+        #if os(macOS) || os(Linux)
+        /// Default NIOSSL configuration.
+        public static var nioSSL: TLSConfiguration {
+            return .nioSSL(.makeClientConfiguration())
+        }
+        #endif
+        #if canImport(Network)
+        /// Default NIOTransportServices configuration.
+        public static var transportServices: TLSConfiguration {
+            return .transportServices(.init())
+        }
+        #endif
+        
+        /// The default TLS configuration.
+        public static var `default`: TLSConfiguration? {
+            #if canImport(Network)
+            return .transportServices
+            #elseif os(macOS) || os(Linux)
+            return .nioSSL
+            #else
+            return nil
+            #endif
+        }
+        
+        /// TLS configuration without any verification.
+        public static var noVerification: TLSConfiguration? {
+            #if canImport(Network)
+            return .transportServices(TSTLSConfiguration(certificateVerification: .none))
+            #elseif os(macOS) || os(Linux)
+            var configuration = NIOSSL.TLSConfiguration.makeClientConfiguration()
+            configuration.certificateVerification = .none
+            return .nioSSL(configuration)
+            #else
+            return nil
+            #endif
         }
     }
     
@@ -438,3 +495,83 @@ extension MQTTConfiguration {
         case never
     }
 }
+
+#if canImport(NIOSSL)
+extension MQTTConfiguration {
+    /// Creates an `MQTTConfiguration`.
+    /// - Parameters:
+    ///   - target: The target for the broker the client should connect to.
+    ///   - tls: The TLS configuration for the connection with the broker. The default value is `nil`.
+    ///   - webSockets: The configuration which should be set when using web sockets to connect. The default value is `nil`, indicating that web sockets should not be used.
+    ///   - protocolVersion: The MQTT protocol version to use when connecting to the broker. The default value is `.version5`.
+    ///   - clientId: The client identifier to use for the connection with the broker. The default value is `nl.roebert.MQTTNIO.` followed by a `UUID`.
+    ///   - clean: Boolean, indicating whether the session for the client should be cleaned by the broker. The default value is `true`.
+    ///   - credentials: The credentials used to connect to the broker. The default value is `nil`.
+    ///   - willMessage: The optional `MQTTMessage` the broker should send under certain conditions if the client would disconnect. The default value is `nil`.
+    ///   - sessionExpiry: Indicates when the session of the client should expire.
+    ///   - receiveMaximum: The receive maximum, indicating the maximum number of QoS > 0 packets that can be received concurrently. The default value is `nil`, indicating the server should use the default value.
+    ///   - maximumPacketSize: The maximum allowed size of packets to receive. The default value is `nil`, indicating that there is no maximum.
+    ///   - requestResponseInformation: Indicates whether the server should provide response information when connecting. The default value is `false`.
+    ///   - requestProblemInformation: Indicates whether the server should provide a reason string and user properties in case of failures. The default value is `true`.
+    ///   - userProperties: Additional user properties to send when connecting with the broker. The default value is an empty array.
+    ///   - acknowledgementHandler: Optional acknowledgement handler which will be called for QoS 1 and 2 messages received from a 5.0 broker. The default value is `nil`.
+    ///   - keepAliveInterval: The time interval in which a message must be send to the broker to keep the connection alive. The default value is `60` seconds.
+    ///   - reschedulePings: When `true` keep alive ping messages are rescheduled when sending other packets. The default value is `true`.
+    ///   - connectionTimeoutInterval: The interval after which connection with the broker will fail. The default value is `30` seconds.
+    ///   - reconnectMode: The mode for reconnection that will be used if the client is disconnected from the server. The default value is `retry` with a minimum of `1` second and maximum of `120` seconds.
+    ///   - connectRequestTimeoutInterval: The time to wait for the server to respond to a connect message from the client. The default value is `5` seconds.
+    ///   - publishRetryInterval: The time to wait before an unacknowledged publish message is retried. The default value is `5` seconds.
+    ///   - subscriptionTimeoutInterval: The time to wait for an acknowledgement for subscribing or unsubscribing. The default value is `5` seconds.
+    ///   - authenticationHandlerProvider: A closure that will provide a authentication handler to use for enhanced authentication during connection. The default value will return `nil` for the handler.
+    @available(*, deprecated, message:"Please use the init method with the TLSConfiguration enum.")
+    public init(
+        target: Target,
+        tls: NIOSSL.TLSConfiguration,
+        webSockets: WebSocketsConfiguration? = nil,
+        protocolVersion: MQTTProtocolVersion = .version5,
+        clientId: String = "nl.roebert.MQTTNIO.\(UUID())",
+        clean: Bool = true,
+        credentials: Credentials? = nil,
+        willMessage: MQTTWillMessage? = nil,
+        sessionExpiry: SessionExpiry = .atClose,
+        receiveMaximum: Int? = nil,
+        maximumPacketSize: Int? = nil,
+        requestResponseInformation: Bool = false,
+        requestProblemInformation: Bool = true,
+        userProperties: [MQTTUserProperty] = [],
+        acknowledgementHandler: MQTTAcknowledgementHandler? = nil,
+        keepAliveInterval: TimeAmount = .seconds(60),
+        reschedulePings: Bool = true,
+        connectionTimeoutInterval: TimeAmount = .seconds(30),
+        reconnectMode: ReconnectMode = .retry(minimumDelay: .seconds(1), maximumDelay: .seconds(120)),
+        connectRequestTimeoutInterval: TimeAmount = .seconds(5),
+        publishRetryInterval: TimeAmount = .seconds(5),
+        subscriptionTimeoutInterval: TimeAmount = .seconds(5),
+        authenticationHandlerProvider: @escaping () -> MQTTAuthenticationHandler? = { nil }
+    ) {
+        self.target = target
+        self.tls = .nioSSL(tls)
+        self.webSockets = webSockets
+        self.protocolVersion = protocolVersion
+        self.clientId = clientId
+        self.clean = clean
+        self.credentials = credentials
+        self.willMessage = willMessage
+        self.sessionExpiry = sessionExpiry
+        self.receiveMaximum = receiveMaximum
+        self.maximumPacketSize = maximumPacketSize
+        self.requestResponseInformation = requestResponseInformation
+        self.requestProblemInformation = requestProblemInformation
+        self.userProperties = userProperties
+        self.acknowledgementHandler = acknowledgementHandler
+        self.keepAliveInterval = keepAliveInterval
+        self.reschedulePings = reschedulePings
+        self.connectionTimeoutInterval = connectionTimeoutInterval
+        self.reconnectMode = reconnectMode
+        self.connectRequestTimeoutInterval = connectRequestTimeoutInterval
+        self.publishRetryInterval = publishRetryInterval
+        self.subscriptionTimeoutInterval = subscriptionTimeoutInterval
+        self.authenticationHandlerProvider = authenticationHandlerProvider
+    }
+}
+#endif

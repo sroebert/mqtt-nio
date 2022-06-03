@@ -1,6 +1,11 @@
 import Foundation
 import NIO
+#if canImport(Network)
+import Network
+#endif
+#if canImport(NIOSSL)
 import NIOSSL
+#endif
 import NIOHTTP1
 import NIOWebSocket
 import NIOTransportServices
@@ -174,13 +179,51 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
             }
     }
     
-    private var bootstrap: NIOClientTCPBootstrapProtocol {
-        #if canImport(Network)
-        if #available(OSX 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *), useNIOTS {
-            return NIOTSConnectionBootstrap(group: eventLoop)
-        }
+    private func createBootstrap() throws -> NIOClientTCPBootstrap {
+        switch configuration.tls {
+        case .none:
+            #if canImport(Network)
+            if #available(OSX 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *), useNIOTS {
+                let bootstrap = NIOTSConnectionBootstrap(group: eventLoop)
+                return NIOClientTCPBootstrap(bootstrap, tls: NIOTSClientTLSProvider())
+            }
+            #endif
+            let bootstrap = ClientBootstrap(group: eventLoop)
+            return NIOClientTCPBootstrap(bootstrap, tls: NIOInsecureNoTLS())
+            
+        // This should use canImport(NIOSSL), will change when it works with SwiftUI previews.
+        #if os(macOS) || os(Linux)
+        case .nioSSL(let tlsConfiguration):
+            guard let bootstrap = ClientBootstrap(validatingGroup: eventLoop) else {
+                throw MQTTConnectionError.invalidTLSConfiguration
+            }
+            
+            let sslContext = try NIOSSLContext(configuration: tlsConfiguration)
+            let tlsProvider = try NIOSSLClientTLSProvider<ClientBootstrap>(
+                context: sslContext,
+                serverHostname: configuration.target.hostname?.sniServerHostname
+            )
+            return NIOClientTCPBootstrap(bootstrap, tls: tlsProvider).enableTLS()
         #endif
-        return ClientBootstrap(group: eventLoop)
+            
+        #if canImport(Network)
+        case .transportServices(let tlsConfiguration):
+            guard
+                #available(OSX 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *),
+                let bootstrap = NIOTSConnectionBootstrap(validatingGroup: eventLoop)
+            else {
+                throw MQTTConnectionError.invalidTLSConfiguration
+            }
+            
+            let options = tlsConfiguration.createNWProtocolTLSOptions(
+                tlsServerName: configuration.target.hostname?.sniServerHostname,
+                logger: logger
+            )
+            
+            let tlsProvider = NIOTSClientTLSProvider(tlsOptions: options)
+            return NIOClientTCPBootstrap(bootstrap, tls: tlsProvider).enableTLS()
+        #endif
+        }
     }
     
     private func connectToBroker() -> EventLoopFuture<Channel> {
@@ -188,12 +231,18 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
             "target": "\(configuration.target)"
         ])
         
+        let bootstrap: NIOClientTCPBootstrap
+        do {
+            bootstrap = try createBootstrap()
+        } catch {
+            return eventLoop.makeFailedFuture(error)
+        }
+        
         return bootstrap
             .channelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SO_REUSEADDR), value: 1)
             .channelOption(ChannelOptions.socket(IPPROTO_TCP, TCP_NODELAY), value: 1)
             .connectTimeout(configuration.connectionTimeoutInterval)
             .connect(to: configuration.target)
-            .flatMap { self.initializeTLS(for: $0) }
             .flatMap {
                 if let webSocketsConfiguration = self.configuration.webSockets {
                     return self.upgradeWebSocket(for: $0, config: webSocketsConfiguration) {
@@ -203,29 +252,6 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
                     return self.addHandlers(to: $0)
                 }
             }
-    }
-    
-    private func initializeTLS(for channel: Channel) -> EventLoopFuture<Channel> {
-        guard let tlsConfiguration = configuration.tls else {
-            return eventLoop.makeSucceededFuture(channel)
-        }
-        
-        do {
-            let tlsVerificationHandler = TLSVerificationHandler(logger: logger)
-            return channel.pipeline.addHandlers([
-                try NIOSSLClientHandler(
-                    context: try NIOSSLContext(configuration: tlsConfiguration),
-                    serverHostname: configuration.target.hostname?.sniServerHostname
-                ),
-                tlsVerificationHandler
-            ]).flatMap {
-                tlsVerificationHandler.verify()
-            }.map {
-                channel
-            }
-        } catch {
-            return eventLoop.makeFailedFuture(error)
-        }
     }
     
     private func upgradeWebSocket(
@@ -493,7 +519,7 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
     }
 }
 
-extension NIOClientTCPBootstrapProtocol {
+extension NIOClientTCPBootstrap {
     fileprivate func connect(to target: MQTTConfiguration.Target) -> EventLoopFuture<Channel> {
         switch target {
         case .host(let host, port: let port):

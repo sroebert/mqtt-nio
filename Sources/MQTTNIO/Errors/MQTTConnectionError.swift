@@ -1,5 +1,8 @@
 /// Errors that can be received when trying to connect to a broker.
 public enum MQTTConnectionError: Error {
+    /// The provided TLS configuration is invalid for the provided event loop group.
+    case invalidTLSConfiguration
+    
     /// The connection was closed while performing a request.
     case connectionClosed
     
@@ -88,7 +91,7 @@ extension MQTTConnectionError {
     
     var serverReasonCode: ServerReason.Code? {
         switch self {
-        case .connectionClosed, .timeoutWaitingForAcknowledgement:
+        case .invalidTLSConfiguration, .connectionClosed, .timeoutWaitingForAcknowledgement:
             return nil
             
         case .server(let reason):

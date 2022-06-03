@@ -2,10 +2,21 @@ import Logging
 @testable import MQTTNIO
 import XCTest
 import NIO
+#if canImport(NIOSSL)
 import NIOSSL
+#endif
+#if canImport(Network)
+import Network
+#endif
 import NIOTransportServices
 
 class MQTTNIOTestCase: XCTestCase {
+    
+    // MARK: - Types
+    
+    enum ClientSetupError: Error {
+        case invalidCertificateData
+    }
     
     // MARK: - Vars
     
@@ -53,47 +64,73 @@ class MQTTNIOTestCase: XCTestCase {
         ), eventLoopGroupProvider: .shared(group))
     }
     
-    var sslConfiguration: TLSConfiguration = {
-        var config = TLSConfiguration.makeClientConfiguration()
-        config.certificateVerification = .none
-        return config
-    }()
-    
-    var sslNoVerifyClient: MQTTClient {
+    var tlsNoVerifyClient: MQTTClient {
         return MQTTClient(configuration: .init(
             target: .host("localhost", port: 8883),
-            tls: sslConfiguration,
+            tls: .noVerification,
             reconnectMode: .none
         ), eventLoopGroupProvider: .shared(group))
     }
     
-    var wsSslNoVerifyClient: MQTTClient {
+    var wsTLSNoVerifyClient: MQTTClient {
         return MQTTClient(configuration: .init(
             target: .host("localhost", port: 8884),
-            tls: sslConfiguration,
+            tls: .noVerification,
             webSockets: .enabled,
             reconnectMode: .none
         ), eventLoopGroupProvider: .shared(group))
     }
     
-    var sslClient: MQTTClient {
-        let rootDir = URL(fileURLWithPath: #file)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let caCertifcateURL = rootDir.appendingPathComponent("mosquitto/certs/ca.crt")
-        let caCertificate = try! NIOSSLCertificate.fromPEMFile(caCertifcateURL.path)[0]
-        
-        var sslConfig = TLSConfiguration.makeClientConfiguration()
-        sslConfig.certificateVerification = .noHostnameVerification
-        sslConfig.trustRoots = .certificates([caCertificate])
-        
-        return MQTTClient(configuration: .init(
-            target: .host("localhost", port: 8883),
-            tls: sslConfig
-        ), eventLoopGroupProvider: .shared(group))
+    #if canImport(NIOSSL)
+    var nioSSLTLSClient: MQTTClient {
+        get throws {
+            let rootDir = URL(fileURLWithPath: #file)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+            let caCertifcateURL = rootDir.appendingPathComponent("mosquitto/certs/ca.crt")
+            let caCertificate = try NIOSSLCertificate.fromPEMFile(caCertifcateURL.path)[0]
+            
+            var tlsConfig = TLSConfiguration.makeClientConfiguration()
+            tlsConfig.certificateVerification = .noHostnameVerification
+            tlsConfig.trustRoots = .certificates([caCertificate])
+            
+            return MQTTClient(configuration: .init(
+                target: .host("localhost", port: 8883),
+                tls: .nioSSL(tlsConfig)
+            ), eventLoopGroupProvider: .shared(group))
+        }
     }
+    #endif
+    
+    #if canImport(Network)
+    var transportServicesTLSClient: MQTTClient {
+        get throws {
+            let rootDir = URL(fileURLWithPath: #file)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+            let caCertifcateURL = rootDir.appendingPathComponent("mosquitto/certs/ca.der")
+            
+            let caCertificateData = try Data(contentsOf: caCertifcateURL)
+            guard let caCertificate = SecCertificateCreateWithData(nil, caCertificateData as CFData) else {
+                throw ClientSetupError.invalidCertificateData
+            }
+            
+            let tlsConfig = TSTLSConfiguration(
+                certificateVerification: .noHostnameVerification,
+                trustRoots: .certificates([caCertificate])
+            )
+            
+            return MQTTClient(configuration: .init(
+                target: .host("localhost", port: 8883),
+                tls: .transportServices(tlsConfig)
+            ), eventLoopGroupProvider: .shared(group))
+        }
+    }
+    #endif
     
     // MARK: - Utils
     
