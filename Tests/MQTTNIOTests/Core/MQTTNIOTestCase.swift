@@ -22,29 +22,65 @@ class MQTTNIOTestCase: XCTestCase {
     
     private(set) var group: EventLoopGroup!
     
+    var tlsGroup: EventLoopGroup {
+        #if canImport(Network)
+        if #available(OSX 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *) {
+            return tsGroup
+        }
+        #endif
+        return group
+    }
+    
     var eventLoop: EventLoop {
         return group.next()
     }
     
     private static func createEventLoopGroup() -> EventLoopGroup {
-        #if canImport(Network)
-        if #available(OSX 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *) {
-            return NIOTSEventLoopGroup()
-        }
-        #endif
         return MultiThreadedEventLoopGroup(numberOfThreads: 1)
     }
+    
+    #if canImport(Network)
+    @available(OSX 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *)
+    var tsGroup: EventLoopGroup {
+        return _tsGroup
+    }
+    
+    private var _tsGroup: EventLoopGroup!
+    
+    @available(OSX 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *)
+    var tsEventLoop: EventLoop {
+        return tsGroup.next()
+    }
+    
+    @available(OSX 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *)
+    private static func createTsEventLoopGroup() -> NIOTSEventLoopGroup {
+        return NIOTSEventLoopGroup()
+    }
+    #endif
     
     // MARK: - Set Up / Tear Down
     
     override func setUp() {
         XCTAssertTrue(isLoggingConfigured)
         group = Self.createEventLoopGroup()
+        
+        #if canImport(Network)
+        if #available(OSX 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *) {
+            _tsGroup = Self.createTsEventLoopGroup()
+        }
+        #endif
     }
     
     override func tearDown() {
         XCTAssertNoThrow(try group.syncShutdownGracefully())
         group = nil
+        
+        #if canImport(Network)
+        if #available(OSX 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *) {
+            XCTAssertNoThrow(try tsGroup.syncShutdownGracefully())
+            _tsGroup = nil
+        }
+        #endif
     }
     
     // MARK: - Clients
@@ -69,7 +105,7 @@ class MQTTNIOTestCase: XCTestCase {
             target: .host("localhost", port: 8883),
             tls: .noVerification,
             reconnectMode: .none
-        ), eventLoopGroupProvider: .shared(group))
+        ), eventLoopGroupProvider: .shared(tlsGroup))
     }
     
     var wsTLSNoVerifyClient: MQTTClient {
@@ -78,7 +114,7 @@ class MQTTNIOTestCase: XCTestCase {
             tls: .noVerification,
             webSockets: .enabled,
             reconnectMode: .none
-        ), eventLoopGroupProvider: .shared(group))
+        ), eventLoopGroupProvider: .shared(tlsGroup))
     }
     
     #if canImport(NIOSSL)
@@ -128,7 +164,7 @@ class MQTTNIOTestCase: XCTestCase {
             return MQTTClient(configuration: .init(
                 target: .host("localhost", port: 8883),
                 tls: .transportServices(tlsConfig)
-            ), eventLoopGroupProvider: .shared(group))
+            ), eventLoopGroupProvider: .shared(tsGroup))
         }
     }
     #endif
