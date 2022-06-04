@@ -372,7 +372,7 @@ extension MQTTConfiguration {
     
     /// The configuration for using a connection with TLS.
     public enum TLSConfiguration {
-        /// This should use canImport(NIOSSL), will change when it works with SwiftUI previews.
+        // This should use `canImport(NIOSSL)`, will change when it works with SwiftUI previews.
         #if os(macOS) || os(Linux)
         /// NIOSSL configuration.
         case nioSSL(NIOSSL.TLSConfiguration)
@@ -382,15 +382,17 @@ extension MQTTConfiguration {
         case transportServices(TSTLSConfiguration)
         #endif
         
-        /// This should use canImport(NIOSSL), will change when it works with SwiftUI previews.
+        // This should use `canImport(NIOSSL)`, will change when it works with SwiftUI previews.
         #if os(macOS) || os(Linux)
-        /// Default NIOSSL configuration.
+        /// Default `NIOSSL` configuration.
         public static var nioSSL: TLSConfiguration {
             return .nioSSL(.makeClientConfiguration())
         }
         #endif
+        
         #if canImport(Network)
-        /// Default NIOTransportServices configuration.
+        /// Default `NIOTransportServices` configuration.
+        @available(OSX 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *)
         public static var transportServices: TLSConfiguration {
             return .transportServices(.init())
         }
@@ -399,9 +401,15 @@ extension MQTTConfiguration {
         /// The default TLS configuration.
         public static var `default`: TLSConfiguration? {
             #if canImport(Network)
-            return .transportServices
-            #elseif os(macOS) || os(Linux)
+            if #available(OSX 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *) {
+                return .transportServices
+            }
+            #endif
+            
+            // This should use `canImport(NIOSSL)`, will change when it works with SwiftUI previews.
+            #if os(macOS) || os(Linux)
             return .nioSSL
+            
             #else
             return nil
             #endif
@@ -410,11 +418,17 @@ extension MQTTConfiguration {
         /// TLS configuration without any verification.
         public static var noVerification: TLSConfiguration? {
             #if canImport(Network)
-            return .transportServices(TSTLSConfiguration(certificateVerification: .none))
-            #elseif os(macOS) || os(Linux)
+            if #available(OSX 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *) {
+                return .transportServices(TSTLSConfiguration(certificateVerification: .none))
+            }
+            #endif
+            
+            // This should use `canImport(NIOSSL)`, will change when it works with SwiftUI previews.
+            #if os(macOS) || os(Linux)
             var configuration = NIOSSL.TLSConfiguration.makeClientConfiguration()
             configuration.certificateVerification = .none
             return .nioSSL(configuration)
+            
             #else
             return nil
             #endif

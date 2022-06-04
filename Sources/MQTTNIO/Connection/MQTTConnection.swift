@@ -9,6 +9,7 @@ import NIOSSL
 import NIOHTTP1
 import NIOWebSocket
 import NIOTransportServices
+import NIOConcurrencyHelpers
 import Logging
 
 protocol MQTTConnectionDelegate: AnyObject {
@@ -54,7 +55,20 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
     private let subscriptionsHandler: MQTTSubscriptionsHandler
     private let keepAliveHandler: MQTTKeepAliveHandler
     
-    weak var delegate: MQTTConnectionDelegate?
+    var delegate: MQTTConnectionDelegate? {
+        get {
+            delegateLock.withLock {
+                return _delegate
+            }
+        }
+        set {
+            delegateLock.withLockVoid {
+                _delegate = newValue
+            }
+        }
+    }
+    private let delegateLock = Lock()
+    private weak var _delegate: MQTTConnectionDelegate?
     
     private var _connectFuture: EventLoopFuture<(Channel, MQTTConnectResponse)>!
     
@@ -191,7 +205,7 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
             let bootstrap = ClientBootstrap(group: eventLoop)
             return NIOClientTCPBootstrap(bootstrap, tls: NIOInsecureNoTLS())
             
-        // This should use canImport(NIOSSL), will change when it works with SwiftUI previews.
+        // This should use `canImport(NIOSSL)`, will change when it works with SwiftUI previews.
         #if os(macOS) || os(Linux)
         case .nioSSL(let tlsConfiguration):
             guard let bootstrap = ClientBootstrap(validatingGroup: eventLoop) else {

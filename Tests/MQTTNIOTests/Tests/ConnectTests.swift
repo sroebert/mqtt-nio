@@ -190,6 +190,10 @@ final class ConnectTests: MQTTNIOTestCase {
     
     #if canImport(Network)
     func testTransportServicesTLS() throws {
+        guard #available(OSX 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *) else {
+            return
+        }
+        
         let client = try transportServicesTLSClient
 
         for version in MQTTProtocolVersion.allCases {

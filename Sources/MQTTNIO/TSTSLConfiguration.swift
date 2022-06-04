@@ -94,6 +94,7 @@ public struct TSTLSConfiguration {
     ///   - trustRoots: The trust roots to use to validate certificates. This only needs to be provided if you intend to validate certificates.
     ///   - clientIdentity: The local identity to present in the TLS handshake. Defaults to nil.
     ///   - applicationProtocols: The application protocols to use in the connection.
+    @available(OSX 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *)
     public init(
         minimumTLSVersion: TSTLSVersion = .tlsv1,
         maximumTLSVersion: TSTLSVersion? = nil,

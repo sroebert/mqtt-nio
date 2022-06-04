@@ -69,7 +69,7 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
     }
     
     func failEntries() {
-        precondition(eventLoop.inEventLoop)
+        eventLoop.assertInEventLoop()
         
         self.entriesInflight.forEach { $0.fail(with: DeinitError()) }
         

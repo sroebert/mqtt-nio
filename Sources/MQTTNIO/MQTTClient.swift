@@ -113,7 +113,7 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
             case .none, .transportServices:
                 return NIOTSEventLoopGroup()
                 
-            // This should use canImport(NIOSSL), will change when it works with SwiftUI previews.
+            // This should use `canImport(NIOSSL)`, will change when it works with SwiftUI previews.
             #if os(macOS) || os(Linux)
             case .nioSSL:
                 break
