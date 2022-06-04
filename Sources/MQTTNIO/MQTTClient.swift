@@ -255,29 +255,14 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
                 configuration: _configuration,
                 requestHandler: requestHandler,
                 subscriptionsHandler: subscriptionsHandler,
+                delegate: self,
                 logger: logger
             )
-            connection.delegate = self
             self.connection = connection
             
-            let connectFuture = connection.connectFuture
-            if !_configuration.reconnectMode.shouldRetry {
-                // In the case of failure and not retrying,
-                // the connection should be cleared, allowing
-                // to reconnect again.
-                connectFuture.whenFailure { [weak self] _ in
-                    guard let strongSelf = self else {
-                        return
-                    }
-                    
-                    strongSelf.lock.withLock {
-                        if strongSelf.connection === connection {
-                            strongSelf.connection = nil
-                        }
-                    }
-                }
+            return connectionEventLoop.flatSubmit {
+                connection.connectFuture
             }
-            return connectFuture
         }
     }
     
@@ -720,6 +705,16 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     }
     
     func mqttConnection(_ connection: MQTTConnection, didFailToConnectWith error: Error) {
+        // In the case of failure and not retrying, the connection should be cleared,
+        // allowing to reconnect again.
+        if !configuration.reconnectMode.shouldRetry {
+            lock.withLockVoid {
+                if self.connection === connection {
+                    self.connection = nil
+                }
+            }
+        }
+        
         connectionFailureCallbacks.emit(arguments: error)
         
         #if canImport(Combine)
