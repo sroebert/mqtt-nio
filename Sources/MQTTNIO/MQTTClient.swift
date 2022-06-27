@@ -82,19 +82,48 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     
     #if canImport(Combine)
     @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
-    private lazy var connectSubject: PassthroughSubject<MQTTConnectResponse, Never>! = { nil }()
+    private final class CombineEventsHandler: MQTTClientEventsHandler {
+        private(set) lazy var connectSubject = PassthroughSubject<MQTTConnectResponse, Never>()
+        private(set) lazy var reconnectSubject = PassthroughSubject<Void, Never>()
+        private(set) lazy var disconnectSubject = PassthroughSubject<MQTTDisconnectReason, Never>()
+        private(set) lazy var connectionFailureSubject = PassthroughSubject<Error, Never>()
+        private(set) lazy var messageSubject = PassthroughSubject<MQTTMessage, Never>()
+        
+        func onConnect(with response: MQTTConnectResponse) {
+            connectSubject.send(response)
+        }
+        
+        func onReconnect() {
+            reconnectSubject.send()
+        }
+        
+        func onDisconnect(with reason: MQTTDisconnectReason) {
+            disconnectSubject.send(reason)
+        }
+        
+        func onConnectionFailure(with error: Error) {
+            connectionFailureSubject.send(error)
+        }
+        
+        func onMessage(_ message: MQTTMessage) {
+            messageSubject.send(message)
+        }
+    }
     
-    @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
-    private lazy var reconnectSubject: PassthroughSubject<Void, Never>! = { nil }()
+    private struct NoOpEventsHandler: MQTTClientEventsHandler {
+        func onConnect(with response: MQTTConnectResponse) {}
+        func onReconnect() {}
+        func onDisconnect(with reason: MQTTDisconnectReason) {}
+        func onConnectionFailure(with error: Error) {}
+        func onMessage(_ message: MQTTMessage) {}
+    }
     
-    @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
-    private lazy var disconnectSubject: PassthroughSubject<MQTTDisconnectReason, Never>! = { nil }()
-    
-    @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
-    private lazy var connectionFailureSubject: PassthroughSubject<Error, Never>! = { nil }()
-    
-    @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
-    private lazy var messageSubject: PassthroughSubject<MQTTMessage, Never>! = { nil }()
+    private lazy var eventsHandler: MQTTClientEventsHandler = {
+        guard #available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *) else {
+            return NoOpEventsHandler()
+        }
+        return CombineEventsHandler()
+    }()
     #endif
     
     private var useNIOTS: Bool {
@@ -166,16 +195,6 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
         disconnectCallbacks = CallbackList()
         connectionFailureCallbacks = CallbackList()
         messageCallbacks = CallbackList()
-        
-        #if canImport(Combine)
-        if #available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *) {
-            connectSubject = PassthroughSubject()
-            reconnectSubject = PassthroughSubject()
-            disconnectSubject = PassthroughSubject()
-            connectionFailureSubject = PassthroughSubject()
-            messageSubject = PassthroughSubject()
-        }
-        #endif
         
         subscriptionsHandler.delegate = self
     }
@@ -599,13 +618,20 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     // MARK: - Publishers
     
     #if canImport(Combine)
+    @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
+    private var combineEventsHandler: CombineEventsHandler {
+        guard let combineEventsHandler = eventsHandler as? CombineEventsHandler else {
+            fatalError("Invalid events handler")
+        }
+        return combineEventsHandler
+    }
     
     /// Publisher receiving messages when this client is connected to a broker.
     ///
     /// This is only available on platforms where `Combine` is available.
     @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
     public var connectPublisher: AnyPublisher<MQTTConnectResponse, Never> {
-        return connectSubject.eraseToAnyPublisher()
+        return combineEventsHandler.connectSubject.eraseToAnyPublisher()
     }
     
     /// Publisher receiving messages when this client starts reconnecting to a broker.
@@ -613,7 +639,7 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     /// This is only available on platforms where `Combine` is available.
     @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
     public var reconnectPublisher: AnyPublisher<Void, Never> {
-        return reconnectSubject.eraseToAnyPublisher()
+        return combineEventsHandler.reconnectSubject.eraseToAnyPublisher()
     }
     
     /// Publisher receiving messages when this client disconnects from a broker.
@@ -621,7 +647,7 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     /// This is only available on platforms where `Combine` is available.
     @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
     public var disconnectPublisher: AnyPublisher<MQTTDisconnectReason, Never> {
-        return disconnectSubject.eraseToAnyPublisher()
+        return combineEventsHandler.disconnectSubject.eraseToAnyPublisher()
     }
     
     /// Publisher receiving messages when this client fails to connect to a broker.
@@ -629,7 +655,7 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     /// This is only available on platforms where `Combine` is available.
     @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
     public var connectionFailurePublisher: AnyPublisher<Error, Never> {
-        return connectionFailureSubject.eraseToAnyPublisher()
+        return combineEventsHandler.connectionFailureSubject.eraseToAnyPublisher()
     }
     
     /// Publisher for receiving MQTT messages.
@@ -637,7 +663,7 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     /// This is only available on platforms where `Combine` is available.
     @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
     public var messagePublisher: AnyPublisher<MQTTMessage, Never> {
-        return messageSubject.eraseToAnyPublisher()
+        return combineEventsHandler.messageSubject.eraseToAnyPublisher()
     }
     
     /// Returns a publisher for receiving MQTT messages to a specific topic.
@@ -646,7 +672,7 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     /// This is only available on platforms where `Combine` is available.
     @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
     public func messagePublisher(forTopic topicFilter: String) -> AnyPublisher<MQTTMessage, Never> {
-        return messageSubject
+        return combineEventsHandler.messageSubject
             .filter { $0.topic.matchesMqttTopicFilter(topicFilter) }
             .eraseToAnyPublisher()
     }
@@ -657,7 +683,7 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     /// This is only available on platforms where `Combine` is available.
     @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
     public func messagePublisher(forIdentifier identifier: Int) -> AnyPublisher<MQTTMessage, Never> {
-        return messageSubject
+        return combineEventsHandler.messageSubject
             .filter { $0.properties.subscriptionIdentifiers.contains(identifier) }
             .eraseToAnyPublisher()
     }
@@ -674,9 +700,7 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
         connectCallbacks.emit(arguments: response)
         
         #if canImport(Combine)
-        if #available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *) {
-            connectSubject.send(response)
-        }
+        eventsHandler.onConnect(with: response)
         #endif
     }
     
@@ -684,9 +708,7 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
         reconnectCallbacks.emit()
         
         #if canImport(Combine)
-        if #available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *) {
-            reconnectSubject.send()
-        }
+        eventsHandler.onReconnect()
         #endif
     }
     
@@ -698,9 +720,7 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
         disconnectCallbacks.emit(arguments: reason)
         
         #if canImport(Combine)
-        if #available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *) {
-            disconnectSubject.send(reason)
-        }
+        eventsHandler.onDisconnect(with: reason)
         #endif
     }
     
@@ -718,9 +738,7 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
         connectionFailureCallbacks.emit(arguments: error)
         
         #if canImport(Combine)
-        if #available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *) {
-            connectionFailureSubject.send(error)
-        }
+        eventsHandler.onConnectionFailure(with: error)
         #endif
     }
     
@@ -730,9 +748,15 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
         messageCallbacks.emit(arguments: message)
         
         #if canImport(Combine)
-        if #available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *) {
-            messageSubject.send(message)
-        }
+        eventsHandler.onMessage(message)
         #endif
     }
+}
+
+private protocol MQTTClientEventsHandler {
+    func onConnect(with response: MQTTConnectResponse)
+    func onReconnect()
+    func onDisconnect(with reason: MQTTDisconnectReason)
+    func onConnectionFailure(with error: Error)
+    func onMessage(_ message: MQTTMessage)
 }
