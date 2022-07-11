@@ -176,6 +176,7 @@ public struct MQTTConfiguration {
     ///   - url: The url for the broker the client should connect to.
     ///            The url will be parsed to determine the target, the TLS configuration (if any) and whether WebSockets will be used.
     ///            If the scheme is unknown, the default MQTT port 1883, without TLS configuration, will be used.
+    ///   - group: The event loop group for which to create a configuration. This value is used to determine which type of `TLSConfiguration` to create in case of a secure MQTT connection. If `nil` the default for the system it runs on will be used.
     ///   - protocolVersion: The MQTT protocol version to use when connecting to the broker. The default value is `.version5`.
     ///   - clientId: The client identifier to use for the connection with the broker. The default value is `nl.roebert.MQTTNIO.` followed by a `UUID`.
     ///   - clean: Boolean, indicating whether the session for the client should be cleaned by the broker. The default value is `true`.
@@ -198,6 +199,7 @@ public struct MQTTConfiguration {
     ///   - authenticationHandlerProvider: A closure that will provide a authentication handler to use for enhanced authentication during connection. The default value will return `nil` for the handler.
     public init(
         url: URL,
+        for group: EventLoopGroup? = nil,
         protocolVersion: MQTTProtocolVersion = .version5,
         clientId: String = "nl.roebert.MQTTNIO.\(UUID())",
         clean: Bool = true,
@@ -219,7 +221,7 @@ public struct MQTTConfiguration {
         subscriptionTimeoutInterval: TimeAmount = .seconds(5),
         authenticationHandlerProvider: @escaping () -> MQTTAuthenticationHandler? = { nil }
     ) {
-        let (target, tls, webSockets) = Self.parse(url)
+        let (target, tls, webSockets) = Self.parse(url, for: group)
         self.target = target
         self.tls = tls
         self.webSockets = webSockets
@@ -249,7 +251,7 @@ public struct MQTTConfiguration {
         return url.query?.selfIfNotEmpty.map { "?\($0)" }
     }
     
-    private static func parse(_ url: URL) -> (Target, TLSConfiguration?, WebSocketsConfiguration?) {
+    private static func parse(_ url: URL, for group: EventLoopGroup? = nil) -> (Target, TLSConfiguration?, WebSocketsConfiguration?) {
         let host: String
         
         var path: String?
@@ -300,9 +302,18 @@ public struct MQTTConfiguration {
             useWebSockets = false
         }
         
+        let tlsConfiguration: TLSConfiguration?
+        if useTLS, let group = group {
+            tlsConfiguration = .default(for: group)
+        } else if useTLS {
+            tlsConfiguration = .default
+        } else {
+            tlsConfiguration = nil
+        }
+        
         return (
             Target.host(host, port: port),
-            useTLS ? .default : nil,
+            tlsConfiguration,
             useWebSockets ? (path.map { .init(path: $0) } ?? .enabled) : nil
         )
     }
@@ -413,6 +424,26 @@ extension MQTTConfiguration {
             #else
             return nil
             #endif
+        }
+        
+        /// The default TLS configuration for a given event loop group.
+        /// - Parameter group: The group to use to determine which type of TLS configuration to use.
+        public static func `default`(for group: EventLoopGroup) -> TLSConfiguration? {
+            #if canImport(Network)
+            if #available(OSX 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *),
+               NIOTSConnectionBootstrap(validatingGroup: group) != nil {
+                return .transportServices
+            }
+            #endif
+            
+            // This should use `canImport(NIOSSL)`, will change when it works with SwiftUI previews.
+            #if os(macOS) || os(Linux)
+            if ClientBootstrap(validatingGroup: group) != nil {
+                return .nioSSL
+            }
+            #endif
+            
+            return .default
         }
         
         /// TLS configuration without any verification.
