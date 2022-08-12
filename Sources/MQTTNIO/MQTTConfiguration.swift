@@ -541,7 +541,8 @@ extension MQTTConfiguration {
     }
 }
 
-#if canImport(NIOSSL)
+// This should use `canImport(NIOSSL)`, will change when it works with SwiftUI previews.
+#if os(macOS) || os(Linux)
 extension MQTTConfiguration {
     /// Creates an `MQTTConfiguration`.
     /// - Parameters:

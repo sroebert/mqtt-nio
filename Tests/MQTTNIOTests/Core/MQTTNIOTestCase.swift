@@ -117,7 +117,8 @@ class MQTTNIOTestCase: XCTestCase {
         ), eventLoopGroupProvider: .shared(tlsGroup))
     }
     
-    #if canImport(NIOSSL)
+    // This should use `canImport(NIOSSL)`, will change when it works with SwiftUI previews.
+    #if os(macOS) || os(Linux)
     var nioSSLTLSClient: MQTTClient {
         get throws {
             let rootDir = URL(fileURLWithPath: #file)

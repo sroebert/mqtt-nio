@@ -20,7 +20,8 @@ final class MQTTErrorHandler: ChannelInboundHandler {
     }
     
     func errorCaught(context: ChannelHandlerContext, error: Error) {
-        #if canImport(NIOSSL)
+        // This should use `canImport(NIOSSL)`, will change when it works with SwiftUI previews.
+        #if os(macOS) || os(Linux)
         // We ignore unclean shutdowns, which could be caused by servers not sending `close_notify`
         if let sslError = error as? NIOSSLError, case .uncleanShutdown = sslError {
             return
