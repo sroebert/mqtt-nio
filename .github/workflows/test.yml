@@ -60,4 +60,4 @@ jobs:
 
       - name: Run iOS tests
         if: runner.os == 'macOS'
-        run: xcodebuild test -scheme mqtt-nio -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 13,OS=15.5'
+        run: xcodebuild test -scheme mqtt-nio -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 14,OS=16.0'
