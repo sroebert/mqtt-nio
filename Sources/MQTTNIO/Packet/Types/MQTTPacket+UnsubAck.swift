@@ -85,7 +85,7 @@ extension MQTTPacket {
 
 extension MQTTPacket.UnsubAck {
     // Wrapper to avoid heap allocations when added to NIOAny
-    private class Data {
+    private final class Data: MQTTSendable {
         let packetId: UInt16
         let properties: MQTTProperties
         let results: [MQTTUnsubscribeResult]?

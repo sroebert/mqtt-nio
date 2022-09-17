@@ -163,7 +163,7 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     public init(
         configuration: MQTTConfiguration,
         eventLoopGroupProvider: NIOEventLoopGroupProvider = .createNew,
-        logger: Logger = .init(label: "nl.roebert.MQTTNio")
+        logger: Logger = .init(label: "nl.roebert.MQTTNIO")
     ) {
         _configuration = configuration
         
@@ -207,7 +207,7 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     public convenience init(
         configuration: MQTTConfiguration,
         eventLoopGroup: EventLoopGroup,
-        logger: Logger = .init(label: "nl.roebert.MQTTNio")
+        logger: Logger = .init(label: "nl.roebert.MQTTNIO")
     ) {
         self.init(
             configuration: configuration,
@@ -545,6 +545,16 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     
     // MARK: - Callbacks
     
+    #if swift(>=5.7)
+    /// Adds an observer callback which will be called when the client has connected to a broker.
+    /// - Parameter callback: The observer callback to add which will be called with the connect response when connected to a broker.
+    /// - Returns: An `MQTTCancellable` which can be used to cancel the observer callback.
+    @discardableResult
+    @preconcurrency
+    public func whenConnected(_ callback: @escaping @Sendable (_ response: MQTTConnectResponse) -> Void) -> MQTTCancellable {
+        return connectCallbacks.append(callback)
+    }
+    #else
     /// Adds an observer callback which will be called when the client has connected to a broker.
     /// - Parameter callback: The observer callback to add which will be called with the connect response when connected to a broker.
     /// - Returns: An `MQTTCancellable` which can be used to cancel the observer callback.
@@ -552,7 +562,18 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     public func whenConnected(_ callback: @escaping (_ response: MQTTConnectResponse) -> Void) -> MQTTCancellable {
         return connectCallbacks.append(callback)
     }
+    #endif
     
+    #if swift(>=5.7)
+    /// Adds an observer callback which will be called when the client starts reconnecting to a broker.
+    /// - Parameter callback: The observer callback to add which will be called when reconnecting to a broker.
+    /// - Returns: An `MQTTCancellable` which can be used to cancel the observer callback.
+    @discardableResult
+    @preconcurrency
+    public func whenReconnecting(_ callback: @escaping @Sendable () -> Void) -> MQTTCancellable {
+        return reconnectCallbacks.append(callback)
+    }
+    #else
     /// Adds an observer callback which will be called when the client starts reconnecting to a broker.
     /// - Parameter callback: The observer callback to add which will be called when reconnecting to a broker.
     /// - Returns: An `MQTTCancellable` which can be used to cancel the observer callback.
@@ -560,7 +581,18 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     public func whenReconnecting(_ callback: @escaping () -> Void) -> MQTTCancellable {
         return reconnectCallbacks.append(callback)
     }
+    #endif
     
+    #if swift(>=5.7)
+    /// Adds an observer callback which will be called when the client has disconnected from a broker.
+    /// - Parameter callback: The observer callback to add which will be called when disconnect with the reason for disconnection.
+    /// - Returns: An `MQTTCancellable` which can be used to cancel the observer callback.
+    @discardableResult
+    @preconcurrency
+    public func whenDisconnected(_ callback: @escaping @Sendable (_ reason: MQTTDisconnectReason) -> Void) -> MQTTCancellable {
+        return disconnectCallbacks.append(callback)
+    }
+    #else
     /// Adds an observer callback which will be called when the client has disconnected from a broker.
     /// - Parameter callback: The observer callback to add which will be called when disconnect with the reason for disconnection.
     /// - Returns: An `MQTTCancellable` which can be used to cancel the observer callback.
@@ -568,7 +600,18 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     public func whenDisconnected(_ callback: @escaping (_ reason: MQTTDisconnectReason) -> Void) -> MQTTCancellable {
         return disconnectCallbacks.append(callback)
     }
+    #endif
     
+    #if swift(>=5.7)
+    /// Adds an observer callback which will be called when connection with a broker fails.
+    /// - Parameter callback: The observer callback to add which will be called with the error when connecting to a broker fails.
+    /// - Returns: An `MQTTCancellable` which can be used to cancel the observer callback.
+    @discardableResult
+    @preconcurrency
+    public func whenConnectionFailure(_ callback: @escaping @Sendable (Error) -> Void) -> MQTTCancellable {
+        return connectionFailureCallbacks.append(callback)
+    }
+    #else
     /// Adds an observer callback which will be called when connection with a broker fails.
     /// - Parameter callback: The observer callback to add which will be called with the error when connecting to a broker fails.
     /// - Returns: An `MQTTCancellable` which can be used to cancel the observer callback.
@@ -576,7 +619,18 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     public func whenConnectionFailure(_ callback: @escaping (Error) -> Void) -> MQTTCancellable {
         return connectionFailureCallbacks.append(callback)
     }
+    #endif
     
+    #if swift(>=5.7)
+    /// Adds an observer callback which will be called when the client has received an `MQTTMessage`.
+    /// - Parameter callback: The observer callback to add which will be called with the received message.
+    /// - Returns: An `MQTTCancellable` which can be used to cancel the observer callback.
+    @discardableResult
+    @preconcurrency
+    public func whenMessage(_ callback: @escaping @Sendable (_ message: MQTTMessage) -> Void) -> MQTTCancellable {
+        return messageCallbacks.append(callback)
+    }
+    #else
     /// Adds an observer callback which will be called when the client has received an `MQTTMessage`.
     /// - Parameter callback: The observer callback to add which will be called with the received message.
     /// - Returns: An `MQTTCancellable` which can be used to cancel the observer callback.
@@ -584,7 +638,25 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
     public func whenMessage(_ callback: @escaping (_ message: MQTTMessage) -> Void) -> MQTTCancellable {
         return messageCallbacks.append(callback)
     }
+    #endif
     
+    #if swift(>=5.7)
+    /// Adds an observer callback which will be called when the client has received an `MQTTMessage` for a specific topic.
+    /// - Parameters:
+    ///   - topicFilter: The topic filter to receive messages for.
+    ///   - callback: The observer callback to add which will be called with the received message.
+    /// - Returns: An `MQTTCancellable` which can be used to cancel the observer callback.
+    @discardableResult
+    @preconcurrency
+    public func whenMessage(forTopic topicFilter: String, _ callback: @escaping @Sendable (_ message: MQTTMessage) -> Void) -> MQTTCancellable {
+        return messageCallbacks.append { message in
+            guard message.topic.matchesMqttTopicFilter(topicFilter) else {
+                return
+            }
+            callback(message)
+        }
+    }
+    #else
     /// Adds an observer callback which will be called when the client has received an `MQTTMessage` for a specific topic.
     /// - Parameters:
     ///   - topicFilter: The topic filter to receive messages for.
@@ -599,7 +671,25 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
             callback(message)
         }
     }
+    #endif
     
+    #if swift(>=5.7)
+    /// Adds an observer callback which will be called when the client has received an `MQTTMessage` for a specific subscription identifier.
+    /// - Parameters:
+    ///   - identifier: The subscription identifier to receive messages for.
+    ///   - callback: The observer callback to add which will be called with the received message.
+    /// - Returns: An `MQTTCancellable` which can be used to cancel the observer callback.
+    @discardableResult
+    @preconcurrency
+    public func whenMessage(forIdentifier identifier: Int, _ callback: @escaping @Sendable (_ message: MQTTMessage) -> Void) -> MQTTCancellable {
+        return messageCallbacks.append { message in
+            guard message.properties.subscriptionIdentifiers.contains(identifier) else {
+                return
+            }
+            callback(message)
+        }
+    }
+    #else
     /// Adds an observer callback which will be called when the client has received an `MQTTMessage` for a specific subscription identifier.
     /// - Parameters:
     ///   - identifier: The subscription identifier to receive messages for.
@@ -614,6 +704,7 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
             callback(message)
         }
     }
+    #endif
     
     // MARK: - Publishers
     
@@ -752,6 +843,10 @@ public class MQTTClient: MQTTConnectionDelegate, MQTTSubscriptionsHandlerDelegat
         #endif
     }
 }
+
+#if swift(>=5.5) && canImport(_Concurrency)
+extension MQTTClient: @unchecked MQTTSendable {}
+#endif
 
 private protocol MQTTClientEventsHandler {
     func onConnect(with response: MQTTConnectResponse)

@@ -78,7 +78,7 @@ final class MQTTReAuthenticateRequest: MQTTRequest {
         return .failure(MQTTConnectionError.connectionClosed)
     }
     
-    func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult<Void> {
+    func handleEvent(context: MQTTRequestContext, event: MQTTSendable) -> MQTTRequestResult<Void> {
         guard case Event.timeout = event else {
             return .pending
         }
@@ -122,3 +122,7 @@ final class MQTTReAuthenticateRequest: MQTTRequest {
         return .pending
     }
 }
+
+#if swift(>=5.5) && canImport(_Concurrency)
+extension MQTTReAuthenticateRequest: @unchecked MQTTSendable {}
+#endif

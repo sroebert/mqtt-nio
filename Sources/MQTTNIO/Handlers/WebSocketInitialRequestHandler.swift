@@ -103,3 +103,7 @@ final class WebSocketInitialRequestHandler: ChannelInboundHandler, RemovableChan
         ))
     }
 }
+
+#if swift(>=5.5) && canImport(_Concurrency)
+extension WebSocketInitialRequestHandler: @unchecked MQTTSendable {}
+#endif

@@ -151,6 +151,10 @@ final class WebSocketHandler: ChannelDuplexHandler {
     }
 }
 
+#if swift(>=5.5) && canImport(_Concurrency)
+extension WebSocketHandler: @unchecked MQTTSendable {}
+#endif
+
 extension WebSocketErrorCode {
     fileprivate init(_ error: NIOWebSocketError) {
         switch error {

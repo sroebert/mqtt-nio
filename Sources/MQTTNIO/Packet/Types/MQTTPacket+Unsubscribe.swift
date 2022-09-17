@@ -69,7 +69,7 @@ extension MQTTPacket {
 
 extension MQTTPacket.Unsubscribe {
     // Wrapper to avoid heap allocations when added to NIOAny
-    fileprivate class Data {
+    private final class Data: MQTTSendable {
         let topicFilters: [String]
         let userProperties: [MQTTUserProperty]
         let packetId: UInt16

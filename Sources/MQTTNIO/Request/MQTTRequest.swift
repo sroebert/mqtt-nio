@@ -1,7 +1,7 @@
 import NIO
 import Logging
 
-protocol MQTTRequestContext {
+protocol MQTTRequestContext: MQTTSendable {
     var version: MQTTProtocolVersion { get }
     var brokerConfiguration: MQTTBrokerConfiguration { get }
     
@@ -11,18 +11,18 @@ protocol MQTTRequestContext {
     
     func getNextPacketId() -> UInt16
     
-    func scheduleEvent(_ event: Any, in time: TimeAmount) -> Scheduled<Void>
+    func scheduleEvent(_ event: MQTTSendable, in time: TimeAmount) -> Scheduled<Void>
 }
 
-protocol MQTTRequest {
-    associatedtype Value
+protocol MQTTRequest: MQTTSendable {
+    associatedtype Value: MQTTSendable
     
     var canPerformInInactiveState: Bool { get }
     
     func start(context: MQTTRequestContext) -> MQTTRequestResult<Value>
     func process(context: MQTTRequestContext, packet: MQTTPacket.Inbound) -> MQTTRequestResult<Value>?
     
-    func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult<Value>
+    func handleEvent(context: MQTTRequestContext, event: MQTTSendable) -> MQTTRequestResult<Value>
     
     func disconnected(context: MQTTRequestContext) -> MQTTRequestResult<Value>
     func connected(context: MQTTRequestContext, isSessionPresent: Bool) -> MQTTRequestResult<Value>
@@ -37,7 +37,7 @@ extension MQTTRequest {
         return nil
     }
     
-    func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult<Value> {
+    func handleEvent(context: MQTTRequestContext, event: MQTTSendable) -> MQTTRequestResult<Value> {
         return .pending
     }
     
@@ -50,7 +50,7 @@ extension MQTTRequest {
     }
 }
 
-enum MQTTRequestResult<Value> {
+enum MQTTRequestResult<Value: MQTTSendable>: MQTTSendable {
     case pending
     case success(Value)
     case failure(Error)

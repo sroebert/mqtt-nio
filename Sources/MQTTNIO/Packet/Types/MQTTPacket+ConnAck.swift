@@ -103,7 +103,7 @@ extension MQTTPacket {
 
 extension MQTTPacket.ConnAck {
     // Wrapper to avoid heap allocations when added to NIOAny
-    private class Data {
+    private final class Data: MQTTSendable {
         let reasonCode: ReasonCode
         let isSessionPresent: Bool
         let properties: MQTTProperties

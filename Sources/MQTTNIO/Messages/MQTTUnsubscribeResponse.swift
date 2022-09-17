@@ -1,5 +1,5 @@
 /// The response returned from the broker when unsubscribing from a single topic.
-public struct MQTTSingleUnsubscribeResponse {
+public struct MQTTSingleUnsubscribeResponse: MQTTSendable {
     /// The result for unsubscribing.
     public var result: MQTTUnsubscribeResult
     
@@ -11,7 +11,7 @@ public struct MQTTSingleUnsubscribeResponse {
 }
 
 /// The response returned from the broker when unsubscribing.
-public struct MQTTUnsubscribeResponse {
+public struct MQTTUnsubscribeResponse: MQTTSendable {
     /// The results for each topic the client tried to unsubscribe from.
     public var results: [MQTTUnsubscribeResult]
     
@@ -25,7 +25,7 @@ public struct MQTTUnsubscribeResponse {
 /// The result returned from the broker for each topic when unsubscribing, indicating the result.
 ///
 /// For each topic trying to unsubscribe from, an `MQTTUnsubscribeResult` will be returned from the broker.
-public enum MQTTUnsubscribeResult: Equatable {
+public enum MQTTUnsubscribeResult: Equatable, MQTTSendable {
     /// Succesfully unsubscribed.
     case success
     
@@ -35,7 +35,7 @@ public enum MQTTUnsubscribeResult: Equatable {
 
 extension MQTTUnsubscribeResult {
     /// The reason returned from the server, indicating why unsubscribing failed.
-    public enum ServerErrorReason {
+    public enum ServerErrorReason: MQTTSendable {
         /// The server does not wish to reveal the reason for the failure, or none of the other reason codes apply.
         case unspecifiedError
         

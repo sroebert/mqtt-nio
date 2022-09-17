@@ -4,7 +4,7 @@
 ///
 /// - Note: `cancel` is not automatically called when not retaining this cancellable object.
 /// Callbacks can only be cancelled if you keep a reference to the returned `MQTTCancellable`.
-public protocol MQTTCancellable {
+public protocol MQTTCancellable: MQTTPreconcurrencySendable {
     /// Stops the callback from being called.
     func cancel()
 }

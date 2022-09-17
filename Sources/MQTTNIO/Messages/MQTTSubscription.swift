@@ -1,5 +1,5 @@
 /// This  struct represents a subscription that can be made with an MQTT broker.
-public struct MQTTSubscription {
+public struct MQTTSubscription: MQTTSendable {
     /// The topic filter to which the client wants to subscribe.
     public var topicFilter: String
     
@@ -26,7 +26,7 @@ public struct MQTTSubscription {
 
 extension MQTTSubscription {
     /// Additional options that can be set for a subscription with a 5.0 MQTT broker.
-    public struct Options {
+    public struct Options: MQTTSendable {
         
         /// Indicates whether messages send from this client to the subscribed topic should not be received by this client.
         public var noLocalMessages: Bool
@@ -54,7 +54,7 @@ extension MQTTSubscription {
     }
     
     /// Indicates how retained messages are handled for a subscription.
-    public enum RetainedMessageHandling {
+    public enum RetainedMessageHandling: MQTTSendable {
         /// Retained messages will be send at the time of subscribing.
         case sendOnSubscribe
         /// Retained messages will be send at the time of subscribing if the subscription does not currently exist.
@@ -65,7 +65,7 @@ extension MQTTSubscription {
 }
 
 /// The response returned from the broker when subscribing to a single topic.
-public struct MQTTSingleSubscribeResponse {
+public struct MQTTSingleSubscribeResponse: MQTTSendable {
     /// The result for the subscription.
     public var result: MQTTSubscriptionResult
     
@@ -77,7 +77,7 @@ public struct MQTTSingleSubscribeResponse {
 }
 
 /// The response returned from the broker when subscribing.
-public struct MQTTSubscribeResponse {
+public struct MQTTSubscribeResponse: MQTTSendable {
     /// The results for each topic the client tried to subscribe to.
     public var results: [MQTTSubscriptionResult]
     
@@ -91,7 +91,7 @@ public struct MQTTSubscribeResponse {
 /// The result returned from the broker for each topic when subscribing, indicating the result.
 ///
 /// For each `MQTTSubscription` trying to subscribe to, an `MQTTSubscriptionResult` will be returned from the broker.
-public enum MQTTSubscriptionResult: Equatable {
+public enum MQTTSubscriptionResult: Equatable, MQTTSendable {
     /// Succesfully subscribed, with the given QoS level and optional user properties.
     case success(MQTTQoS)
     
@@ -101,7 +101,7 @@ public enum MQTTSubscriptionResult: Equatable {
 
 extension MQTTSubscriptionResult {
     /// The reason returned from the server, indicating why the subscription failed.
-    public enum ServerErrorReason {
+    public enum ServerErrorReason: MQTTSendable {
         /// The server does not wish to reveal the reason for the failure, or none of the other reason codes apply.
         case unspecifiedError
         

@@ -203,7 +203,7 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
         }
     }
     
-    fileprivate func triggerRequestEvent(_ event: Any, in eventLoop: EventLoop) {
+    fileprivate func triggerRequestEvent(_ event: MQTTSendable, in eventLoop: EventLoop) {
         channel?.pipeline.context(handler: self).whenSuccess { [weak self] context in
             guard let strongSelf = self else {
                 return
@@ -218,8 +218,12 @@ final class MQTTRequestHandler: ChannelDuplexHandler {
     }
 }
 
+#if swift(>=5.5) && canImport(_Concurrency)
+extension MQTTRequestHandler: @unchecked MQTTSendable {}
+#endif
+
 extension MQTTRequestHandler {
-    private class RequestContext: MQTTRequestContext {
+    fileprivate final class RequestContext: MQTTRequestContext {
         private(set) var didWrite: Bool = false
         let handler: MQTTRequestHandler
         let context: ChannelHandlerContext
@@ -250,7 +254,7 @@ extension MQTTRequestHandler {
             return handler.getNextPacketId()
         }
         
-        func scheduleEvent(_ event: Any, in delay: TimeAmount) -> Scheduled<Void> {
+        func scheduleEvent(_ event: MQTTSendable, in delay: TimeAmount) -> Scheduled<Void> {
             let logger = handler.logger
             logger.trace("Scheduling request event", metadata: [
                 "delay": .stringConvertible(delay.nanoseconds / 1_000_000_000),
@@ -268,6 +272,10 @@ extension MQTTRequestHandler {
         }
     }
 }
+
+#if swift(>=5.5) && canImport(_Concurrency)
+extension MQTTRequestHandler.RequestContext: @unchecked MQTTSendable {}
+#endif
 
 extension MQTTRequestHandler {
     private enum ProcessResult {
@@ -292,7 +300,7 @@ extension MQTTRequestHandler {
             fatalError("Should be implemented in subclass")
         }
         
-        func handleEvent(context: MQTTRequestContext, event: Any) -> Bool {
+        func handleEvent(context: MQTTRequestContext, event: MQTTSendable) -> Bool {
             fatalError("Should be implemented in subclass")
         }
         
@@ -347,7 +355,7 @@ extension MQTTRequestHandler {
             return .processed(completed: completed)
         }
         
-        override func handleEvent(context: MQTTRequestContext, event: Any) -> Bool {
+        override func handleEvent(context: MQTTRequestContext, event: MQTTSendable) -> Bool {
             handle(request.handleEvent(context: context, event: event))
         }
         

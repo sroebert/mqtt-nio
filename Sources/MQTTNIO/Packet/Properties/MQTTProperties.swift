@@ -1,6 +1,6 @@
 import NIO
 
-struct MQTTProperties {
+struct MQTTProperties: MQTTSendable {
     
     // MARK: - Vars
     

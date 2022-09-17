@@ -1,5 +1,5 @@
 /// The reason the `MQTTClient` was disconnected.
-public enum MQTTDisconnectReason {
+public enum MQTTDisconnectReason: MQTTSendable {
     /// The user requested to close the connection.
     case userInitiated(UserRequest)
     
@@ -15,7 +15,7 @@ public enum MQTTDisconnectReason {
 
 extension MQTTDisconnectReason {
     /// When disconnecting use the `disconnect` function from the `MQTTClient`, this structure holds the data passed with the disconnect request.
-    public struct UserRequest: Equatable {
+    public struct UserRequest: Equatable, MQTTSendable {
         /// If `true` a 5.0 MQTT broker will send the Will message after disconnection.
         public var sendWillMessage: Bool
         
@@ -26,9 +26,9 @@ extension MQTTDisconnectReason {
         public var userProperties: [MQTTUserProperty]
     }
     
-    public struct ServerReason {
+    public struct ServerReason: MQTTSendable {
         
-        public enum Code: Equatable {
+        public enum Code: Equatable, MQTTSendable {
             /// The server does not wish to reveal the reason for the failure, or none of the other reason codes apply.
             case unspecifiedError
             

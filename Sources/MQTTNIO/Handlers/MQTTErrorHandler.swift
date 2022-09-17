@@ -33,3 +33,7 @@ final class MQTTErrorHandler: ChannelInboundHandler {
         delegate?.mttErrorHandler(self, caughtError: error, channel: context.channel)
     }
 }
+
+#if swift(>=5.5) && canImport(_Concurrency)
+extension MQTTErrorHandler: @unchecked MQTTSendable {}
+#endif

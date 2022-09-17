@@ -1,3 +1,13 @@
+#if swift(>=5.7)
+/// A custom handler for acknowledgements of QoS 1 or 2 messages received from a 5.0 MQTT broker.
+///
+/// This allows the user to send a custom failure reason to the broker, optionally with user properties.
+///
+/// - Parameters:
+///   - message: The message for which to return an acknowledgement response.
+/// - Returns: A `MQTTAcknowledgementResponse` to send to the broker as an acknowledgement for the message.
+public typealias MQTTAcknowledgementHandler = @Sendable (_ message: MQTTMessage) -> MQTTAcknowledgementResponse
+#else
 /// A custom handler for acknowledgements of QoS 1 or 2 messages received from a 5.0 MQTT broker.
 ///
 /// This allows the user to send a custom failure reason to the broker, optionally with user properties.
@@ -6,9 +16,10 @@
 ///   - message: The message for which to return an acknowledgement response.
 /// - Returns: A `MQTTAcknowledgementResponse` to send to the broker as an acknowledgement for the message.
 public typealias MQTTAcknowledgementHandler = (_ message: MQTTMessage) -> MQTTAcknowledgementResponse
+#endif
 
 /// Response object returned from a `MQTTAcknowledgementHandler` indicating the response for the received message.
-public struct MQTTAcknowledgementResponse {
+public struct MQTTAcknowledgementResponse: MQTTSendable {
     
     /// Creates a success `MQTTAcknowledgementResponse`.
     public static var success: Self {
@@ -55,9 +66,9 @@ public struct MQTTAcknowledgementResponse {
 
 extension MQTTAcknowledgementResponse {
     /// An error which can be returned with an acknowledgement of a message to a 5.0 MQTT broker.
-    public struct Error {
+    public struct Error: MQTTSendable {
         
-        public enum Code {
+        public enum Code: MQTTSendable {
             /// The receiver does not accept the publish but either does not want to reveal the reason, or it does not match one of the other values.
             case unspecifiedError
             

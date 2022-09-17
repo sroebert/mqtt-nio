@@ -17,7 +17,14 @@ final class MQTTSubscriptionsHandler: ChannelDuplexHandler {
     
     // MARK: - Vars
     
-    var acknowledgementHandler: MQTTAcknowledgementHandler?
+    #if swift(>=5.7)
+    typealias AcknowledgementHandler = @Sendable (_ message: MQTTMessage) -> MQTTAcknowledgementResponse
+    #else
+    typealias AcknowledgementHandler = (_ message: MQTTMessage) -> MQTTAcknowledgementResponse
+    #endif
+    
+    var acknowledgementHandler: AcknowledgementHandler?
+    
     let logger: Logger
     
     weak var delegate: MQTTSubscriptionsHandlerDelegate?
@@ -27,7 +34,7 @@ final class MQTTSubscriptionsHandler: ChannelDuplexHandler {
     // MARK: - Init
     
     init(
-        acknowledgementHandler: MQTTAcknowledgementHandler?,
+        acknowledgementHandler: AcknowledgementHandler?,
         logger: Logger
     ) {
         self.acknowledgementHandler = acknowledgementHandler
@@ -166,3 +173,7 @@ final class MQTTSubscriptionsHandler: ChannelDuplexHandler {
         emit(message)
     }
 }
+
+#if swift(>=5.5) && canImport(_Concurrency)
+extension MQTTSubscriptionsHandler: @unchecked MQTTSendable {}
+#endif

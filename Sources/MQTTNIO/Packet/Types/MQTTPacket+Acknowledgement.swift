@@ -224,7 +224,7 @@ extension MQTTPacket {
 
 extension MQTTPacket.Acknowledgement {
     // Wrapper to avoid heap allocations when added to NIOAny
-    private class Data {
+    private final class Data: MQTTSendable {
         let kind: Kind
         let packetId: UInt16
         let reasonCode: ReasonCode

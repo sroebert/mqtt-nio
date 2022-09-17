@@ -109,3 +109,7 @@ final class MQTTKeepAliveHandler: ChannelOutboundHandler {
         }
     }
 }
+
+#if swift(>=5.5) && canImport(_Concurrency)
+extension MQTTKeepAliveHandler: @unchecked MQTTSendable {}
+#endif

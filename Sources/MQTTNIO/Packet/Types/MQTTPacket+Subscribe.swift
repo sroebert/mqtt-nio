@@ -101,7 +101,7 @@ extension MQTTPacket {
 
 extension MQTTPacket.Subscribe {
     // Wrapper to avoid heap allocations when added to NIOAny
-    fileprivate class Data {
+    private final class Data: MQTTSendable {
         let subscriptions: [MQTTSubscription]
         let subscriptionIdentifier: Int?
         let userProperties: [MQTTUserProperty]

@@ -1,9 +1,13 @@
+#if os(macOS) && compiler(<5.7.1)
+@preconcurrency import Foundation
+#else
 import Foundation
+#endif
 import NIO
 
 extension MQTTMessage {
     /// The message properties to with the message to a 5.0 MQTT broker.
-    public struct Properties {
+    public struct Properties: MQTTSendable {
         
         /// Indicates the interval after which the message expires or `nil` if it does not expire.
         public var expiryInterval: TimeAmount?

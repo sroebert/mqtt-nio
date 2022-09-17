@@ -113,7 +113,7 @@ final class MQTTSubscribeRequest: MQTTRequest {
         return .failure(MQTTConnectionError.connectionClosed)
     }
     
-    func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult<MQTTSubscribeResponse> {
+    func handleEvent(context: MQTTRequestContext, event: MQTTSendable) -> MQTTRequestResult<MQTTSubscribeResponse> {
         guard case Event.timeout = event else {
             return .pending
         }
@@ -169,3 +169,7 @@ final class MQTTSubscribeRequest: MQTTRequest {
         return nil
     }
 }
+
+#if swift(>=5.5) && canImport(_Concurrency)
+extension MQTTSubscribeRequest: @unchecked MQTTSendable {}
+#endif

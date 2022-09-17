@@ -1,9 +1,13 @@
+#if os(macOS) && compiler(<5.7.1)
+@preconcurrency import Foundation
+#else
 import Foundation
+#endif
 import NIO
 
 extension MQTTWillMessage {
     /// The message properties to with the message to a 5.0 MQTT broker.
-    public struct Properties {
+    public struct Properties: Sendable {
         
         /// The delay the broker will wait before sending the will message. During this interval, the client can reconnect without
         /// cleaning the session in order to avoid sending the will message. If `nil` the will message will be sent immediately.

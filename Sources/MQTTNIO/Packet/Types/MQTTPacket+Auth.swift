@@ -118,7 +118,7 @@ extension MQTTPacket {
 
 extension MQTTPacket.Auth {
     // Wrapper to avoid heap allocations when added to NIOAny
-    private class Data {
+    private final class Data: MQTTSendable {
         let reasonCode: ReasonCode
         let reasonString: String?
         let authenticationMethod: String?

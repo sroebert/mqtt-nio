@@ -1,7 +1,7 @@
 import NIO
 
 /// Struct representing an MQTT message being send by the broker under certain conditions when a client disconnects.
-public struct MQTTWillMessage {
+public struct MQTTWillMessage: MQTTSendable {
     /// The topic of the message.
     public var topic: String
     

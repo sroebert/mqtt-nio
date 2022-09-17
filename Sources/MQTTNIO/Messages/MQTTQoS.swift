@@ -1,5 +1,5 @@
 /// QoS level for messages send and received using MQTT.
-public enum MQTTQoS: UInt8, Comparable {
+public enum MQTTQoS: UInt8, Comparable, MQTTSendable {
     /// QoS 0, indicating a message will be sent once. If for some reason the message does not arrive, it will not be sent again,
     /// so deliver at most once.
     case atMostOnce = 0

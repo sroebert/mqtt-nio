@@ -1,7 +1,7 @@
 import NIO
 
 /// A payload send with an MQTT message
-public enum MQTTPayload: ExpressibleByStringLiteral, CustomDebugStringConvertible {
+public enum MQTTPayload: MQTTSendable, ExpressibleByStringLiteral, CustomDebugStringConvertible {
     /// An empty payload.
     case empty
     /// A payload in bytes.

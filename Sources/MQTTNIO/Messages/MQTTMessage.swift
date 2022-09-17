@@ -1,7 +1,7 @@
 import NIO
 
 /// Struct representing an MQTT message being send from or to the `MQTTClient`.
-public struct MQTTMessage {
+public struct MQTTMessage: MQTTSendable {
     /// The topic of the message.
     public var topic: String
     

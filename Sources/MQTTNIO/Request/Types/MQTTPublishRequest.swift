@@ -129,7 +129,7 @@ final class MQTTPublishRequest: MQTTRequest {
         }
     }
     
-    func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult<Void> {
+    func handleEvent(context: MQTTRequestContext, event: MQTTSendable) -> MQTTRequestResult<Void> {
         if scheduledRetry != nil, case Event.retry = event {
             retry(context: context)
         }
@@ -246,6 +246,10 @@ final class MQTTPublishRequest: MQTTRequest {
         return .success
     }
 }
+
+#if swift(>=5.5) && canImport(_Concurrency)
+extension MQTTPublishRequest: @unchecked MQTTSendable {}
+#endif
 
 extension MQTTPacket.Acknowledgement {
     fileprivate var serverErrorReason: MQTTPublishError.ServerReason? {

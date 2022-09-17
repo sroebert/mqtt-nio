@@ -177,7 +177,7 @@ extension MQTTPacket {
 
 extension MQTTPacket.Connect {
     // Wrapper to avoid heap allocations when added to NIOAny
-    private class Data {
+    private final class Data: MQTTSendable {
         let configuration: MQTTConfiguration
         let authenticationMethod: String?
         let authenticationData: ByteBuffer?

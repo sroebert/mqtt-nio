@@ -8,16 +8,16 @@ protocol MQTTPropertyType {
 }
 
 @propertyWrapper
-struct MQTTProperty<Value: Equatable, Intermediate, PropertyValue: MQTTPropertyValue>: MQTTPropertyType {
+struct MQTTProperty<Value: Equatable & MQTTSendable, Intermediate, PropertyValue: MQTTPropertyValue>: MQTTPropertyType, MQTTSendable {
     
     // MARK: - Vars
     
     let identifier: Int
     let isAllowedMultipleTimes: Bool
     
-    private let encode: (Value) -> [PropertyValue]
-    private let decode: (PropertyValue) -> Intermediate
-    private let combine: ((Value, Intermediate) -> Value)
+    private let encode: @Sendable (Value) -> [PropertyValue]
+    private let decode: @Sendable (PropertyValue) -> Intermediate
+    private let combine: @Sendable (Value, Intermediate) -> Value
     
     // MARK: - Init
     
@@ -25,9 +25,9 @@ struct MQTTProperty<Value: Equatable, Intermediate, PropertyValue: MQTTPropertyV
         wrappedValue: Value,
         _ identifier: Int,
         isAllowedMultipleTimes: Bool = false,
-        encode: @escaping (Value) -> [PropertyValue],
-        decode: @escaping (PropertyValue) -> Intermediate,
-        combine: @escaping (Value, Intermediate) -> Value
+        encode: @escaping @Sendable (Value) -> [PropertyValue],
+        decode: @escaping @Sendable (PropertyValue) -> Intermediate,
+        combine: @escaping @Sendable (Value, Intermediate) -> Value
     ) {
         self.wrappedValue = wrappedValue
         self.identifier = identifier
@@ -85,8 +85,8 @@ extension MQTTProperty where Value == Intermediate {
         wrappedValue: Value,
         _ identifier: Int,
         isAllowedMultipleTimes: Bool = false,
-        encode: @escaping (Value) -> [PropertyValue],
-        decode: @escaping (PropertyValue) -> Intermediate
+        encode: @escaping @Sendable (Value) -> [PropertyValue],
+        decode: @escaping @Sendable (PropertyValue) -> Intermediate
     ) {
         self.init(
             wrappedValue: wrappedValue,
@@ -105,8 +105,8 @@ extension MQTTProperty where Value == [Intermediate] {
         wrappedValue: Value,
         _ identifier: Int,
         isAllowedMultipleTimes: Bool = false,
-        encode: @escaping (Value) -> [PropertyValue],
-        decode: @escaping (PropertyValue) -> Intermediate
+        encode: @escaping @Sendable (Value) -> [PropertyValue],
+        decode: @escaping @Sendable (PropertyValue) -> Intermediate
     ) {
         self.init(
             wrappedValue: wrappedValue,
@@ -148,7 +148,7 @@ extension MQTTProperty where Value == Intermediate, Value == PropertyValue? {
     }
 }
 
-extension MQTTProperty where Value == Int, Value == Intermediate, PropertyValue: FixedWidthInteger {
+extension MQTTProperty where Value == Int, Value == Intermediate, PropertyValue: FixedWidthInteger & Sendable {
     init(wrappedValue: PropertyValue, _ identifier: Int, format: PropertyValue.Type) {
         self.init(wrappedValue: Int(wrappedValue), identifier) {
             guard $0 != wrappedValue else {

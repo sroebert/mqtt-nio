@@ -116,7 +116,7 @@ extension MQTTPacket {
 
 extension MQTTPacket.Disconnect {
     // Wrapper to avoid heap allocations when added to NIOAny
-    fileprivate class Data {
+    private final class Data: MQTTSendable {
         let reasonCode: ReasonCode
         let properties: MQTTProperties
         

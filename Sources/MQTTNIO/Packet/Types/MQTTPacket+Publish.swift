@@ -229,7 +229,7 @@ extension MQTTPacket {
 
 extension MQTTPacket.Publish {
     // Wrapper to avoid heap allocations when added to NIOAny
-    fileprivate class Data {
+    private final class Data: MQTTSendable {
         let message: MQTTMessage
         let packetId: UInt16?
         let isDuplicate: Bool

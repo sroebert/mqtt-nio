@@ -1,5 +1,5 @@
 /// Errors that can be received when trying to connect to a broker.
-public enum MQTTConnectionError: Error {
+public enum MQTTConnectionError: Error, MQTTSendable {
     /// The provided TLS configuration is invalid for the provided event loop group.
     case invalidTLSConfiguration
     
@@ -15,9 +15,9 @@ public enum MQTTConnectionError: Error {
 
 extension MQTTConnectionError {
     /// The reason returned from the server, indicating why the connection failed.
-    public struct ServerReason {
+    public struct ServerReason: MQTTSendable {
     
-        public enum Code: Equatable {
+        public enum Code: Equatable, MQTTSendable {
             /// The server does not wish to reveal the reason for the failure, or none of the other reason codes apply.
             case unspecifiedError
             

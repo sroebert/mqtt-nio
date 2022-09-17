@@ -2,14 +2,14 @@ import Dispatch
 import NIO
 import NIOConcurrencyHelpers
 
-final class CallbackList<Arguments> {
+final class CallbackList<Arguments>: @unchecked Sendable {
     
     // MARK: - Types
     
-    typealias Callback = (Arguments) -> Void
+    typealias Callback = @Sendable (Arguments) -> Void
     
-    final class Entry {
-        weak var list: CallbackList<Arguments>?
+    final class Entry: @unchecked Sendable {
+        private weak var list: CallbackList<Arguments>?
         let callback: Callback
         
         init(list: CallbackList<Arguments>, callback: @escaping Callback) {

@@ -1,5 +1,5 @@
 /// Errors that can occur while communicating with the broker.
-public struct MQTTProtocolError: Error {
+public struct MQTTProtocolError: Error, MQTTSendable {
     /// The code indicating the error reason.
     public var code: Code
     
@@ -18,7 +18,7 @@ public struct MQTTProtocolError: Error {
 }
 
 extension MQTTProtocolError {
-    public enum Code {
+    public enum Code: MQTTSendable {
         /// The received packet does not conform to this specification.
         case malformedPacket
         

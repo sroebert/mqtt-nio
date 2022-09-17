@@ -5,7 +5,7 @@ Non-blocking, event-driven Swift client for MQTT ([5.0](https://docs.oasis-open.
 This library has support for WebSocket connections and TLS. It runs on all platforms Swift NIO runs on (e.g. macOS, iOS, Linux, etc.).
 
 [![Tests](https://img.shields.io/github/workflow/status/sroebert/mqtt-nio/test/main.svg?label=Tests&style=for-the-badge)](https://github.com/sroebert/mqtt-nio/actions)
-[![Swift 5.5](http://img.shields.io/badge/swift-5.5-brightgreen.svg?style=for-the-badge)](https://swift.org)
+[![Swift 5.7](http://img.shields.io/badge/swift-5.7-brightgreen.svg?style=for-the-badge)](https://swift.org)
 [![Release](https://img.shields.io/github/release/sroebert/mqtt-nio.svg?style=for-the-badge)](https://github.com/sroebert/mqtt-nio/releases)
 
 ## Installation

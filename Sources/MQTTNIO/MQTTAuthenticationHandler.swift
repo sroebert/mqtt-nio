@@ -1,7 +1,7 @@
 import Foundation
 
 /// Authentication handler protocol to handle enhanced authentication with a 5.0 MQTT broker.
-public protocol MQTTAuthenticationHandler {
+public protocol MQTTAuthenticationHandler: MQTTPreconcurrencySendable {
     /// The name of the authentication method to use.
     var authenticationMethod: String { get }
     

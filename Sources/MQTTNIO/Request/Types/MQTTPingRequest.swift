@@ -51,7 +51,7 @@ final class MQTTPingRequest: MQTTRequest {
         return .success(())
     }
     
-    func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult<Void> {
+    func handleEvent(context: MQTTRequestContext, event: MQTTSendable) -> MQTTRequestResult<Void> {
         guard case Event.timeout = event else {
             return .pending
         }
@@ -60,3 +60,7 @@ final class MQTTPingRequest: MQTTRequest {
         return .failure(MQTTConnectionError.timeoutWaitingForAcknowledgement)
     }
 }
+
+#if swift(>=5.5) && canImport(_Concurrency)
+extension MQTTPingRequest: @unchecked MQTTSendable {}
+#endif

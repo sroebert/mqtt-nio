@@ -75,7 +75,7 @@ final class MQTTConnectRequest: MQTTRequest {
         return .failure(MQTTConnectionError.connectionClosed)
     }
     
-    func handleEvent(context: MQTTRequestContext, event: Any) -> MQTTRequestResult<MQTTPacket.ConnAck> {
+    func handleEvent(context: MQTTRequestContext, event: MQTTSendable) -> MQTTRequestResult<MQTTPacket.ConnAck> {
         guard case Event.timeout = event else {
             return .pending
         }
@@ -140,6 +140,10 @@ final class MQTTConnectRequest: MQTTRequest {
         return .pending
     }
 }
+
+#if swift(>=5.5) && canImport(_Concurrency)
+extension MQTTConnectRequest: @unchecked MQTTSendable {}
+#endif
 
 extension MQTTPacket.ConnAck {
     fileprivate var serverErrorReason: MQTTConnectionError.ServerReason? {

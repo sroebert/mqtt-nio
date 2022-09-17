@@ -111,6 +111,10 @@ final class MQTTFallbackPacketHandler: ChannelDuplexHandler {
     }
 }
 
+#if swift(>=5.5) && canImport(_Concurrency)
+extension MQTTFallbackPacketHandler: @unchecked MQTTSendable {}
+#endif
+
 extension MQTTPacket.Disconnect.ReasonCode {
     fileprivate func disconnectReasonCode(
         with properties: MQTTProperties

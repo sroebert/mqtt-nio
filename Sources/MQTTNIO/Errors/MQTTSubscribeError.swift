@@ -1,5 +1,5 @@
 /// Errors that can occur when subscribing to a topic on the broker.
-public enum MQTTSubscribeError: Error {
+public enum MQTTSubscribeError: Error, MQTTSendable {
     /// One or more of the topic filters to subscribe to are invalid.
     case invalidTopic
     

@@ -4,7 +4,7 @@ import Foundation
 import Network
 import Logging
 
-public enum TSTLSVersion {
+public enum TSTLSVersion: MQTTSendable {
     case tlsv1
     case tlsv11
     case tlsv12
@@ -38,7 +38,7 @@ public enum TSTLSVersion {
     }
 }
 
-public enum TSCertificateVerification {
+public enum TSCertificateVerification: MQTTSendable {
     /// All certificate verification disabled.
     case none
 
@@ -58,6 +58,10 @@ public enum TSTrustRoots {
     /// A list of certificates.
     case certificates([SecCertificate])
 }
+
+#if swift(>=5.5) && canImport(_Concurrency)
+extension TSTrustRoots: @unchecked MQTTSendable {}
+#endif
 
 public struct TSTLSConfiguration {
     
@@ -193,5 +197,9 @@ public struct TSTLSConfiguration {
         return options
     }
 }
+
+#if swift(>=5.5) && canImport(_Concurrency)
+extension TSTLSConfiguration: @unchecked MQTTSendable {}
+#endif
 
 #endif

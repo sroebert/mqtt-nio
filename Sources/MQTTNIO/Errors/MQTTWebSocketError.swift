@@ -2,7 +2,7 @@ import NIO
 import NIOHTTP1
 
 /// An error that is returned when upgrading the web socket failed, while connecting to a broker using a web socket.
-public struct MQTTWebSocketError: Error {
+public struct MQTTWebSocketError: Error, MQTTSendable {
     
     /// The response status returned from the server, if available.
     public var responseStatus: HTTPResponseStatus?

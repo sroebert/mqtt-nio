@@ -261,7 +261,7 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
     private func upgradeWebSocket(
         for channel: Channel,
         config: MQTTConfiguration.WebSocketsConfiguration,
-        completionHandler: @escaping (Channel) -> EventLoopFuture<Channel>
+        completionHandler: @escaping @Sendable (Channel) -> EventLoopFuture<Channel>
     ) -> EventLoopFuture<Channel> {
         
         guard case .host(let host, _) = configuration.target else {
@@ -522,6 +522,10 @@ final class MQTTConnection: MQTTErrorHandlerDelegate, MQTTFallbackPacketHandlerD
         close(channel,reason: .server(reason))
     }
 }
+
+#if swift(>=5.5) && canImport(_Concurrency)
+extension MQTTConnection: @unchecked MQTTSendable {}
+#endif
 
 extension NIOClientTCPBootstrap {
     fileprivate func connect(to target: MQTTConfiguration.Target) -> EventLoopFuture<Channel> {
