@@ -59,6 +59,17 @@ public enum TSTrustRoots {
     case certificates([SecCertificate])
 }
 
+public enum TSSecIdentity {
+    /// Client authentication disabled
+    case none
+    
+    /// Client authentication with single certificate
+    case identity(SecIdentity)
+    
+    /// Client authentication with certificate chain
+    case chain((identity: SecIdentity, chain: [SecCertificate]))
+}
+
 #if swift(>=5.5) && canImport(_Concurrency)
 extension TSTrustRoots: @unchecked MQTTSendable {}
 #endif
@@ -81,8 +92,8 @@ public struct TSTLSConfiguration {
     /// trust is used (as if `trustRoots` had been explicitly set to `.default`).
     public var trustRoots: TSTrustRoots?
     
-    /// The local identity to present in the TLS handshake. Defaults to nil.
-    public var clientIdentity: SecIdentity?
+    /// The local identity to present in the TLS handshake. Defaults to none.
+    public var clientIdentity: TSSecIdentity
     
     /// The application protocols to use in the connection. Should be an ordered list of ASCII
     /// strings representing the ALPN identifiers of the protocols to negotiate. For clients,
@@ -104,7 +115,7 @@ public struct TSTLSConfiguration {
         maximumTLSVersion: TSTLSVersion? = nil,
         certificateVerification: TSCertificateVerification = .fullVerification,
         trustRoots: TSTrustRoots? = nil,
-        clientIdentity: SecIdentity? = nil,
+        clientIdentity: TSSecIdentity = .none,
         applicationProtocols: [String] = []
     ) {
         self.minimumTLSVersion = minimumTLSVersion
@@ -137,8 +148,19 @@ public struct TSTLSConfiguration {
             }
         }
 
-        if let clientIdentity = clientIdentity, let secIdentity = sec_identity_create(clientIdentity) {
-            sec_protocol_options_set_local_identity(options.securityProtocolOptions, secIdentity)
+        switch clientIdentity {
+        case .identity(let clientIdentity):
+            if let secIdentity = sec_identity_create(clientIdentity) {
+                sec_protocol_options_set_local_identity(options.securityProtocolOptions, secIdentity)
+            }
+            
+        case .chain(let clientIdentity):
+            if let secIdentity = sec_identity_create_with_certificates(clientIdentity.identity, clientIdentity.chain as CFArray) {
+                sec_protocol_options_set_local_identity(options.securityProtocolOptions, secIdentity)
+            }
+            
+        case .none:
+            break
         }
 
         for applicationProtocol in applicationProtocols {
