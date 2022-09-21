@@ -59,17 +59,6 @@ public enum TSTrustRoots {
     case certificates([SecCertificate])
 }
 
-public enum TSSecIdentity {
-    /// Client authentication disabled
-    case none
-    
-    /// Client authentication with single certificate
-    case identity(SecIdentity)
-    
-    /// Client authentication with certificate chain
-    case chain((identity: SecIdentity, chain: [SecCertificate]))
-}
-
 #if swift(>=5.5) && canImport(_Concurrency)
 extension TSTrustRoots: @unchecked MQTTSendable {}
 #endif
@@ -92,8 +81,11 @@ public struct TSTLSConfiguration {
     /// trust is used (as if `trustRoots` had been explicitly set to `.default`).
     public var trustRoots: TSTrustRoots?
     
-    /// The local identity to present in the TLS handshake. Defaults to none.
-    public var clientIdentity: TSSecIdentity
+    /// The local identity to present in the TLS handshake. Defaults to `nil`.
+    public var clientIdentity: SecIdentity?
+    
+    /// The certificates chain to use for the local identity to present in the TLS handshake. Defaults to `nil`.
+    public var clientIdentityCertificates: [SecCertificate]?
     
     /// The application protocols to use in the connection. Should be an ordered list of ASCII
     /// strings representing the ALPN identifiers of the protocols to negotiate. For clients,
@@ -108,6 +100,7 @@ public struct TSTLSConfiguration {
     ///   - certificateVerification: Whether to verify remote certificates. Defaults to full verification.
     ///   - trustRoots: The trust roots to use to validate certificates. This only needs to be provided if you intend to validate certificates.
     ///   - clientIdentity: The local identity to present in the TLS handshake. Defaults to nil.
+    ///   - clientIdentityCertificates: The certificates chain to use for the local identity to present in the TLS handshake. Defaults to `nil`.
     ///   - applicationProtocols: The application protocols to use in the connection.
     @available(OSX 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *)
     public init(
@@ -115,13 +108,15 @@ public struct TSTLSConfiguration {
         maximumTLSVersion: TSTLSVersion? = nil,
         certificateVerification: TSCertificateVerification = .fullVerification,
         trustRoots: TSTrustRoots? = nil,
-        clientIdentity: TSSecIdentity = .none,
+        clientIdentity: SecIdentity? = nil,
+        clientIdentityCertificates: [SecCertificate]? = nil,
         applicationProtocols: [String] = []
     ) {
         self.minimumTLSVersion = minimumTLSVersion
         self.maximumTLSVersion = maximumTLSVersion
         self.trustRoots = trustRoots
         self.clientIdentity = clientIdentity
+        self.clientIdentityCertificates = clientIdentityCertificates
         self.applicationProtocols = applicationProtocols
         self.certificateVerification = certificateVerification
     }
@@ -147,19 +142,19 @@ public struct TSTLSConfiguration {
                 sec_protocol_options_set_tls_max_version(options.securityProtocolOptions, maximumTLSVersion.sslProtocol)
             }
         }
-
-        switch clientIdentity {
-        case .identity(let clientIdentity):
+        
+        switch (clientIdentity, clientIdentityCertificates) {
+        case (let clientIdentity?, nil):
             if let secIdentity = sec_identity_create(clientIdentity) {
                 sec_protocol_options_set_local_identity(options.securityProtocolOptions, secIdentity)
             }
             
-        case .chain(let clientIdentity):
-            if let secIdentity = sec_identity_create_with_certificates(clientIdentity.identity, clientIdentity.chain as CFArray) {
+        case (let clientIdentity?, let certificates?):
+            if let secIdentity = sec_identity_create_with_certificates(clientIdentity, certificates as CFArray) {
                 sec_protocol_options_set_local_identity(options.securityProtocolOptions, secIdentity)
             }
             
-        case .none:
+        default:
             break
         }
 
