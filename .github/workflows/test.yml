@@ -21,7 +21,7 @@ jobs:
     steps:
       # Checkout
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       # Install
       - name: Install mosquitto
@@ -40,7 +40,7 @@ jobs:
         if: runner.os == 'macOS'
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: '14.0'
+          xcode-version: '14.1'
 
       # Brokers
       - name: Run brokers
@@ -60,4 +60,4 @@ jobs:
 
       - name: Run iOS tests
         if: runner.os == 'macOS'
-        run: xcodebuild test -scheme mqtt-nio -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 14,OS=16.0'
+        run: xcodebuild test -scheme mqtt-nio -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 14,OS=16.1'
