@@ -77,6 +77,9 @@ final class WebSocketHandler: ChannelDuplexHandler {
             frameSequence.append(frame.data)
             self.frameSequence = frameSequence
             
+        case .ping:
+            send(context: context, buffer: frame.data, opcode: .pong)
+            
         case .connectionClose:
             isClosed = true
             context.close(promise: nil)
